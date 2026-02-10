@@ -154,7 +154,7 @@ function App() {
         setSidebarCollapsed(true)
       } else {
         toast.error(t('sessions.notFound'))
-        window.history.replaceState(null, '', '/')
+        window.history.replaceState(null, '', import.meta.env.BASE_URL)
       }
     } else {
       newChat()
@@ -169,12 +169,12 @@ function App() {
     if (currentSessionId) {
       const params = new URLSearchParams(window.location.search)
       if (params.get('project_id') !== currentSessionId) {
-        window.history.pushState(null, '', `/?project_id=${currentSessionId}`)
+        window.history.pushState(null, '', `${import.meta.env.BASE_URL}?project_id=${currentSessionId}`)
       }
     } else {
       const params = new URLSearchParams(window.location.search)
       if (params.has('project_id')) {
-        window.history.pushState(null, '', '/')
+        window.history.pushState(null, '', import.meta.env.BASE_URL)
       }
     }
   }, [currentSessionId])
