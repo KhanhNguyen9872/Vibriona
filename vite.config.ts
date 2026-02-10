@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import obfuscatorPlugin from 'vite-plugin-javascript-obfuscator'
 
 export default defineConfig({
+  base: '/Vibriona/',
   plugins: [
     react(),
     tailwindcss(),
