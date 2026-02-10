@@ -22,7 +22,7 @@ export default defineConfig({
         log: false, // Tắt log để tăng tốc
         numbersToExpressions: true, // Tắt để tăng tốc
         renameGlobals: false,
-        selfDefending: false, // Tắt để tăng tốc (có thể bật lại nếu cần)
+        selfDefending: true, // Tắt để tăng tốc (có thể bật lại nếu cần)
         simplify: false,
         splitStrings: false, // Tắt để tăng tốc
         splitStringsChunkLength: 1,
@@ -39,7 +39,7 @@ export default defineConfig({
         stringArrayWrappersType: 'variable',
         stringArrayThreshold: 1, // Giảm threshold để tăng tốc
         target: 'browser',
-        transformObjectKeys: true, // Tắt để tăng tốc
+        transformObjectKeys: false, // Tắt để tăng tốc
         unicodeEscapeSequence: false // Tắt để tăng tốc
       },
     }),
