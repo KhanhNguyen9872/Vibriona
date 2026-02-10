@@ -255,7 +255,7 @@ function App() {
               >
                 <Menu className="w-4 h-4" />
               </button>
-              <img src="/assets/logo.png" alt="Logo" className="w-7 h-7 object-contain" />
+              <img src={`${import.meta.env.BASE_URL}assets/logo.png`} alt="Logo" className="w-7 h-7 object-contain" />
               <span className="text-sm font-bold tracking-tight">{t('app.title')}</span>
               {isProcessing && (
                 <span className="dot-typing text-neutral-400 ml-0.5">
