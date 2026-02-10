@@ -22,7 +22,7 @@ export default defineConfig({
         log: false, // Tắt log để tăng tốc
         numbersToExpressions: true, // Tắt để tăng tốc
         renameGlobals: false,
-        selfDefending: true, // Tắt để tăng tốc (có thể bật lại nếu cần)
+        selfDefending: false, // Tắt để tăng tốc (có thể bật lại nếu cần)
         simplify: false,
         splitStrings: false, // Tắt để tăng tốc
         splitStringsChunkLength: 1,
