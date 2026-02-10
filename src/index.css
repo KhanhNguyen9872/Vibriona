@@ -1,0 +1,106 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+body {
+  @apply bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 antialiased;
+}
+
+/* Slide flash highlight animation */
+@keyframes slide-flash-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5), 0 0 12px 0 rgba(245, 158, 11, 0.15); }
+  20%  { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.35), 0 0 20px 0 rgba(245, 158, 11, 0.1); }
+  60%  { box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.12), 0 0 16px 0 rgba(245, 158, 11, 0.05); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0), 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+.slide-flash {
+  animation: slide-flash-ring 2.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Three-dot typing / thinking indicator */
+@keyframes dot-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30%           { transform: translateY(-4px); opacity: 1; }
+}
+
+.dot-typing span {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: dot-bounce 1.2s ease-in-out infinite;
+}
+.dot-typing span:nth-child(2) { animation-delay: 0.15s; }
+.dot-typing span:nth-child(3) { animation-delay: 0.3s; }
+
+/* Skeleton shimmer sweep */
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255,255,255,0.08) 40%,
+    rgba(255,255,255,0.14) 50%,
+    rgba(255,255,255,0.08) 60%,
+    transparent 100%
+  );
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+:where(.dark) .skeleton-shimmer::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255,255,255,0.04) 40%,
+    rgba(255,255,255,0.07) 50%,
+    rgba(255,255,255,0.04) 60%,
+    transparent 100%
+  );
+}
+
+/* Gentle breathing glow for active processing */
+@keyframes breathe-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(163,163,163,0), 0 0 0 0 rgba(163,163,163,0); }
+  50%      { box-shadow: 0 0 8px 2px rgba(163,163,163,0.12), 0 0 2px 0 rgba(163,163,163,0.08); }
+}
+
+.breathe-glow {
+  animation: breathe-glow 2.4s ease-in-out infinite;
+}
+
+/* Modern Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-neutral-200 dark:bg-neutral-800 rounded-full transition-colors;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-neutral-300 dark:bg-neutral-700;
+}
