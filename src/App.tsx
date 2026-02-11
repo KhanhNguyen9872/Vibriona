@@ -14,6 +14,7 @@ import MessageList from './components/MessageList'
 import ChatInput from './components/ChatInput'
 import ScriptWorkspace from './components/ScriptWorkspace'
 import MobileNavToggle from './components/MobileNavToggle'
+import ResizableDivider from './components/ResizableDivider'
 import SEO from './components/SEO'
 import { useUIStore } from './store/useUIStore'
 
@@ -30,7 +31,7 @@ function useIsMobile(breakpoint = 768) {
 function App() {
   const { t } = useTranslation()
   const { theme, isConfigured } = useSettingsStore()
-  const { items, isProcessing, clearItems } = useQueueStore()
+  const { items, getActiveProcessForProject, isProjectProcessing, clearItems } = useQueueStore()
   const { sessions, createSession, addMessage, currentSessionId, getCurrentSession, setCurrentSession, setSessionSlides, newChat } = useSessionStore()
   const [showSettings, setShowSettings] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -39,21 +40,23 @@ function App() {
   const savedItemIds = useRef<Set<string>>(new Set())
   const mountedRef = useRef(false)
   const isMobile = useIsMobile()
-  const { mobileActiveTab, setMobileActiveTab } = useUIStore()
+  const { mobileActiveTab, setMobileActiveTab, heroHold, splitPaneWidth, setSplitPaneWidth } = useUIStore()
 
   const currentSession = getCurrentSession()
   const messages = currentSession?.messages ?? []
   const sessionSlides = currentSession?.slides ?? []
+  const projectId = currentSessionId || ''
+  const isCurrentProjectProcessing = isProjectProcessing(projectId)
 
   // Show workspace when we have slides (session-scoped or streaming)
   const hasSlideData =
-    isProcessing ||
-    items.some((i) => i.status === 'done' && i.slides && i.slides.length > 0) ||
+    isCurrentProjectProcessing ||
+    items.some((i) => i.status === 'done' && i.slides && i.slides.length > 0 && i.projectId === projectId) ||
     sessionSlides.length > 0
 
   // Streaming state for message list
-  const activeItem = items.find((i) => i.status === 'processing')
-  const isStreaming = isProcessing && activeItem != null
+  const activeItem = getActiveProcessForProject(projectId)
+  const isStreaming = !!activeItem
 
   // Auto-switch to workspace on mobile when slides arrive
   useEffect(() => {
@@ -61,6 +64,32 @@ function App() {
       setMobileActiveTab('script')
     }
   }, [isMobile, hasSlideData, isStreaming, setMobileActiveTab])
+
+  // Background completion notification (global listener)
+  useEffect(() => {
+    const unsubscribe = useQueueStore.subscribe((state, prevState) => {
+      // Find projects that just completed
+      const prevProcesses = prevState?.activeProcesses || {}
+      const currentProcesses = state?.activeProcesses || {}
+      
+      Object.keys(prevProcesses).forEach(pid => {
+        // If project was processing but now isn't, and it's not the current project
+        if (prevProcesses[pid] && !currentProcesses[pid] && pid !== currentSessionId) {
+          const session = sessions.find(s => s.id === pid)
+          if (session) {
+            toast.success(t('workspace.backgroundComplete') || 'Project Generation Complete', {
+              description: t('workspace.backgroundCompleteDesc', { title: session.title }) || `The script for "${session.title}" is ready.`,
+              action: {
+                label: t('workspace.view') || 'View',
+                onClick: () => setCurrentSession(pid)
+              }
+            })
+          }
+        }
+      })
+    })
+    return unsubscribe
+  }, [currentSessionId, sessions, setCurrentSession, t])
 
   // Persist completed slides to session & save messages
   useEffect(() => {
@@ -201,6 +230,19 @@ function App() {
     return () => window.removeEventListener('popstate', handlePopState)
   }, [sessions, setCurrentSession, newChat])
 
+  // Auto-adjust chat panel width when sidebar expands/collapses
+  useEffect(() => {
+    if (isMobile || !hasSlideData) return
+    
+    if (sidebarCollapsed) {
+      // Sidebar collapsed: can use smaller chat width
+      setSplitPaneWidth(35)
+    } else {
+      // Sidebar expanded: give chat more space
+      setSplitPaneWidth(45)
+    }
+  }, [sidebarCollapsed, isMobile, hasSlideData, setSplitPaneWidth])
+
   const handleNewChat = useCallback(() => {
     clearItems()
     newChat()
@@ -256,7 +298,7 @@ function App() {
               </button>
               <img src={`${import.meta.env.BASE_URL}assets/logo.png`} alt="Logo" className="w-7 h-7 object-contain" />
               <span className="text-sm font-bold tracking-tight">{t('app.title')}</span>
-              {isProcessing && (
+              {isCurrentProjectProcessing && (
                 <span className="dot-typing text-neutral-400 ml-0.5">
                   <span /><span /><span />
                 </span>
@@ -336,15 +378,15 @@ function App() {
           </AnimatePresence>
 
           {/* Chat panel */}
-          <motion.div
-            layout
-            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          <div
             className={`
             flex flex-col min-w-0 bg-white dark:bg-neutral-950
             ${mobileActiveTab === 'chat' ? 'flex-1 w-full' : 'hidden'}
-            md:flex ${hasSlideData ? 'md:flex-[2] md:min-w-[320px] md:border-r md:border-neutral-200 md:dark:border-neutral-800' : 'md:flex-1 w-full'}
-          `}>
-            {messages.length === 0 && !isStreaming ? (
+            md:flex ${hasSlideData && !heroHold ? 'md:min-w-[320px]' : 'md:flex-1 w-full'}
+          `}
+            style={hasSlideData && !isMobile && !heroHold ? { width: `${splitPaneWidth}%` } : undefined}>
+            {/* Stay on hero view during heroHold (2s animation) or when no messages */}
+            {heroHold || messages.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center p-4">
                 <div className="w-full max-w-2xl space-y-8">
                   <div className="text-center space-y-2">
@@ -368,11 +410,20 @@ function App() {
                 <ChatInput />
               </>
             )}
-          </motion.div>
+          </div>
+
+          {/* Resizable divider */}
+          {hasSlideData && !heroHold && (
+            <ResizableDivider
+              onResize={setSplitPaneWidth}
+              minWidth={500}
+              maxPercentage={70}
+            />
+          )}
 
           {/* Workspace panel */}
           <AnimatePresence mode="popLayout">
-            {hasSlideData && (
+            {hasSlideData && !heroHold && (
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -381,8 +432,9 @@ function App() {
                 className={`
                   flex-col min-w-0 bg-white dark:bg-neutral-950
                   ${mobileActiveTab === 'script' ? 'flex flex-1 w-full' : 'hidden'}
-                  md:flex md:flex-[3]
+                  md:flex
                 `}
+                style={!isMobile ? { width: `${100 - splitPaneWidth}%` } : undefined}
               >
                  <ScriptWorkspace />
               </motion.div>

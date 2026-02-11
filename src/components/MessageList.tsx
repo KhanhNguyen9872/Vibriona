@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'motion/react'
-import { Bot, User, Ellipsis, Eraser, Download } from 'lucide-react'
+import { User, Ellipsis, Eraser, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { confirmAction } from '../utils/confirmAction'
 import type { ChatMessage } from '../store/useSessionStore'
@@ -138,7 +138,7 @@ export default function MessageList({ messages, isStreaming, streamingThinking }
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-3 md:px-4 py-5">
-        <div className="max-w-2xl mx-auto space-y-4">
+        <div className="max-w-full mx-auto space-y-4">
         {messages.map((msg) => (
           <motion.div
             key={msg.id}
@@ -149,7 +149,7 @@ export default function MessageList({ messages, isStreaming, streamingThinking }
           >
             {msg.role === 'assistant' && (
               <div className="shrink-0 w-7 h-7 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mt-0.5">
-                <Bot className="w-3.5 h-3.5 text-neutral-500" />
+                <img src="assets/logo.png" alt="Vibriona" className="w-5 h-5 object-contain" />
               </div>
             )}
 
@@ -172,7 +172,7 @@ export default function MessageList({ messages, isStreaming, streamingThinking }
             className="flex gap-3 justify-start"
           >
             <div className="shrink-0 w-7 h-7 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mt-0.5">
-              <Bot className="w-3.5 h-3.5 text-neutral-500 animate-pulse" />
+              <img src="/assets/icon.png" alt="Vibriona" className="w-5 h-5 object-contain animate-pulse" />
             </div>
             <div className="bg-neutral-100 dark:bg-zinc-900 rounded-2xl rounded-bl-md px-4 py-2.5">
               <div className="flex items-center gap-2.5">

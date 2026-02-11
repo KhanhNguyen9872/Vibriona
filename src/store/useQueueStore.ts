@@ -7,6 +7,7 @@ import type { Slide } from '../api/prompt'
 
 export interface QueueItem {
   id: string
+  projectId: string
   prompt: string
   status: 'queued' | 'processing' | 'done' | 'error'
   streamingText?: string
@@ -23,25 +24,32 @@ export interface QueueItem {
 
 interface QueueState {
   items: QueueItem[]
-  isProcessing: boolean
-  activeAbort: AbortController | null
-  addToQueue: (prompt: string, contextSlides?: Slide[]) => void
+  activeProcesses: Record<string, QueueItem>
+  activeAborts: Record<string, AbortController>
+  addToQueue: (prompt: string, projectId: string, contextSlides?: Slide[]) => void
   processNext: () => void
   updateItem: (id: string, patch: Partial<QueueItem>) => void
   completeActive: (id: string, result: string, slides: Slide[], thinking: string, completionMessage: string) => void
   failActive: (id: string, error: string) => void
   cancelActive: () => void
+  cancelProjectProcess: (projectId: string) => void
   clearItems: () => void
+  // Helper methods
+  getActiveProcessForProject: (projectId: string) => QueueItem | null
+  isProjectProcessing: (projectId: string) => boolean
+  // Legacy compatibility
+  isProcessing: boolean
 }
 
 export const useQueueStore = create<QueueState>()((set, get) => ({
   items: [],
-  isProcessing: false,
-  activeAbort: null,
+  activeProcesses: {},
+  activeAborts: {},
 
-  addToQueue: (prompt, contextSlides) => {
+  addToQueue: (prompt, projectId, contextSlides) => {
     const item: QueueItem = {
       id: crypto.randomUUID(),
+      projectId,
       prompt,
       status: 'queued',
       contextSlides,
@@ -49,23 +57,25 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
     }
     set((state) => ({ items: [...state.items, item] }))
 
-    if (!get().isProcessing) {
+    // Start processing if this project is not already processing
+    if (!get().activeProcesses[projectId]) {
       setTimeout(() => get().processNext(), 0)
     }
   },
 
   processNext: () => {
-    const { items, isProcessing } = get()
-    if (isProcessing) return
-
-    const next = items.find((i) => i.status === 'queued')
+    const { items, activeProcesses } = get()
+    
+    // Find next queued item whose project is not already processing
+    const next = items.find((i) => i.status === 'queued' && !activeProcesses[i.projectId])
     if (!next) return
 
     const { apiUrl, apiKey, selectedModel } = useSettingsStore.getState()
 
-    // Build conversation history from current session (sliding window of 10)
-    const session = useSessionStore.getState().getCurrentSession()
-    const history: HistoryMessage[] = (session?.messages ?? [])
+    // Build conversation history from the project's session (sliding window of 10)
+    const sessions = useSessionStore.getState().sessions
+    const projectSession = sessions.find(s => s.id === next.projectId)
+    const history: HistoryMessage[] = (projectSession?.messages ?? [])
       .slice(-10)
       .map((msg) => {
         let content = msg.content
@@ -81,10 +91,12 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
         return { role: msg.role, content }
       })
 
+    // Mark item as processing and add to activeProcesses
+    const processingItem = { ...next, status: 'processing' as const, streamingText: '', thinkingText: '' }
     set((state) => ({
-      isProcessing: true,
+      activeProcesses: { ...state.activeProcesses, [next.projectId]: processingItem },
       items: state.items.map((i) =>
-        i.id === next.id ? { ...i, status: 'processing' as const, streamingText: '', thinkingText: '' } : i
+        i.id === next.id ? processingItem : i
       ),
     }))
 
@@ -96,9 +108,9 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
         .map((s) => JSON.stringify(s))
         .join('\n')
       apiPrompt = `[CONTEXT: The user has selected specific slides to modify. Apply changes ONLY to these slides based on the instruction below. Return the modified slides as a JSON array with the same structure. Preserve their slide_number values exactly.]\n\n--- SELECTED SLIDES ---\n${selectedContent}\n-----------------------\n\nUSER INSTRUCTION: ${next.prompt}`
-    } else if (session?.slides && session.slides.length > 0) {
+    } else if (projectSession?.slides && projectSession.slides.length > 0) {
       // Full edit mode: slides exist, user wants to refine
-      apiPrompt = `CURRENT SLIDES JSON:\n${JSON.stringify(session.slides)}\n\nUSER REQUEST: ${next.prompt}`
+      apiPrompt = `CURRENT SLIDES JSON:\n${JSON.stringify(projectSession.slides)}\n\nUSER REQUEST: ${next.prompt}`
     }
 
     const abort = streamGenerate(apiUrl, apiKey, apiPrompt, selectedModel, {
@@ -148,7 +160,7 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
       },
     }, history)
 
-    set({ activeAbort: abort })
+    set((state) => ({ activeAborts: { ...state.activeAborts, [next.projectId]: abort } }))
   },
 
   updateItem: (id, patch) => {
@@ -160,9 +172,18 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
   },
 
   completeActive: (id, result, slides, thinking, completionMessage) => {
+    const item = get().items.find(i => i.id === id)
+    if (!item) return
+
+    const { activeProcesses, activeAborts } = get()
+    const newActiveProcesses = { ...activeProcesses }
+    const newActiveAborts = { ...activeAborts }
+    delete newActiveProcesses[item.projectId]
+    delete newActiveAborts[item.projectId]
+
     set((state) => ({
-      isProcessing: false,
-      activeAbort: null,
+      activeProcesses: newActiveProcesses,
+      activeAborts: newActiveAborts,
       items: state.items.map((i) =>
         i.id === id ? { ...i, status: 'done' as const, result, slides, thinking: thinking || undefined, completionMessage: completionMessage || undefined, streamingText: undefined, thinkingText: undefined } : i
       ),
@@ -174,9 +195,18 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
   },
 
   failActive: (id, error) => {
+    const item = get().items.find(i => i.id === id)
+    if (!item) return
+
+    const { activeProcesses, activeAborts } = get()
+    const newActiveProcesses = { ...activeProcesses }
+    const newActiveAborts = { ...activeAborts }
+    delete newActiveProcesses[item.projectId]
+    delete newActiveAborts[item.projectId]
+
     set((state) => ({
-      isProcessing: false,
-      activeAbort: null,
+      activeProcesses: newActiveProcesses,
+      activeAborts: newActiveAborts,
       items: state.items.map((i) =>
         i.id === id ? { ...i, status: 'error' as const, error, streamingText: undefined, thinkingText: undefined } : i
       ),
@@ -188,12 +218,13 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
   },
 
   cancelActive: () => {
-    const { activeAbort } = get()
-    if (activeAbort) activeAbort.abort()
+    // Legacy method: cancel all active processes
+    const { activeAborts } = get()
+    Object.values(activeAborts).forEach(abort => abort.abort())
 
     set((state) => ({
-      isProcessing: false,
-      activeAbort: null,
+      activeProcesses: {},
+      activeAborts: {},
       items: state.items.map((i) =>
         i.status === 'processing' ? { ...i, status: 'error' as const, error: 'Cancelled', streamingText: undefined, thinkingText: undefined } : i
       ),
@@ -204,9 +235,49 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
     setTimeout(() => get().processNext(), 0)
   },
 
+  cancelProjectProcess: (projectId) => {
+    const { activeAborts, activeProcesses } = get()
+    const abort = activeAborts[projectId]
+    if (abort) abort.abort()
+
+    const activeItem = activeProcesses[projectId]
+    if (!activeItem) return
+
+    const newActiveProcesses = { ...activeProcesses }
+    const newActiveAborts = { ...activeAborts }
+    delete newActiveProcesses[projectId]
+    delete newActiveAborts[projectId]
+
+    set((state) => ({
+      activeProcesses: newActiveProcesses,
+      activeAborts: newActiveAborts,
+      items: state.items.map((i) =>
+        i.id === activeItem.id ? { ...i, status: 'error' as const, error: 'Cancelled', streamingText: undefined, thinkingText: undefined } : i
+      ),
+    }))
+
+    useSessionStore.getState().clearProcessingSlides()
+
+    setTimeout(() => get().processNext(), 0)
+  },
+
   clearItems: () => {
-    const { activeAbort } = get()
-    if (activeAbort) activeAbort.abort()
-    set({ items: [], isProcessing: false, activeAbort: null })
+    const { activeAborts } = get()
+    Object.values(activeAborts).forEach(abort => abort.abort())
+    set({ items: [], activeProcesses: {}, activeAborts: {} })
+  },
+
+  // Helper methods
+  getActiveProcessForProject: (projectId) => {
+    return get().activeProcesses[projectId] || null
+  },
+
+  isProjectProcessing: (projectId) => {
+    return !!get().activeProcesses[projectId]
+  },
+
+  // Legacy compatibility getter
+  get isProcessing() {
+    return Object.keys(get().activeProcesses).length > 0
   },
 }))

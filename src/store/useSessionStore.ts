@@ -26,13 +26,13 @@ export interface Session {
   messages: ChatMessage[]
   slides: Slide[]
   timestamp: number
+  selectedSlideIndices?: number[]
 }
 
 interface SessionState {
   sessions: Session[]
   currentSessionId: string | null
   highlightedSlideIndex: number | null
-  selectedSlideIndices: number[]
   createSession: (title: string) => string
   addMessage: (message: Omit<ChatMessage, 'id'>) => string
   updateMessage: (messageId: string, patch: Partial<ChatMessage>) => void
@@ -55,6 +55,7 @@ interface SessionState {
   // Selection
   toggleSlideSelection: (index: number) => void
   clearSlideSelection: () => void
+  getSelectedSlideIndices: () => number[]
   // Snapshot restoration
   restoreSnapshot: (snapshot: Slide[]) => void
   // Processing state
@@ -71,7 +72,6 @@ export const useSessionStore = create<SessionState>()(
       sessions: [],
       currentSessionId: null,
       highlightedSlideIndex: null,
-      selectedSlideIndices: [],
       processingSlideNumbers: [],
 
       createSession: (title) => {
@@ -264,27 +264,46 @@ export const useSessionStore = create<SessionState>()(
       clearHighlight: () => set({ highlightedSlideIndex: null }),
 
       toggleSlideSelection: (index) => {
-        set((state) => {
-          const current = state.selectedSlideIndices
-          const exists = current.includes(index)
-          return {
-            selectedSlideIndices: exists
-              ? current.filter((i) => i !== index)
-              : [...current, index],
-          }
-        })
+        const { currentSessionId } = get()
+        if (!currentSessionId) return
+        set((state) => ({
+          sessions: state.sessions.map((s) => {
+            if (s.id !== currentSessionId) return s
+            const current = s.selectedSlideIndices || []
+            const exists = current.includes(index)
+            return {
+              ...s,
+              selectedSlideIndices: exists
+                ? current.filter((i) => i !== index)
+                : [...current, index],
+            }
+          }),
+        }))
       },
 
-      clearSlideSelection: () => set({ selectedSlideIndices: [] }),
+      clearSlideSelection: () => {
+        const { currentSessionId } = get()
+        if (!currentSessionId) return
+        set((state) => ({
+          sessions: state.sessions.map((s) =>
+            s.id === currentSessionId ? { ...s, selectedSlideIndices: [] } : s
+          ),
+        }))
+      },
+
+      getSelectedSlideIndices: () => {
+        const { sessions, currentSessionId } = get()
+        const session = sessions.find((s) => s.id === currentSessionId)
+        return session?.selectedSlideIndices || []
+      },
 
       restoreSnapshot: (snapshot) => {
         const { currentSessionId } = get()
         if (!currentSessionId) return
         set((state) => ({
           sessions: state.sessions.map((s) =>
-            s.id === currentSessionId ? { ...s, slides: snapshot } : s
+            s.id === currentSessionId ? { ...s, slides: snapshot, selectedSlideIndices: [] } : s
           ),
-          selectedSlideIndices: [],
         }))
       },
 

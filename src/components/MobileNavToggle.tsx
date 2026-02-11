@@ -8,13 +8,16 @@ import { useQueueStore } from '../store/useQueueStore'
 export default function MobileNavToggle({ className = '' }: { className?: string }) {
   const { mobileActiveTab, setMobileActiveTab } = useUIStore()
   const { t } = useTranslation()
-  const { getCurrentSession } = useSessionStore()
-  const { items, isProcessing } = useQueueStore()
+  const { getCurrentSession, currentSessionId } = useSessionStore()
+  const { items, isProjectProcessing } = useQueueStore()
 
   const currentSession = getCurrentSession()
+  const projectId = currentSessionId || ''
+  const isCurrentProjectProcessing = isProjectProcessing(projectId)
+  
   const hasSlideData =
-    isProcessing ||
-    items.some((i) => i.status === 'done' && i.slides && i.slides.length > 0) ||
+    isCurrentProjectProcessing ||
+    items.some((i) => i.status === 'done' && i.slides && i.slides.length > 0 && i.projectId === projectId) ||
     (currentSession?.slides && currentSession.slides.length > 0)
 
   // Only show toggle if there is content to toggle between

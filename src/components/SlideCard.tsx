@@ -106,6 +106,13 @@ export default function SlideCard({
     }
   }, [isHighlighted, index, clearHighlight])
 
+  // Auto-expand when processing (generating/enhancing)
+  useEffect(() => {
+    if (isProcessing) {
+      setExpanded(true)
+    }
+  }, [isProcessing])
+
   const handleEnhance = () => {
     if (isProcessing || readonly) return
 
@@ -228,29 +235,17 @@ export default function SlideCard({
         ${flashing ? 'slide-flash' : ''}
       `}
     >
-      {/* Magic Overlay (Processing) — Text-Only, Responsive */}
+      {/* Magic Overlay (Processing) — Text-Only, Blur Only */}
       {isProcessing && (
-        <div className="absolute inset-0 z-30 overflow-hidden rounded-xl bg-white/60 dark:bg-black/60 backdrop-blur-[2px] transition-all duration-300 border-2 border-neutral-900/10 dark:border-white/10">
-          {/* Animated Border/Glow Effect */}
-          <div className="absolute inset-0 rounded-xl ring-4 ring-neutral-900/5 dark:ring-white/5 animate-pulse" />
-
-          {/* Adaptive Text Badge (No Icon) */}
+        <div className="absolute inset-0 z-30 overflow-hidden rounded-xl bg-white/60 dark:bg-black/60 backdrop-blur-[2px] transition-all duration-300">
+          {/* Centered Text (No Badge Background) */}
           <div className="absolute inset-0 flex items-center justify-center p-4">
-            <div className={`
-              bg-white dark:bg-zinc-900 border border-neutral-200 dark:border-zinc-700 shadow-2xl
-              animate-in fade-in zoom-in duration-300 flex items-center justify-center
-              ${expanded
-                ? 'px-6 py-3 rounded-full'
-                : 'px-3 py-1.5 rounded-md w-full max-w-[80%]'
-              }
+            <span className={`
+              font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-widest text-center animate-pulse
+              ${expanded ? 'text-sm' : 'text-[10px]'}
             `}>
-              <span className={`
-                font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-widest text-center animate-pulse
-                ${expanded ? 'text-sm' : 'text-[10px]'}
-              `}>
-                Refining...
-              </span>
-            </div>
+              Refining...
+            </span>
           </div>
         </div>
       )}

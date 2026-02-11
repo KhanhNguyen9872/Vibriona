@@ -18,12 +18,16 @@ export default function ChatInput({ variant = 'default', className = '' }: ChatI
   const { t } = useTranslation()
   const [prompt, setPrompt] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { addToQueue, cancelActive, isProcessing, items } = useQueueStore()
-  const { addMessage, createSession, currentSessionId, selectedSlideIndices, clearSlideSelection, getCurrentSession, setProcessingSlides } = useSessionStore()
-  const { setMobileActiveTab } = useUIStore()
+  const { addToQueue, cancelProjectProcess, isProjectProcessing, items } = useQueueStore()
+  const { addMessage, createSession, currentSessionId, getSelectedSlideIndices, clearSlideSelection, getCurrentSession, setProcessingSlides } = useSessionStore()
+  const { setMobileActiveTab, startHeroHold } = useUIStore()
 
   const currentSession = getCurrentSession()
   const sessionSlides = currentSession?.slides ?? []
+  const projectId = currentSessionId || ''
+  const isProcessing = isProjectProcessing(projectId)
+  
+  const selectedSlideIndices = getSelectedSlideIndices()
   const selectedSlides = selectedSlideIndices
     .filter((i) => i < sessionSlides.length)
     .map((i) => sessionSlides[i])
@@ -61,10 +65,16 @@ export default function ChatInput({ variant = 'default', className = '' }: ChatI
     const trimmed = prompt.trim()
     if (!trimmed || isOverLimit || isProcessing) return
 
+    // In new project (centered) mode, lock the hero view for 2s before transitioning
+    if (isCentered) {
+      startHeroHold()
+    }
+
     // Optimistic: create session if needed
+    let activeProjectId = currentSessionId
     if (!currentSessionId) {
       const title = trimmed.length > 60 ? trimmed.slice(0, 60) + '...' : trimmed
-      createSession(title)
+      activeProjectId = createSession(title)
     }
 
     const slideNums = selectedSlides.map((s) => s.slide_number)
@@ -84,14 +94,24 @@ export default function ChatInput({ variant = 'default', className = '' }: ChatI
       })
     })
 
-    // Clear input + selection immediately
-    setPrompt('')
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
+    // Clear input + selection — in centered mode, delay clearing until after hero hold
+    if (!isCentered) {
+      setPrompt('')
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto'
+      }
+    } else {
+      // In centered mode, clear after 2s (after hero hold)
+      setTimeout(() => {
+        setPrompt('')
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto'
+        }
+      }, 2000)
     }
 
-    // Queue with or without context
-    addToQueue(trimmed, isContextEdit ? selectedSlides : undefined)
+    // Queue with or without context - use activeProjectId!
+    addToQueue(trimmed, activeProjectId!, isContextEdit ? selectedSlides : undefined)
     
     // Trigger "Magic Overlay" immediately for selected slides
     if (isContextEdit) {
@@ -133,7 +153,7 @@ export default function ChatInput({ variant = 'default', className = '' }: ChatI
             animate={{ opacity: 1, height: 'auto', marginBottom: 8 }}
             exit={{ opacity: 0, height: 0, marginBottom: 0 }}
             transition={{ duration: 0.2 }}
-            className="max-w-2xl mx-auto overflow-hidden"
+            className="max-w-full mx-auto overflow-hidden"
           >
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-800/40">
               <Layers className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400 shrink-0" />
@@ -156,13 +176,13 @@ export default function ChatInput({ variant = 'default', className = '' }: ChatI
 
       {/* Error line */}
       {lastError && (
-        <div className="mb-2 flex items-center gap-2 text-xs text-red-500 max-w-2xl mx-auto">
+        <div className="mb-2 flex items-center gap-2 text-xs text-red-500 max-w-full mx-auto">
           <AlertCircle className="w-3 h-3 shrink-0" />
           <span className="truncate">{lastError.error}</span>
         </div>
       )}
 
-      <div className={isCentered ? '' : 'max-w-2xl mx-auto'}>
+      <div className={isCentered ? '' : 'max-w-full mx-auto'}>
         <div className={`relative border rounded-2xl shadow-sm transition-all ${
           isProcessing
             ? 'bg-neutral-100 dark:bg-zinc-800/50 border-neutral-200 dark:border-zinc-600/50'
@@ -181,12 +201,9 @@ export default function ChatInput({ variant = 'default', className = '' }: ChatI
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={isProcessing ? '' : isContextEdit ? t('chat.editPlaceholder') : isEditMode ? t('chat.updatePlaceholder') : t('chat.placeholder')}
-            readOnly={isProcessing}
+            placeholder={isContextEdit ? t('chat.editPlaceholder') : isEditMode ? t('chat.updatePlaceholder') : t('chat.placeholder')}
             rows={1}
-            className={`w-full resize-none bg-transparent text-sm leading-relaxed placeholder:text-neutral-400 focus:outline-none px-4 pt-4 pb-16 transition-opacity ${
-              isProcessing ? 'opacity-60 cursor-default' : ''
-            }`}
+            className="w-full resize-none bg-transparent text-sm leading-relaxed placeholder:text-neutral-400 focus:outline-none px-4 pt-4 pb-16"
           />
 
           {/* Bottom bar */}
@@ -210,27 +227,47 @@ export default function ChatInput({ variant = 'default', className = '' }: ChatI
             <div className="flex items-center gap-2">
               {isProcessing && (
                 <button
-                  onClick={cancelActive}
+                  onClick={() => cancelProjectProcess(projectId)}
                   className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-neutral-200 dark:border-neutral-700 text-[11px] font-medium text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-[0.97] transition-all cursor-pointer"
                 >
                   <Square className="w-2.5 h-2.5" />
                   {t('chat.cancel')}
                 </button>
               )}
-              <button
-                onClick={handleSubmit}
-                disabled={!prompt.trim() || isOverLimit || isProcessing}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black dark:bg-white text-white dark:text-black text-[11px] font-semibold tracking-wide hover:opacity-90 active:scale-[0.97] transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-              >
-                {isProcessing ? (
+              {isCentered && isProcessing ? (
+                <motion.button
+                  disabled
+                  className="relative flex items-center gap-2 px-4 py-2 rounded-xl bg-black dark:bg-white text-white dark:text-black text-[11px] font-semibold tracking-wide cursor-not-allowed overflow-hidden"
+                  animate={{ scale: [1, 1.02, 1] }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                >
+                  <motion.div
+                    className="absolute inset-0 rounded-xl"
+                    style={{
+                      background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent)',
+                    }}
+                    animate={{ x: ['-100%', '100%'] }}
+                    transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
+                  />
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : isEditMode ? (
-                  <Pencil className="w-3.5 h-3.5" />
-                ) : (
-                  <Sparkles className="w-3.5 h-3.5" />
-                )}
-                {isEditMode ? t('chat.update') : t('chat.generate')}
-              </button>
+                  <span>{t('chat.generating')}</span>
+                </motion.button>
+              ) : (
+                <button
+                  onClick={handleSubmit}
+                  disabled={!prompt.trim() || isOverLimit || isProcessing}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black dark:bg-white text-white dark:text-black text-[11px] font-semibold tracking-wide hover:opacity-90 active:scale-[0.97] transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {isProcessing ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : isEditMode ? (
+                    <Pencil className="w-3.5 h-3.5" />
+                  ) : (
+                    <Sparkles className="w-3.5 h-3.5" />
+                  )}
+                  {isEditMode ? t('chat.update') : t('chat.generate')}
+                </button>
+              )}
             </div>
           </div>
         </div>

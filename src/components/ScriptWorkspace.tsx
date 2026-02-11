@@ -32,17 +32,20 @@ import type { Slide } from '../api/prompt'
 
 export default function ScriptWorkspace() {
   const { t } = useTranslation()
-  const { items, isProcessing } = useQueueStore()
-  const { getCurrentSession, reorderSlides, deleteSlides, updateSlide, selectedSlideIndices, toggleSlideSelection, clearSlideSelection } = useSessionStore()
+  const { items, getActiveProcessForProject } = useQueueStore()
+  const { getCurrentSession, reorderSlides, deleteSlides, updateSlide, getSelectedSlideIndices, toggleSlideSelection, clearSlideSelection } = useSessionStore()
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [activeDragIndex, setActiveDragIndex] = useState<number | null>(null)
   const [editingSlideIndex, setEditingSlideIndex] = useState<number | null>(null)
   const exportRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
+  const selectedSlideIndices = getSelectedSlideIndices()
+
   const currentSession = getCurrentSession()
-  const activeItem = items.find((i) => i.status === 'processing')
-  const lastDoneItem = [...items].reverse().find((i) => i.status === 'done')
+  const projectId = currentSession?.id || ''
+  const activeItem = getActiveProcessForProject(projectId)
+  const lastDoneItem = [...items].reverse().find((i) => i.status === 'done' && i.projectId === projectId)
 
   const streamingSlides: Slide[] = activeItem?.slides ?? []
   const sessionSlides = currentSession?.slides ?? []
@@ -62,7 +65,7 @@ export default function ScriptWorkspace() {
     return sessionSlides
   }, [sessionSlides, streamingSlides, responseAction])
 
-  const isStreaming = isProcessing && activeItem != null
+  const isStreaming = !!activeItem
   
   // Skeleton Logic:
   // 1. Create/Reset: Show full skeleton if empty
