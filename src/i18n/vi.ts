@@ -28,6 +28,7 @@ const vi = {
       vietnamese: 'Tiếng Việt',
       save: 'Lưu',
       saved: 'Đã lưu cài đặt.',
+      requiredFields: 'Cần nhập API Key, Endpoint và chọn Model.',
     },
     chat: {
       placeholder: 'Mô tả chủ đề bài thuyết trình...',
@@ -126,6 +127,19 @@ const vi = {
       imported: 'Đã nhập dự án',
       importInvalid: 'Tệp không hợp lệ',
       notFound: 'Không tìm thấy phiên',
+    },
+    loading: {
+      initializing: 'Đang khởi tạo...',
+      assets: 'Đang tải tài nguyên...',
+      preparing: 'Đang chuẩn bị không gian làm việc...',
+      connecting: 'Đang kết nối máy chủ...',
+      warming: 'Đang khởi động hệ thống...',
+      finalizing: 'Đang hoàn tất...',
+      ready: 'Sẵn sàng!',
+      optimizing: 'Đang tối ưu hóa hiệu năng...',
+      syncing: 'Đang đồng bộ dữ liệu đám mây...',
+      modules: 'Đang tải các mô-đun AI...',
+      configuration: 'Đang kiểm tra cấu hình...',
     },
   },
 }

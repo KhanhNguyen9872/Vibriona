@@ -22,7 +22,9 @@ export default function Settings({ onClose }: SettingsProps) {
   const [models, setModels] = useState<string[]>(store.availableModels)
   const [fetching, setFetching] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [errors, setErrors] = useState<{ key?: boolean; url?: boolean; model?: boolean }>({})
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const modelInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -63,6 +65,7 @@ export default function Settings({ onClose }: SettingsProps) {
 
   const handleSelectModel = (m: string) => {
     setModel(m)
+    if (errors.model) setErrors((prev) => ({ ...prev, model: false }))
     setDropdownOpen(false)
   }
 
@@ -71,7 +74,18 @@ export default function Settings({ onClose }: SettingsProps) {
     : models
 
   const handleSave = () => {
-    if (!key.trim() || !url.trim()) return
+    const newErrors = {
+      key: !key.trim(),
+      url: !url.trim(),
+      model: !model.trim(),
+    }
+    setErrors(newErrors)
+
+    if (newErrors.key || newErrors.url || newErrors.model) {
+      toast.error(t('settings.requiredFields'))
+      return
+    }
+
     store.setApiKey(key.trim())
     store.setApiUrl(url.trim())
     store.setSelectedModel(model.trim())
@@ -122,8 +136,15 @@ export default function Settings({ onClose }: SettingsProps) {
               <input
                 type="password"
                 value={key}
-                onChange={(e) => setKey(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-neutral-400 focus:border-transparent transition-all"
+                onChange={(e) => {
+                  setKey(e.target.value)
+                  if (errors.key) setErrors((prev) => ({ ...prev, key: false }))
+                }}
+                className={`w-full pl-10 pr-4 py-2.5 rounded-lg border bg-neutral-50 dark:bg-neutral-800/50 text-sm font-mono focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
+                  errors.key
+                    ? 'border-red-500 focus:ring-red-500'
+                    : 'border-neutral-200 dark:border-neutral-700 focus:ring-black dark:focus:ring-neutral-400'
+                }`}
               />
             </div>
           </div>
@@ -138,8 +159,15 @@ export default function Settings({ onClose }: SettingsProps) {
               <input
                 type="url"
                 value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-neutral-400 focus:border-transparent transition-all"
+                onChange={(e) => {
+                  setUrl(e.target.value)
+                  if (errors.url) setErrors((prev) => ({ ...prev, url: false }))
+                }}
+                className={`w-full pl-10 pr-4 py-2.5 rounded-lg border bg-neutral-50 dark:bg-neutral-800/50 text-sm font-mono focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
+                  errors.url
+                    ? 'border-red-500 focus:ring-red-500'
+                    : 'border-neutral-200 dark:border-neutral-700 focus:ring-black dark:focus:ring-neutral-400'
+                }`}
               />
             </div>
           </div>
@@ -156,16 +184,34 @@ export default function Settings({ onClose }: SettingsProps) {
                 value={model}
                 onChange={(e) => {
                   setModel(e.target.value)
+                  if (errors.model) setErrors((prev) => ({ ...prev, model: false }))
                   if (models.length > 0) setDropdownOpen(true)
                 }}
                 onFocus={() => {
                   if (models.length > 0) setDropdownOpen(true)
                 }}
                 placeholder={t('settings.modelPlaceholder')}
-                className="w-full pl-10 pr-24 py-2.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 text-sm font-mono placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-neutral-400 focus:border-transparent transition-all"
+                ref={modelInputRef}
+                className={`w-full pl-10 pr-36 py-2.5 rounded-lg border bg-neutral-50 dark:bg-neutral-800/50 text-sm font-mono placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
+                  errors.model
+                    ? 'border-red-500 focus:ring-red-500'
+                    : 'border-neutral-200 dark:border-neutral-700 focus:ring-black dark:focus:ring-neutral-400'
+                }`}
               />
               {/* Right side buttons */}
               <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                {model && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModel('')
+                      modelInputRef.current?.focus()
+                    }}
+                    className="p-1.5 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5 text-neutral-400" />
+                  </button>
+                )}
                 {models.length > 0 && (
                   <button
                     type="button"

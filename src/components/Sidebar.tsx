@@ -229,7 +229,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                         e.stopPropagation()
                         setMenuSessionId(menuSessionId === session.id ? null : session.id)
                       }}
-                      className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-neutral-300/50 dark:hover:bg-neutral-700 transition-all cursor-pointer shrink-0"
+                      className="p-1 rounded hover:bg-neutral-300/50 dark:hover:bg-neutral-700 transition-all cursor-pointer shrink-0"
                     >
                       <MoreVertical className="w-3 h-3 text-neutral-400" />
                     </div>

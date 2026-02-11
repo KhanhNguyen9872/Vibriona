@@ -8,6 +8,8 @@ interface UIState {
   clearHeroHold: () => void
   splitPaneWidth: number // Percentage of width for chat panel (0-100)
   setSplitPaneWidth: (width: number) => void
+  isInitialLoad: boolean
+  setInitialLoad: (loading: boolean) => void
 }
 
 let heroHoldTimer: ReturnType<typeof setTimeout> | null = null
@@ -31,4 +33,6 @@ export const useUIStore = create<UIState>((set) => ({
   },
   splitPaneWidth: 40, // Default 40% for chat panel
   setSplitPaneWidth: (width) => set({ splitPaneWidth: width }),
+  isInitialLoad: true,
+  setInitialLoad: (loading) => set({ isInitialLoad: loading }),
 }))

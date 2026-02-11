@@ -18,6 +18,7 @@ import ResizableDivider from './components/ResizableDivider'
 import SEO from './components/SEO'
 import { useUIStore } from './store/useUIStore'
 import GlobalSearch from './components/GlobalSearch'
+import LoadingScreen from './components/LoadingScreen'
 
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(window.innerWidth < breakpoint)
@@ -41,8 +42,17 @@ function App() {
   const savedItemIds = useRef<Set<string>>(new Set())
   const mountedRef = useRef(false)
   const isMobile = useIsMobile()
-  const { mobileActiveTab, setMobileActiveTab, heroHold, splitPaneWidth, setSplitPaneWidth } = useUIStore()
+  const { mobileActiveTab, setMobileActiveTab, heroHold, splitPaneWidth, setSplitPaneWidth, isInitialLoad, setInitialLoad } = useUIStore()
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
+
+  useEffect(() => {
+    if (isInitialLoad) {
+      const timer = setTimeout(() => {
+        setInitialLoad(false)
+      }, 1500)
+      return () => clearTimeout(timer)
+    }
+  }, [isInitialLoad, setInitialLoad])
 
   const currentSession = getCurrentSession()
   const messages = currentSession?.messages ?? []
@@ -261,6 +271,19 @@ function App() {
   return (
     <>
       <SEO />
+      <AnimatePresence>
+        {isInitialLoad && (
+          <motion.div
+            key="loading-screen"
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+            className="fixed inset-0 z-[60]"
+          >
+            <LoadingScreen />
+          </motion.div>
+        )}
+      </AnimatePresence>
       <Toaster
         position="top-center"
         richColors

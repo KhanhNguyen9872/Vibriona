@@ -28,6 +28,7 @@ const en = {
       vietnamese: 'Tiếng Việt',
       save: 'Save',
       saved: 'Settings saved.',
+      requiredFields: 'API Key, Endpoint, and Model are required.',
     },
     chat: {
       placeholder: 'Describe your presentation topic...',
@@ -126,6 +127,19 @@ const en = {
       imported: 'Project imported',
       importInvalid: 'Invalid file format',
       notFound: 'Session not found',
+    },
+    loading: {
+      initializing: 'Initializing...',
+      assets: 'Loading assets...',
+      preparing: 'Preparing workspace...',
+      connecting: 'Connecting to server...',
+      warming: 'Warming up engines...',
+      finalizing: 'Finalizing...',
+      ready: 'Ready!',
+      optimizing: 'Optimizing performance...',
+      syncing: 'Syncing cloud data...',
+      modules: 'Loading AI modules...',
+      configuration: 'Checking configuration...',
     },
   },
 }

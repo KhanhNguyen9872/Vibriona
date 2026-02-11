@@ -172,7 +172,7 @@ export default function MessageList({ messages, isStreaming, streamingThinking }
             className="flex gap-3 justify-start"
           >
             <div className="shrink-0 w-7 h-7 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mt-0.5">
-              <img src="/assets/logo.png" alt="Vibriona" className="w-5 h-5 object-contain animate-pulse" />
+              <img src="assets/logo.png" alt="Vibriona" className="w-5 h-5 object-contain animate-pulse" />
             </div>
             <div className="bg-neutral-100 dark:bg-zinc-900 rounded-2xl rounded-bl-md px-4 py-2.5">
               <div className="flex items-center gap-2.5">
