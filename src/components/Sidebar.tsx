@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { confirmAction } from '../utils/confirmAction'
 import { motion, AnimatePresence } from 'motion/react'
 import { useSessionStore, type Session } from '../store/useSessionStore'
+import { useQueueStore } from '../store/useQueueStore'
 import {
   MessageSquare,
   Plus,
@@ -26,6 +27,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
   const { t } = useTranslation()
   const { sessions, currentSessionId, setCurrentSession, deleteSession, importSession } =
     useSessionStore()
+  const { isProjectProcessing } = useQueueStore()
   const [menuSessionId, setMenuSessionId] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -204,16 +206,21 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                       <p className="text-[11px] font-medium truncate leading-tight text-neutral-700 dark:text-neutral-300">
                         {session.title}
                       </p>
-                      <div className="flex items-center justify-between mt-0.5">
-                        <p className="text-[10px] text-neutral-400">
-                          {formatTime(session.timestamp)}
-                        </p>
-                        {session.slides && session.slides.length > 0 && (
-                          <span className="text-[10px] font-medium text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-1.5 rounded-full">
-                            {session.slides.length}p
-                          </span>
-                        )}
-                      </div>
+                        <div className="flex items-center justify-between mt-0.5">
+                          <p className="text-[10px] text-neutral-400">
+                            {formatTime(session.timestamp)}
+                          </p>
+                          <div className="flex items-center gap-2">
+                             {isProjectProcessing(session.id) && (
+                               <span className="dot-typing-mini scale-75 origin-right" />
+                             )}
+                             {session.slides && session.slides.length > 0 && (
+                               <span className="text-[10px] font-medium text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-1.5 rounded-full">
+                                 {session.slides.length}p
+                               </span>
+                             )}
+                          </div>
+                        </div>
                     </div>
 
                     {/* Three-dot menu trigger */}

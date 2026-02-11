@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Toaster, toast } from 'sonner'
-import { Settings as SettingsIcon, Menu, Github } from 'lucide-react'
+import { Settings as SettingsIcon, Menu, Github, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useSettingsStore } from './store/useSettingsStore'
 import { useQueueStore } from './store/useQueueStore'
@@ -17,6 +17,7 @@ import MobileNavToggle from './components/MobileNavToggle'
 import ResizableDivider from './components/ResizableDivider'
 import SEO from './components/SEO'
 import { useUIStore } from './store/useUIStore'
+import GlobalSearch from './components/GlobalSearch'
 
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(window.innerWidth < breakpoint)
@@ -31,7 +32,7 @@ function useIsMobile(breakpoint = 768) {
 function App() {
   const { t } = useTranslation()
   const { theme, isConfigured } = useSettingsStore()
-  const { items, getActiveProcessForProject, isProjectProcessing, clearItems } = useQueueStore()
+  const { items, getActiveProcessForProject, isProjectProcessing } = useQueueStore()
   const { sessions, createSession, addMessage, currentSessionId, getCurrentSession, setCurrentSession, setSessionSlides, newChat } = useSessionStore()
   const [showSettings, setShowSettings] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -41,6 +42,7 @@ function App() {
   const mountedRef = useRef(false)
   const isMobile = useIsMobile()
   const { mobileActiveTab, setMobileActiveTab, heroHold, splitPaneWidth, setSplitPaneWidth } = useUIStore()
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
 
   const currentSession = getCurrentSession()
   const messages = currentSession?.messages ?? []
@@ -244,12 +246,12 @@ function App() {
   }, [sidebarCollapsed, isMobile, hasSlideData, setSplitPaneWidth])
 
   const handleNewChat = useCallback(() => {
-    clearItems()
+    // clearItems() // Don't clear items, allow background processing
     newChat()
     setSidebarCollapsed(false)
     setShowMobileSidebar(false)
     setMobileActiveTab('chat')
-  }, [clearItems, newChat, setMobileActiveTab])
+  }, [newChat, setMobileActiveTab])
 
   const handleSessionSelect = useCallback(() => {
     setShowMobileSidebar(false)
@@ -286,9 +288,11 @@ function App() {
 
       <div className={`h-screen flex flex-col transition-opacity ${!configured ? 'opacity-30 pointer-events-none select-none' : ''}`}>
         {/* Header */}
-        <header className="shrink-0 h-12 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 z-40">
+        <header className="shrink-0 h-12 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 z-40 relative">
           <div className="h-full flex items-center justify-between px-4">
-            <div className="flex items-center gap-2.5">
+            
+            {/* Left Side */}
+            <div className={`flex items-center gap-2.5 ${isMobile && isMobileSearchOpen ? 'hidden' : 'flex'}`}>
               {/* Mobile hamburger */}
               <button
                 onClick={() => isMobile ? setShowMobileSidebar(true) : setSidebarCollapsed((v) => !v)}
@@ -296,17 +300,62 @@ function App() {
               >
                 <Menu className="w-4 h-4" />
               </button>
-              <img src={`${import.meta.env.BASE_URL}assets/logo.png`} alt="Logo" className="w-7 h-7 object-contain" />
-              <span className="text-sm font-bold tracking-tight">{t('app.title')}</span>
-              {isCurrentProjectProcessing && (
-                <span className="dot-typing text-neutral-400 ml-0.5">
-                  <span /><span /><span />
-                </span>
-              )}
+              <div 
+                onClick={handleNewChat}
+                className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+              >
+                <img src={`${import.meta.env.BASE_URL}assets/logo.png`} alt="Logo" className="w-7 h-7 object-contain" />
+                <span className="text-sm font-bold tracking-tight">{t('app.title')}</span>
+                {isCurrentProjectProcessing && (
+                  <span className="dot-typing text-neutral-400 ml-0.5">
+                    <span /><span /><span />
+                  </span>
+                )}
+              </div>
             </div>
 
+            {/* Global Search Center */}
+             {/* Desktop */}
+             {!isMobile && (
+               <div className="flex-1 flex justify-center">
+                  <GlobalSearch 
+                    isOpen={false} 
+                    onClose={() => {}} 
+                    isMobile={false}
+                  />
+               </div>
+             )}
+
+             {/* Mobile Overlay */}
+             <AnimatePresence>
+               {isMobile && isMobileSearchOpen && (
+                 <motion.div 
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.98 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    className="absolute inset-x-0 top-0 h-12 bg-white dark:bg-neutral-950 z-50 px-2 flex items-center border-b border-neutral-200 dark:border-neutral-800"
+                 >
+                    <GlobalSearch 
+                      isOpen={true} 
+                      onClose={() => setIsMobileSearchOpen(false)} 
+                      isMobile={true}
+                    />
+                 </motion.div>
+               )}
+             </AnimatePresence>
+
             {/* Right side actions */}
-            <div className="flex items-center gap-2">
+            <div className={`flex items-center gap-2 ${isMobile && isMobileSearchOpen ? 'hidden' : 'flex'}`}>
+              {isMobile && (
+                <button
+                   onClick={() => setIsMobileSearchOpen(true)}
+                   className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                >
+                   <Search className="w-[18px] h-[18px] text-neutral-500" />
+                </button>
+              )}
+
               <MobileNavToggle />
 
               <button
