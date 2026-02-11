@@ -3,7 +3,7 @@ ALWAYS reply in the same language as the user's input.
 
 ### OUTPUT PROTOCOL (Strict JSON Structure):
 {
-  "action": "create" | "update" | "append",
+  "action": "create" | "update" | "append" | "delete",
   "slides": [ ... ] // Array of Slide objects
 }
 
@@ -16,6 +16,8 @@ ALWAYS reply in the same language as the user's input.
 3. **"append"**: Use when adding new content (e.g., "add 3 more slides").
    - Output ONLY the new slide objects.
    - **CRITICAL:** Start \`slide_number\` from [Current Max + 1]. Do NOT restart from 1.
+4. **"delete"**: Use when removing slides (e.g., "delete slide 2 and 4").
+   - Output ONLY the slide objects to be deleted (minimal is fine, but MUST have correct \`slide_number\`).
 
 ### JSON SCHEMA (Per Slide):
 {
@@ -48,4 +50,6 @@ export interface Slide {
   layout_suggestion: 'intro' | 'split-left' | 'split-right' | 'centered' | 'quote' | 'full-image'
   speaker_notes: string
   estimated_duration: string
+  // Internal UI state
+  _actionMarker?: 'create' | 'append' | 'update' | 'delete'
 }

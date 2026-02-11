@@ -274,10 +274,17 @@ export default function SlideCard({
         ${isBlurred ? 'blur-[2px] opacity-60 pointer-events-none' : ''}
         ${selected
           ? 'border-black dark:border-neutral-400 bg-neutral-50 dark:bg-neutral-800/50'
-          : 'border-neutral-200 dark:border-neutral-700/50 bg-white dark:bg-neutral-900'
+          : slide._actionMarker === 'delete'
+            ? 'border-red-500/80 bg-red-50/50 dark:bg-red-950/20 shadow-[0_0_15px_rgba(239,68,68,0.25)]'
+            : slide._actionMarker === 'create' || slide._actionMarker === 'append'
+              ? 'border-green-500/80 bg-green-50/50 dark:bg-green-950/20 shadow-[0_0_15px_rgba(34,197,94,0.25)]'
+              : slide._actionMarker === 'update'
+                ? 'border-yellow-500/80 bg-yellow-50/50 dark:bg-yellow-950/20 shadow-[0_0_15px_rgba(234,179,8,0.25)]'
+                : 'border-neutral-200 dark:border-neutral-700/50 bg-white dark:bg-neutral-900'
         }
         ${isProcessing ? 'ring-1 ring-neutral-900/50 dark:ring-white/50' : ''}
         ${flashing ? 'slide-flash' : ''}
+        ${slide._actionMarker ? 'opacity-70 scale-[0.98]' : ''}
       `}
     >
       {/* Magic Overlay (Processing) — Text-Only, Blur Only */}

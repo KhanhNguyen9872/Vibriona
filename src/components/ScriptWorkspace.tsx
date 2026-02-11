@@ -56,7 +56,7 @@ export default function ScriptWorkspace() {
     if (streamingSlides.length > 0) {
       // If we have an explicit action (Delta Protocol)
       if (responseAction) {
-        return applyDelta(sessionSlides, { action: responseAction, slides: streamingSlides })
+        return applyDelta(sessionSlides, { action: responseAction, slides: streamingSlides }, { markActions: true })
       }
       // Fallback to legacy/smart overlay
       if (sessionSlides.length === 0) return streamingSlides

@@ -11,18 +11,31 @@ export interface DeltaResponse {
  */
 export const applyDelta = (
   currentSlides: Slide[],
-  delta: DeltaResponse
+  delta: DeltaResponse,
+  options: { markActions?: boolean } = {}
 ): Slide[] => {
   const { action, slides: incomingSlides } = delta
 
   // CASE 1: CREATE (Replace All)
   if (action === 'create') {
-    return incomingSlides
+    return options.markActions 
+      ? incomingSlides.map(s => ({ ...s, _actionMarker: 'create' as const }))
+      : incomingSlides
   }
 
   // CASE 2: DELETE (Remove specific)
   if (action === 'delete') {
     const idsToDelete = new Set(incomingSlides.map(s => s.slide_number))
+    
+    if (options.markActions) {
+      // Mark slides for deletion instead of removing
+      return currentSlides.map(s => 
+        idsToDelete.has(s.slide_number) 
+          ? { ...s, _actionMarker: 'delete' as const } 
+          : s
+      )
+    }
+
     return currentSlides
       .filter(s => !idsToDelete.has(s.slide_number))
       .map((s, index) => ({ ...s, slide_number: index + 1 }))
@@ -34,14 +47,22 @@ export const applyDelta = (
     // to prevent duplication during streaming partials
     const currentNumbers = new Set(currentSlides.map(s => s.slide_number))
     const newUnique = incomingSlides.filter(s => !currentNumbers.has(s.slide_number))
-    return [...currentSlides, ...newUnique].sort((a, b) => a.slide_number - b.slide_number)
+    const markedNew = options.markActions 
+      ? newUnique.map(s => ({ ...s, _actionMarker: 'append' as const }))
+      : newUnique
+    return [...currentSlides, ...markedNew].sort((a, b) => a.slide_number - b.slide_number)
   }
 
   // CASE 4: UPDATE (Modify specific)
   if (action === 'update') {
     return currentSlides.map(existingSlide => {
       const match = incomingSlides.find(s => s.slide_number === existingSlide.slide_number)
-      return match ? match : existingSlide
+      if (match) {
+        return options.markActions 
+          ? { ...match, _actionMarker: 'update' as const }
+          : match
+      }
+      return existingSlide
     })
   }
 

@@ -41,6 +41,7 @@ function App() {
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
   const configured = isConfigured()
   const savedItemIds = useRef<Set<string>>(new Set())
+  const scheduledDeletions = useRef<Set<string>>(new Set())
   const mountedRef = useRef(false)
   const isMobile = useIsMobile()
   const { mobileActiveTab, setMobileActiveTab, heroHold, splitPaneWidth, setSplitPaneWidth, isInitialLoad, setInitialLoad } = useUIStore()
@@ -112,6 +113,29 @@ function App() {
     for (const item of doneItems) {
       if (savedItemIds.current.has(item.id)) continue
 
+      // Check if this item is already scheduled for delayed processing
+      if (scheduledDeletions.current.has(item.id)) continue
+
+      if (item.responseAction === 'delete') {
+        scheduledDeletions.current.add(item.id)
+        setTimeout(() => {
+            handleMsgCreation(item)
+        }, 2000)
+        continue
+      }
+
+      handleMsgCreation(item)
+    }
+  }, [items, currentSessionId, createSession, addMessage, setSessionSlides])
+
+  // Helper to process the message creation (extracted from effect)
+  const handleMsgCreation = (item: any) => {
+      // Re-check session in case it changed during timeout
+      const currentSessionId = useSessionStore.getState().currentSessionId
+      if (!currentSessionId && !item.prompt) return 
+
+      if (savedItemIds.current.has(item.id)) return
+
       let sessionId = currentSessionId
       if (!sessionId) {
         const title = item.prompt.length > 60
@@ -123,47 +147,43 @@ function App() {
       // Capture previous state BEFORE updating
       const prevSlides = getCurrentSession()?.slides || []
 
-      // Save slides to current session using applyDelta for proper create/update/append handling
+      // Save slides to current session
       const action = item.responseAction || (item.contextSlideNumbers?.length ? 'update' : 'create')
       const mergedSlides = applyDelta(prevSlides, { action, slides: item.slides! })
       setSessionSlides(mergedSlides)
 
-      // Capture full slide state after the update for snapshot restoration
+      // Capture full slide state after the update
       const updatedSession = getCurrentSession()
       const slideSnapshot = updatedSession?.slides
         ? JSON.parse(JSON.stringify(updatedSession.slides))
         : item.slides!
 
-      // Calculate affected slides for "Smart Check"
-      // If it's a context update (mergeSlides), the item.slides ARE the affected ones.
-      // If it's a full generation/append, we diff against prevSlides.
       let affectedSlides: any[] = []
 
       if (item.contextSlideNumbers && item.contextSlideNumbers.length > 0) {
         affectedSlides = item.slides!
       } else {
-        affectedSlides = item.slides!.filter(s => {
+        affectedSlides = item.slides!.filter((s: any) => {
           const prev = prevSlides.find(p => p.slide_number === s.slide_number)
-          if (!prev) return true // New slide
-          // Check if content changed (ignoring purely visual/internal fields if needed, 
-          // but title/content changes are what satisfy the user)
+          if (!prev) return true 
           return prev.content !== s.content || prev.title !== s.title
         })
       }
 
-      // User message is added optimistically in ChatInput — only add assistant message here
       addMessage({
         role: 'assistant',
         content: item.completionMessage 
-          || (item.slides!.length > 0
-            ? `Generated ${item.slides!.length} slides for your presentation.`
-            : item.result!),
+          || (item.responseAction === 'delete' && item.slides!.length > 0
+              ? `Deleted ${item.slides!.length} slide${item.slides!.length > 1 ? 's' : ''} (${item.slides!.map((s: any) => s.slide_number).join(', ')}).`
+              : (item.slides!.length > 0
+                ? `Generated ${item.slides!.length} slides for your presentation.`
+                : item.result!)),
         thinking: item.thinking,
         slides: item.slides,
         timestamp: Date.now(),
         isScriptGeneration: true,
         slideSnapshot,
-        relatedSlideReferences: affectedSlides.map(s => ({
+        relatedSlideReferences: affectedSlides.map((s: any) => ({
           id: `slide-card-${s.slide_number}`,
           number: s.slide_number,
           label: `Slide ${s.slide_number}`
@@ -172,8 +192,7 @@ function App() {
       })
 
       savedItemIds.current.add(item.id)
-    }
-  }, [items, currentSessionId, createSession, addMessage, setSessionSlides])
+  }
 
   // Sync dark class
   useEffect(() => {
