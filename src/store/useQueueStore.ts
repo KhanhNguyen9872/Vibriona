@@ -164,11 +164,29 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
   },
 
   updateItem: (id, patch) => {
-    set((state) => ({
-      items: state.items.map((i) =>
+    set((state) => {
+      // 1. Update the item in the list
+      const newItems = state.items.map((i) =>
         i.id === id ? { ...i, ...patch } : i
-      ),
-    }))
+      )
+
+      // 2. Also update the corresponding project's active process if it matches
+      // This is critical for UI components that subscribe to activeProcesses (like ScriptWorkspace)
+      const targetItem = state.items.find((i) => i.id === id)
+      let newActiveProcesses = state.activeProcesses
+
+      if (targetItem && state.activeProcesses[targetItem.projectId]?.id === id) {
+        newActiveProcesses = {
+          ...state.activeProcesses,
+          [targetItem.projectId]: { ...state.activeProcesses[targetItem.projectId], ...patch }
+        }
+      }
+
+      return {
+        items: newItems,
+        activeProcesses: newActiveProcesses,
+      }
+    })
   },
 
   completeActive: (id, result, slides, thinking, completionMessage) => {

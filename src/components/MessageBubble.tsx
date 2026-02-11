@@ -125,30 +125,33 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
         </div>
       )}
 
-      {/* Snapshot restore button */}
-      {message.slideSnapshot && message.slideSnapshot.length > 0 && message.role === 'assistant' && (
-        <button
-          onClick={handleRestore}
-          className="snapshot-restore flex items-center gap-1.5 mt-2.5 px-2.5 py-1 rounded-lg text-[10px] font-semibold border border-neutral-200/80 dark:border-zinc-700/80 text-neutral-500 dark:text-zinc-400 hover:border-neutral-400 dark:hover:border-zinc-500 hover:text-neutral-700 dark:hover:text-zinc-200 transition-all active:scale-[0.97] cursor-pointer w-fit"
-        >
-          <RotateCcw className="w-2.5 h-2.5" />
-          {t('chat.restoreSnapshot')}
-          <span className="text-neutral-400 dark:text-zinc-600 font-normal">
-            ({t('chat.snapshotSlides', { count: message.slideSnapshot.length })})
-          </span>
-        </button>
-      )}
-
-      {/* Time */}
-      <p className={`text-[10px] mt-1.5 ${
-        message.role === 'user'
-          ? 'text-neutral-400 dark:text-zinc-400 text-right'
-          : 'text-neutral-400 dark:text-zinc-500'
+      {/* Footer: Snapshot restore button & Time */}
+      <div className={`flex items-center flex-wrap gap-2 mt-2 ${
+        message.role === 'user' ? 'justify-end' : 'justify-between'
       }`}>
-        {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        {' '}
-        {new Date(message.timestamp).toLocaleDateString([], { day: '2-digit', month: '2-digit' })}
-      </p>
+        {message.slideSnapshot && message.slideSnapshot.length > 0 && message.role === 'assistant' ? (
+          <button
+            onClick={handleRestore}
+            className="snapshot-restore flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-semibold border border-neutral-200/80 dark:border-zinc-700/80 text-neutral-500 dark:text-zinc-400 hover:border-neutral-400 dark:hover:border-zinc-500 hover:text-neutral-700 dark:hover:text-zinc-200 transition-all active:scale-[0.97] cursor-pointer w-fit"
+          >
+            <RotateCcw className="w-2.5 h-2.5" />
+            {t('chat.restoreSnapshot')}
+            <span className="text-neutral-400 dark:text-zinc-600 font-normal">
+              ({t('chat.snapshotSlides', { count: message.slideSnapshot.length })})
+            </span>
+          </button>
+        ) : null}
+
+        <p className={`text-[10px] whitespace-nowrap ${
+          message.role === 'user'
+            ? 'text-neutral-400 dark:text-zinc-400'
+            : 'text-neutral-400 dark:text-zinc-500'
+        }`}>
+          {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          {' '}
+          {new Date(message.timestamp).toLocaleDateString([], { day: '2-digit', month: '2-digit' })}
+        </p>
+      </div>
     </div>
   )
 }
