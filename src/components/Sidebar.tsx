@@ -169,7 +169,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
         <button
           onClick={onToggle}
           className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-200/60 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          title={collapsed ? t('sessions.expandSidebar') : t('sessions.collapseSidebar')}
         >
           {collapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
         </button>
@@ -218,7 +218,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                              )}
                              {session.slides && session.slides.length > 0 && (
                                <span className="text-[10px] font-medium text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-1.5 rounded-full">
-                                 {session.slides.length}p
+                                 {session.slides.length}{t('workspace.slidesUnitShort')}
                                </span>
                              )}
                           </div>

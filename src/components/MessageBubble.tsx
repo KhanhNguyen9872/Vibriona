@@ -28,7 +28,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
     // Check if content contains a JSON array at all (fallback)
     const trimmed = message.content.trim()
     if (trimmed.startsWith('[') || trimmed.includes('[\n')) {
-      return `✅ Script generated successfully. You can review the slides on the right.`
+      return `✅ ${t('chat.scriptGenerated')}`
     }
 
     return message.content
@@ -38,7 +38,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
     if (!message.slideSnapshot || message.slideSnapshot.length === 0) return
     const currentSlides = getCurrentSession()?.slides ?? []
     if (JSON.stringify(currentSlides) === JSON.stringify(message.slideSnapshot)) {
-      toast.info(t('chat.alreadyAtCheckpoint', 'You are already at this checkpoint'))
+      toast.info(t('chat.alreadyAtCheckpoint'))
       return
     }
     restoreSnapshot(JSON.parse(JSON.stringify(message.slideSnapshot)))
@@ -52,17 +52,19 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
   return (
     <div className={bubbleClass}>
       {/* Script generation badge + Checkpoint + Time (Header) */}
-      {message.isScriptGeneration && message.role === 'assistant' && !message.isThinking && (
+      {message.role === 'assistant' && !message.isThinking && message.slideSnapshot && message.slideSnapshot.length > 0 && (
         <div className="flex items-center justify-between mb-1.5 w-full">
           <div className="flex items-center gap-3">
-             {/* Slides count */}
-            <div className="flex items-center gap-1.5">
-              <Sparkles className="w-3 h-3 text-neutral-400" />
-              <span className="text-[10px] font-medium text-neutral-400">
-                {message.action === 'delete' ? '-' : (message.action === 'update' ? '' : '+')}
-                {message.slides?.length ?? 0} {t('workspace.slidesUnit')}
-              </span>
-            </div>
+             {/* Slides count (only for script generation) */}
+            {message.isScriptGeneration && (
+              <div className="flex items-center gap-1.5">
+                <Sparkles className="w-3 h-3 text-neutral-400" />
+                <span className="text-[10px] font-medium text-neutral-400">
+                  {message.action === 'delete' ? '-' : (message.action === 'update' ? '' : '+')}
+                  {message.slides?.length ?? 0} {t('workspace.slidesUnit')}
+                </span>
+              </div>
+            )}
 
             {/* Checkpoint Button */}
             {message.slideSnapshot && message.slideSnapshot.length > 0 && (
@@ -133,7 +135,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
               ? 'text-neutral-500 dark:text-zinc-400'
               : 'text-neutral-400 dark:text-zinc-500'
           }`}>
-            {t('chat.quickLinks', 'Quick Links')}:
+            {t('chat.quickLinks')}:
           </span>
           {message.relatedSlideReferences.map((ref) => (
             <button
@@ -153,7 +155,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
       )}
 
       {/* Footer: Snapshot restore button & Time (Only for non-script-generation messages or user messages) */}
-      {(!message.isScriptGeneration || message.role === 'user') && (
+      {(message.role === 'user' || (message.role === 'assistant' && !(message.slideSnapshot && message.slideSnapshot.length > 0))) && (
         <div className={`flex items-center flex-wrap gap-2 mt-2 ${
           message.role === 'user' ? 'justify-end' : 'justify-between'
         }`}>

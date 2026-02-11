@@ -58,7 +58,7 @@ export default function MessageList({ messages, isStreaming, streamingThinking }
 
     const lines = messages.map((msg) => {
       const time = new Date(msg.timestamp).toLocaleString()
-      const role = msg.role === 'user' ? 'You' : 'Vibriona'
+      const role = msg.role === 'user' ? t('chat.you') : t('chat.assistant')
       
       let content = msg.content
       if (msg.role === 'assistant' && msg.isScriptGeneration) {
@@ -66,7 +66,7 @@ export default function MessageList({ messages, isStreaming, streamingThinking }
         const afterJson = extractCompletionMessage(msg.content)
         if (afterJson) content = afterJson
         else if (msg.content.trim().startsWith('[')) {
-          content = "Script generated successfully."
+          content = t('chat.scriptGenerated')
         }
       }
       

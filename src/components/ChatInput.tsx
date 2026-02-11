@@ -89,7 +89,7 @@ export default function ChatInput({ variant = 'default', className = '' }: ChatI
         relatedSlideReferences: selectedSlides.map(s => ({
           id: `slide-card-${s.slide_number}`,
           number: s.slide_number,
-          label: `Slide ${s.slide_number}`
+          label: t('chat.slideLabel', { number: s.slide_number })
         }))
       })
     })

@@ -91,10 +91,10 @@ function App() {
         if (prevProcesses[pid] && !currentProcesses[pid] && pid !== currentSessionId) {
           const session = sessions.find(s => s.id === pid)
           if (session) {
-            toast.success(t('workspace.backgroundComplete') || 'Project Generation Complete', {
-              description: t('workspace.backgroundCompleteDesc', { title: session.title }) || `The script for "${session.title}" is ready.`,
+            toast.success(t('workspace.backgroundComplete'), {
+              description: t('workspace.backgroundCompleteDesc', { title: session.title }),
               action: {
-                label: t('workspace.view') || 'View',
+                label: t('workspace.view'),
                 onClick: () => setCurrentSession(pid)
               }
             })
@@ -174,9 +174,9 @@ function App() {
         role: 'assistant',
         content: item.completionMessage 
           || (item.responseAction === 'delete' && item.slides!.length > 0
-              ? `Deleted ${item.slides!.length} slide${item.slides!.length > 1 ? 's' : ''} (${item.slides!.map((s: any) => s.slide_number).join(', ')}).`
+              ? t('chat.deletedSlides', { count: item.slides!.length, slides: item.slides!.map((s: any) => s.slide_number).join(', ') })
               : (item.slides!.length > 0
-                ? `Generated ${item.slides!.length} slides for your presentation.`
+                ? t('chat.generatedSlides', { count: item.slides!.length })
                 : item.result!)),
         thinking: item.thinking,
         slides: item.slides,
@@ -186,7 +186,7 @@ function App() {
         relatedSlideReferences: affectedSlides.map((s: any) => ({
           id: `slide-card-${s.slide_number}`,
           number: s.slide_number,
-          label: `Slide ${s.slide_number}`
+          label: t('chat.slideLabel', { number: s.slide_number })
         })),
         action // Pass the determined action to the message
       })

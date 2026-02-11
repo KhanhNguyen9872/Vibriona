@@ -1,4 +1,5 @@
 import axios from 'axios'
+import i18n from '../i18n'
 import type { Slide } from './prompt'
 import { extractContentFromChunk, parsePartialSlides } from './parseStream'
 
@@ -71,16 +72,16 @@ export function enhanceSlide(
       if (slides.length > 0) {
         onDone({ ...slide, ...slides[0], slide_number: slide.slide_number })
       } else {
-        onError('Failed to parse enhanced content')
+        onError(i18n.t('errors.parse'))
       }
     })
     .catch((err) => {
       if (axios.isCancel(err)) return
       const status = err.response?.status
-      if (status === 401) onError('Invalid API key')
-      else if (status === 429) onError('Rate limited')
-      else if (err.code === 'ERR_NETWORK') onError('Network error')
-      else onError(err.message || 'Enhancement failed')
+      if (status === 401) onError(i18n.t('errors.invalidKey'))
+      else if (status === 429) onError(i18n.t('errors.rateLimit'))
+      else if (err.code === 'ERR_NETWORK') onError(i18n.t('errors.network'))
+      else onError(err.message || i18n.t('workspace.enhanceFailed'))
     })
 
   return controller

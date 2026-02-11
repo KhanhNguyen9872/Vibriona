@@ -41,7 +41,7 @@ export default function MobileNavToggle({ className = '' }: { className?: string
         )}
         <span className="relative z-10 flex items-center gap-1.5">
           <MessageSquare className="w-3.5 h-3.5" />
-          <span className="text-[10px] font-semibold">Chat</span>
+          <span className="text-[10px] font-semibold">{t('chat.tabLabel')}</span>
         </span>
       </button>
 

@@ -39,12 +39,7 @@ interface SlideCardProps {
   readonly?: boolean
 }
 
-const LAYOUT_LABELS: Record<string, string> = {
-  'split-left': 'Split Left',
-  'split-right': 'Split Right',
-  'centered': 'Centered',
-  'full-image': 'Full Image',
-}
+
 
 export default function SlideCard({
   slide,
@@ -55,6 +50,12 @@ export default function SlideCard({
   readonly = false,
 }: SlideCardProps) {
   const { t } = useTranslation()
+  const layoutLabels: Record<string, string> = {
+    'split-left': t('workspace.layoutSplitLeft'),
+    'split-right': t('workspace.layoutSplitRight'),
+    'centered': t('workspace.layoutCentered'),
+    'full-image': t('workspace.layoutFullImage'),
+  }
   const { updateSlide, deleteSlide, addMessage, updateMessage, highlightedSlideIndex, clearHighlight, getCurrentSession, processingSlideNumbers, addProcessingSlide, removeProcessingSlide, duplicateSlide, reorderSlides } = useSessionStore()
   const { apiUrl, apiKey, selectedModel } = useSettingsStore()
   const { activeMenuSlideNumber, setActiveMenuSlideNumber } = useUIStore()
@@ -139,7 +140,7 @@ export default function SlideCard({
     if (isProcessing || readonly) return
 
     confirmAction(
-      t('workspace.enhanceConfirm', 'Enhance this slide with AI?'),
+      t('workspace.enhanceConfirm'),
       () => {
         addProcessingSlide(slide.slide_number)
 
@@ -152,7 +153,7 @@ export default function SlideCard({
           relatedSlideReferences: [{
             id: `slide-card-${slide.slide_number}`,
             number: slide.slide_number,
-            label: `Slide ${slide.slide_number}`
+            label: t('chat.slideLabel', { number: slide.slide_number })
           }]
         })
 
@@ -186,7 +187,7 @@ export default function SlideCard({
               relatedSlideReferences: [{
                 id: `slide-card-${slide.slide_number}`,
                 number: slide.slide_number,
-                label: `Slide ${slide.slide_number}`
+                label: t('chat.slideLabel', { number: slide.slide_number })
               }]
             })
             toast.success(t('workspace.enhanced'))
@@ -202,9 +203,9 @@ export default function SlideCard({
         )
       },
       {
-        confirm: t('workspace.enhance', 'Enhance'),
+        confirm: t('workspace.enhance'),
         cancel: t('chat.cancel'),
-        description: t('workspace.enhanceDescription', 'AI will rewrite the content and visual description to make it more professional.'),
+        description: t('workspace.enhanceDescription'),
       }
     )
   }
@@ -212,13 +213,13 @@ export default function SlideCard({
   const handleDuplicate = () => {
     duplicateSlide(index)
     setActiveMenuSlideNumber(null)
-    toast.success(t('workspace.slideDuplicated', 'Slide duplicated'))
+    toast.success(t('workspace.slideDuplicated'))
   }
 
   const handleMoveToStart = () => {
     reorderSlides(index, 0)
     setActiveMenuSlideNumber(null)
-    toast.success(t('workspace.slideMovedStart', 'Moved to start'))
+    toast.success(t('workspace.slideMovedStart'))
   }
 
   const handleMoveToEnd = () => {
@@ -226,7 +227,7 @@ export default function SlideCard({
     if (!session) return
     reorderSlides(index, session.slides.length - 1)
     setActiveMenuSlideNumber(null)
-    toast.success(t('workspace.slideMovedEnd', 'Moved to end'))
+    toast.success(t('workspace.slideMovedEnd'))
   }
 
   const handleDelete = () => {
@@ -296,7 +297,7 @@ export default function SlideCard({
               font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-widest text-center animate-pulse
               ${expanded ? 'text-sm' : 'text-[10px]'}
             `}>
-              Refining...
+              {t('workspace.refining')}
             </span>
           </div>
         </div>
@@ -353,7 +354,7 @@ export default function SlideCard({
           {slide.layout_suggestion && (
             <span className="px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-[9px] font-medium text-neutral-500 hidden sm:flex items-center gap-0.5">
               <Layout className="w-2.5 h-2.5" />
-              {LAYOUT_LABELS[slide.layout_suggestion] ?? slide.layout_suggestion}
+              {layoutLabels[slide.layout_suggestion] || slide.layout_suggestion}
             </span>
           )}
         </div>
@@ -447,21 +448,21 @@ export default function SlideCard({
                className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
             >
               <Copy className="w-3.5 h-3.5 text-neutral-400" />
-              {t('workspace.duplicateSlide', 'Duplicate Slide')}
+              {t('workspace.duplicateSlide')}
             </button>
             <button
                onClick={handleMoveToStart}
                className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
             >
               <ArrowUpToLine className="w-3.5 h-3.5 text-neutral-400" />
-              {t('workspace.moveToStart', 'Move to Start')}
+              {t('workspace.moveToStart')}
             </button>
             <button
                onClick={handleMoveToEnd}
                className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
             >
               <ArrowDownToLine className="w-3.5 h-3.5 text-neutral-400" />
-              {t('workspace.moveToEnd', 'Move to End')}
+              {t('workspace.moveToEnd')}
             </button>
             <div className="my-1 border-t border-neutral-100 dark:border-neutral-800" />
             <button
@@ -469,7 +470,7 @@ export default function SlideCard({
                className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              {t('workspace.delete', 'Delete')}
+              {t('workspace.delete')}
             </button>
           </motion.div>
         )}

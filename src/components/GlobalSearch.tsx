@@ -66,7 +66,7 @@ export default function GlobalSearch({ isOpen, onClose, isMobile }: GlobalSearch
           sessionId: session.id,
           sessionTitle: session.title,
           title: session.title,
-          subtitle: t('search.projectMatch', 'Project'),
+          subtitle: t('search.projectMatch'),
           slideCount: session.slides.length,
           timestamp: session.timestamp,
         })
@@ -82,7 +82,7 @@ export default function GlobalSearch({ isOpen, onClose, isMobile }: GlobalSearch
                sessionId: session.id,
                sessionTitle: session.title,
                title: msg.content.slice(0, 60) + (msg.content.length > 60 ? '...' : ''),
-               subtitle: msg.role === 'user' ? t('search.userMatch', 'You') : t('search.botMatch', 'Vibriona'),
+               subtitle: msg.role === 'user' ? t('search.userMatch') : t('search.botMatch'),
              })
            }
         }
@@ -99,7 +99,7 @@ export default function GlobalSearch({ isOpen, onClose, isMobile }: GlobalSearch
              type: 'slide',
              sessionId: session.id,
              sessionTitle: session.title,
-             title: slide.title || `Slide ${slide.slide_number}`,
+             title: slide.title || t('chat.slideLabel', { number: slide.slide_number }),
              subtitle: t('search.slideMatch', 'Slide Content'),
              slideNumber: slide.slide_number
            })
@@ -164,7 +164,7 @@ export default function GlobalSearch({ isOpen, onClose, isMobile }: GlobalSearch
             transition-all
             ${isMobile ? 'h-9' : 'h-8'}
           `}
-          placeholder={t('search.placeholder', 'Search projects, messages, slides...')}
+          placeholder={t('search.placeholder')}
         />
         {(query || isMobile) && (
           <button
@@ -209,7 +209,7 @@ export default function GlobalSearch({ isOpen, onClose, isMobile }: GlobalSearch
                         {result.type === 'project' && (
                           <>
                             <span className="text-neutral-300 dark:text-neutral-700">•</span>
-                            <span>{result.slideCount} slides</span>
+                            <span>{t('search.slidesCount', { count: result.slideCount })}</span>
                             <span className="text-neutral-300 dark:text-neutral-700">•</span>
                             <span>{new Date(result.timestamp || 0).toLocaleDateString()}</span>
                           </>

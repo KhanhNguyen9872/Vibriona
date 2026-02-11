@@ -1,4 +1,5 @@
 import { toast } from 'sonner'
+import i18n from '../i18n'
 
 /**
  * Show a Sonner confirmation toast with action/cancel buttons.
@@ -15,8 +16,8 @@ export function confirmAction(
   onConfirm: () => void,
   options: ConfirmOptions = {},
 ) {
-  const confirmLabel = options.confirm || 'OK'
-  const cancelLabel = options.cancel || 'Cancel'
+  const confirmLabel = options.confirm || i18n.t('common.ok')
+  const cancelLabel = options.cancel || i18n.t('common.cancel')
   const description = options.description
   toast(message, {
     description,

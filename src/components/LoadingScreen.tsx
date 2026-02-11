@@ -9,15 +9,15 @@ export default function LoadingScreen() {
   // Select random text once on mount
   const [loadingText] = useState(() => {
     const texts = [
-      t('loading.initializing') || 'Initializing...',
-      t('loading.assets') || 'Loading assets...',
-      t('loading.preparing') || 'Preparing workspace...',
-      t('loading.connecting') || 'Connecting to server...',
-      t('loading.warming') || 'Warming up engines...',
-      t('loading.optimizing') || 'Optimizing performance...',
-      t('loading.syncing') || 'Syncing cloud data...',
-      t('loading.modules') || 'Loading AI modules...',
-      t('loading.configuration') || 'Checking configuration...',
+      t('loading.initializing'),
+      t('loading.assets'),
+      t('loading.preparing'),
+      t('loading.connecting'),
+      t('loading.warming'),
+      t('loading.optimizing'),
+      t('loading.syncing'),
+      t('loading.modules'),
+      t('loading.configuration'),
     ]
     return texts[Math.floor(Math.random() * texts.length)]
   })
