@@ -18,6 +18,7 @@ export interface ChatMessage {
     number: number
     label: string
   }[]
+  action?: 'create' | 'update' | 'append' | 'delete'
 }
 
 export interface Session {
@@ -49,6 +50,7 @@ interface SessionState {
   deleteSlide: (slideIndex: number) => void
   deleteSlides: (slideIndices: number[]) => void
   reorderSlides: (fromIndex: number, toIndex: number) => void
+  duplicateSlide: (slideIndex: number) => void
   // Highlight
   highlightSlide: (slideNumber: number) => void
   clearHighlight: () => void
@@ -245,6 +247,29 @@ export const useSessionStore = create<SessionState>()(
             const newSlides = [...s.slides]
             const [moved] = newSlides.splice(fromIndex, 1)
             newSlides.splice(toIndex, 0, moved)
+            const renumbered = newSlides.map((sl, i) => ({ ...sl, slide_number: i + 1 }))
+            return { ...s, slides: renumbered }
+          }),
+        }))
+      },
+
+      duplicateSlide: (slideIndex) => {
+        const { currentSessionId } = get()
+        if (!currentSessionId) return
+        set((state) => ({
+          sessions: state.sessions.map((s) => {
+            if (s.id !== currentSessionId) return s
+            const newSlides = [...s.slides]
+            const slideToCopy = newSlides[slideIndex]
+            if (!slideToCopy) return s
+            
+            const newSlide = {
+              ...slideToCopy,
+              title: `${slideToCopy.title} (Copy)`,
+              slide_number: slideToCopy.slide_number + 1 // Temporary, renumbering fixes it
+            }
+            
+            newSlides.splice(slideIndex + 1, 0, newSlide)
             const renumbered = newSlides.map((sl, i) => ({ ...sl, slide_number: i + 1 }))
             return { ...s, slides: renumbered }
           }),

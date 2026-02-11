@@ -228,7 +228,11 @@ export default function ScriptWorkspace() {
       </div>
 
       {/* Slides area */}
-      <div className="flex-1 overflow-y-auto px-6 py-5">
+      <div 
+        className={`flex-1 overflow-y-auto px-6 py-5 transition-all duration-200 ${
+          showExportMenu ? 'blur-sm pointer-events-none select-none opacity-60' : ''
+        }`}
+      >
         {/* Thinking indicator */}
         {showThinking && (
           <ThinkingIndicator

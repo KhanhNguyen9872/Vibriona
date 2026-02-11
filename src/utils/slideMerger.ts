@@ -2,7 +2,7 @@
 import type { Slide } from '../api/prompt'
 
 export interface DeltaResponse {
-  action?: 'create' | 'update' | 'append'
+  action?: 'create' | 'update' | 'append' | 'delete'
   slides: Slide[]
 }
 
@@ -15,15 +15,20 @@ export const applyDelta = (
 ): Slide[] => {
   const { action, slides: incomingSlides } = delta
 
-  // CASE 1: CREATE (Replace All) - or default if no action yet (inference starting)
-  // If action is 'create', we replace. 
-  // If no action is set yet but we have slides, we might assume 'create' or wait.
-  // The system prompt now enforces an action.
+  // CASE 1: CREATE (Replace All)
   if (action === 'create') {
     return incomingSlides
   }
 
-  // CASE 2: APPEND (Add to end)
+  // CASE 2: DELETE (Remove specific)
+  if (action === 'delete') {
+    const idsToDelete = new Set(incomingSlides.map(s => s.slide_number))
+    return currentSlides
+      .filter(s => !idsToDelete.has(s.slide_number))
+      .map((s, index) => ({ ...s, slide_number: index + 1 }))
+  }
+
+  // CASE 3: APPEND (Add to end)
   if (action === 'append') {
     // Filter out incoming slides that already exist in current (by slide_number)
     // to prevent duplication during streaming partials
@@ -32,12 +37,10 @@ export const applyDelta = (
     return [...currentSlides, ...newUnique].sort((a, b) => a.slide_number - b.slide_number)
   }
 
-  // CASE 3: UPDATE (Modify specific)
+  // CASE 4: UPDATE (Modify specific)
   if (action === 'update') {
     return currentSlides.map(existingSlide => {
       const match = incomingSlides.find(s => s.slide_number === existingSlide.slide_number)
-      // If there is a matching update, replace the existing slide with the new one
-      // Checking content equality could be an optimization but React does that too.
       return match ? match : existingSlide
     })
   }

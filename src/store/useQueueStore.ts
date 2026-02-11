@@ -19,7 +19,7 @@ export interface QueueItem {
   error?: string
   contextSlides?: Slide[]
   contextSlideNumbers?: number[]
-  responseAction?: 'create' | 'update' | 'append'
+  responseAction?: 'create' | 'update' | 'append' | 'delete'
 }
 
 interface QueueState {

@@ -145,7 +145,7 @@ export function extractCompletionMessage(content: string): string {
 }
 
 export interface DeltaResponse {
-  action?: 'create' | 'update' | 'append'
+  action?: 'create' | 'update' | 'append' | 'delete'
   slides: Slide[]
 }
 

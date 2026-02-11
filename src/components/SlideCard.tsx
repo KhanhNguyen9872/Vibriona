@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { motion } from 'motion/react'
+import { motion, AnimatePresence } from 'motion/react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useSettingsStore } from '../store/useSettingsStore'
+import { useUIStore } from '../store/useUIStore'
 import { useSessionStore } from '../store/useSessionStore'
 import { enhanceSlide } from '../api/enhance'
 import { toast } from 'sonner'
@@ -21,6 +22,10 @@ import {
   Layout,
   Mic,
   Pencil,
+  MoreVertical,
+  Copy,
+  ArrowUpToLine,
+  ArrowDownToLine,
 } from 'lucide-react'
 import type { Slide } from '../api/prompt'
 import MarkdownRenderer from './MarkdownRenderer'
@@ -50,15 +55,20 @@ export default function SlideCard({
   readonly = false,
 }: SlideCardProps) {
   const { t } = useTranslation()
-  const { updateSlide, deleteSlide, addMessage, updateMessage, highlightedSlideIndex, clearHighlight, getCurrentSession, processingSlideNumbers, addProcessingSlide, removeProcessingSlide } = useSessionStore()
+  const { updateSlide, deleteSlide, addMessage, updateMessage, highlightedSlideIndex, clearHighlight, getCurrentSession, processingSlideNumbers, addProcessingSlide, removeProcessingSlide, duplicateSlide, reorderSlides } = useSessionStore()
   const { apiUrl, apiKey, selectedModel } = useSettingsStore()
+  const { activeMenuSlideNumber, setActiveMenuSlideNumber } = useUIStore()
 
   const [expanded, setExpanded] = useState(false)
   const [flashing, setFlashing] = useState(false)
+  // const [showMenu, setShowMenu] = useState(false) // Removed local state
+  const menuRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   const isHighlighted = highlightedSlideIndex === index
   const isProcessing = processingSlideNumbers?.includes(slide.slide_number)
+  const showMenu = activeMenuSlideNumber === slide.slide_number
+  const isBlurred = activeMenuSlideNumber !== null && activeMenuSlideNumber !== slide.slide_number
 
   const {
     attributes,
@@ -80,6 +90,18 @@ export default function SlideCard({
       abortRef.current?.abort()
     }
   }, [])
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!showMenu) return
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setActiveMenuSlideNumber(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showMenu, setActiveMenuSlideNumber])
 
   // React to highlight: expand, scroll, flash
   useEffect(() => {
@@ -187,8 +209,29 @@ export default function SlideCard({
     )
   }
 
+  const handleDuplicate = () => {
+    duplicateSlide(index)
+    setActiveMenuSlideNumber(null)
+    toast.success(t('workspace.slideDuplicated', 'Slide duplicated'))
+  }
+
+  const handleMoveToStart = () => {
+    reorderSlides(index, 0)
+    setActiveMenuSlideNumber(null)
+    toast.success(t('workspace.slideMovedStart', 'Moved to start'))
+  }
+
+  const handleMoveToEnd = () => {
+    const session = getCurrentSession()
+    if (!session) return
+    reorderSlides(index, session.slides.length - 1)
+    setActiveMenuSlideNumber(null)
+    toast.success(t('workspace.slideMovedEnd', 'Moved to end'))
+  }
+
   const handleDelete = () => {
     if (readonly) return
+    setActiveMenuSlideNumber(null)
     confirmAction(
       t('workspace.deleteSlideConfirm', { number: slide.slide_number }),
       () => deleteSlide(index),
@@ -225,8 +268,10 @@ export default function SlideCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: index * 0.04 }}
       className={`
-        relative border rounded-xl overflow-hidden transition-all duration-300
+        relative border rounded-xl transition-all duration-300
         ${isDragging ? 'opacity-30 z-50' : ''}
+        ${showMenu ? 'z-40' : ''}
+        ${isBlurred ? 'blur-[2px] opacity-60 pointer-events-none' : ''}
         ${selected
           ? 'border-black dark:border-neutral-400 bg-neutral-50 dark:bg-neutral-800/50'
           : 'border-neutral-200 dark:border-neutral-700/50 bg-white dark:bg-neutral-900'
@@ -325,13 +370,19 @@ export default function SlideCard({
               >
                 <Wand2 className={`w-3.5 h-3.5 ${isProcessing ? 'text-indigo-400 animate-pulse' : 'text-neutral-400 hover:text-indigo-500 dark:hover:text-indigo-400'}`} />
               </button>
-              <button
+            {/* <button
                 onClick={handleDelete}
                 title={t('workspace.delete')}
                 className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5 text-neutral-400 hover:text-red-500" />
-              </button>
+              </button> */}
+             <button
+                onClick={() => setActiveMenuSlideNumber(showMenu ? null : slide.slide_number)}
+                className={`p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer ${showMenu ? 'bg-neutral-100 dark:bg-neutral-800' : ''}`}
+             >
+                <MoreVertical className="w-3.5 h-3.5 text-neutral-400" />
+             </button>
             </>
           )}
           <button
@@ -372,6 +423,51 @@ export default function SlideCard({
           )}
         </motion.div>
       )}
+
+      {/* Dropdown Menu */}
+      <AnimatePresence>
+        {showMenu && (
+          <motion.div
+            ref={menuRef}
+            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+            transition={{ duration: 0.1 }}
+            className="absolute right-3 top-10 z-50 w-48 py-1 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-xl"
+          >
+            <button
+               onClick={handleDuplicate}
+               className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+            >
+              <Copy className="w-3.5 h-3.5 text-neutral-400" />
+              {t('workspace.duplicateSlide', 'Duplicate Slide')}
+            </button>
+            <button
+               onClick={handleMoveToStart}
+               className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+            >
+              <ArrowUpToLine className="w-3.5 h-3.5 text-neutral-400" />
+              {t('workspace.moveToStart', 'Move to Start')}
+            </button>
+            <button
+               onClick={handleMoveToEnd}
+               className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+            >
+              <ArrowDownToLine className="w-3.5 h-3.5 text-neutral-400" />
+              {t('workspace.moveToEnd', 'Move to End')}
+            </button>
+            <div className="my-1 border-t border-neutral-100 dark:border-neutral-800" />
+            <button
+               onClick={handleDelete}
+               className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {t('workspace.delete', 'Delete')}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </motion.div>
   )
 }

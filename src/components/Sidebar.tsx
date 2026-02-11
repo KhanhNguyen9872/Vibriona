@@ -195,10 +195,12 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                 >
                   <button
                     onClick={() => handleSelect(session.id)}
-                    className={`group w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-colors cursor-pointer ${
+                    className={`group w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-all duration-200 cursor-pointer ${
                       session.id === currentSessionId
                         ? 'bg-neutral-200/70 dark:bg-neutral-800'
                         : 'hover:bg-neutral-200/40 dark:hover:bg-neutral-800/40'
+                    } ${
+                      menuSessionId && menuSessionId !== session.id ? 'blur-[2px] opacity-50 scale-[0.98] pointer-events-none' : ''
                     }`}
                   >
                     <MessageSquare className="w-3.5 h-3.5 text-neutral-400 shrink-0" />

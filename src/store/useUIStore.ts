@@ -10,6 +10,8 @@ interface UIState {
   setSplitPaneWidth: (width: number) => void
   isInitialLoad: boolean
   setInitialLoad: (loading: boolean) => void
+  activeMenuSlideNumber: number | null
+  setActiveMenuSlideNumber: (number: number | null) => void
 }
 
 let heroHoldTimer: ReturnType<typeof setTimeout> | null = null
@@ -35,4 +37,6 @@ export const useUIStore = create<UIState>((set) => ({
   setSplitPaneWidth: (width) => set({ splitPaneWidth: width }),
   isInitialLoad: true,
   setInitialLoad: (loading) => set({ isInitialLoad: loading }),
+  activeMenuSlideNumber: null,
+  setActiveMenuSlideNumber: (number) => set({ activeMenuSlideNumber: number }),
 }))

@@ -19,6 +19,7 @@ import SEO from './components/SEO'
 import { useUIStore } from './store/useUIStore'
 import GlobalSearch from './components/GlobalSearch'
 import LoadingScreen from './components/LoadingScreen'
+import HeroSection from './components/HeroSection'
 
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(window.innerWidth < breakpoint)
@@ -49,7 +50,7 @@ function App() {
     if (isInitialLoad) {
       const timer = setTimeout(() => {
         setInitialLoad(false)
-      }, 1500)
+      }, 2300)
       return () => clearTimeout(timer)
     }
   }, [isInitialLoad, setInitialLoad])
@@ -166,7 +167,8 @@ function App() {
           id: `slide-card-${s.slide_number}`,
           number: s.slide_number,
           label: `Slide ${s.slide_number}`
-        }))
+        })),
+        action // Pass the determined action to the message
       })
 
       savedItemIds.current.add(item.id)
@@ -459,19 +461,7 @@ function App() {
             style={hasSlideData && !isMobile && !heroHold ? { width: `${splitPaneWidth}%` } : undefined}>
             {/* Stay on hero view during heroHold (2s animation) or when no messages */}
             {heroHold || messages.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center p-4">
-                <div className="w-full max-w-2xl space-y-8">
-                  <div className="text-center space-y-2">
-                    <h1 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-                      {t('app.hero')}
-                    </h1>
-                    <p className="text-neutral-500 dark:text-neutral-400">
-                      {t('app.heroSub')}
-                    </p>
-                  </div>
-                  <ChatInput variant="centered" />
-                </div>
-              </div>
+              <HeroSection />
             ) : (
               <>
                 <MessageList

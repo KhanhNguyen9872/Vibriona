@@ -27,22 +27,22 @@ export default function LoadingScreen() {
     // Stage 1: Fast start
     const t1 = setTimeout(() => {
       setProgress(30)
-    }, 200)
+    }, 400)
 
     // Stage 2: Middle load
     const t2 = setTimeout(() => {
       setProgress(75)
-    }, 600)
+    }, 800)
 
     // Stage 3: Almost done
     const t3 = setTimeout(() => {
       setProgress(95)
-    }, 1200)
+    }, 1600)
 
     // Stage 4: Complete
     const t4 = setTimeout(() => {
       setProgress(100)
-    }, 1500)
+    }, 2000)
 
     return () => {
       clearTimeout(t1)
