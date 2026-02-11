@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useSettingsStore } from './store/useSettingsStore'
 import { useQueueStore } from './store/useQueueStore'
 import { useSessionStore } from './store/useSessionStore'
+import { applyDelta } from './utils/slideMerger'
 import ConfigurationModal from './components/ConfigurationModal'
 import Settings from './components/Settings'
 import Sidebar from './components/Sidebar'
@@ -30,7 +31,7 @@ function App() {
   const { t } = useTranslation()
   const { theme, isConfigured } = useSettingsStore()
   const { items, isProcessing, clearItems } = useQueueStore()
-  const { sessions, createSession, addMessage, currentSessionId, getCurrentSession, setCurrentSession, setSessionSlides, mergeSlides, newChat } = useSessionStore()
+  const { sessions, createSession, addMessage, currentSessionId, getCurrentSession, setCurrentSession, setSessionSlides, newChat } = useSessionStore()
   const [showSettings, setShowSettings] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
@@ -80,12 +81,10 @@ function App() {
       // Capture previous state BEFORE updating
       const prevSlides = getCurrentSession()?.slides || []
 
-      // Save slides to current session (merge for contextual edits, replace otherwise)
-      if (item.contextSlideNumbers && item.contextSlideNumbers.length > 0) {
-        mergeSlides(item.slides!)
-      } else {
-        setSessionSlides(item.slides!)
-      }
+      // Save slides to current session using applyDelta for proper create/update/append handling
+      const action = item.responseAction || (item.contextSlideNumbers?.length ? 'update' : 'create')
+      const mergedSlides = applyDelta(prevSlides, { action, slides: item.slides! })
+      setSessionSlides(mergedSlides)
 
       // Capture full slide state after the update for snapshot restoration
       const updatedSession = getCurrentSession()
@@ -131,7 +130,7 @@ function App() {
 
       savedItemIds.current.add(item.id)
     }
-  }, [items, currentSessionId, createSession, addMessage, setSessionSlides, mergeSlides])
+  }, [items, currentSessionId, createSession, addMessage, setSessionSlides])
 
   // Sync dark class
   useEffect(() => {

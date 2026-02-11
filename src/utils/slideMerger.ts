@@ -29,7 +29,7 @@ export const applyDelta = (
     // to prevent duplication during streaming partials
     const currentNumbers = new Set(currentSlides.map(s => s.slide_number))
     const newUnique = incomingSlides.filter(s => !currentNumbers.has(s.slide_number))
-    return [...currentSlides, ...newUnique]
+    return [...currentSlides, ...newUnique].sort((a, b) => a.slide_number - b.slide_number)
   }
 
   // CASE 3: UPDATE (Modify specific)

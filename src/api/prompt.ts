@@ -15,7 +15,7 @@ ALWAYS reply in the same language as the user's input.
    - Do NOT include unchanged slides.
 3. **"append"**: Use when adding new content (e.g., "add 3 more slides").
    - Output ONLY the new slide objects.
-   - MUST increment slide_number starting from the last known number (if provided in context).
+   - **CRITICAL:** Start \`slide_number\` from [Current Max + 1]. Do NOT restart from 1.
 
 ### JSON SCHEMA (Per Slide):
 {
