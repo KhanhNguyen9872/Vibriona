@@ -326,10 +326,27 @@ export default function HeroChatInput() {
           className="flex items-center justify-between px-1 text-[10px] text-neutral-400 dark:text-zinc-500"
         >
           <span>{t('chat.hint')}</span>
-          <div className="flex items-center gap-3">
-            <span>{charCount} {t('chat.charUnit')}</span>
-            <span>•</span>
-            <span>{wordCount} {t('chat.wordUnit')}</span>
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span>{t('hero.suggestionsLabel')}</span>
+              <motion.button
+                onClick={handleRefreshSuggestions}
+                disabled={isLoadingSuggestions}
+                className="p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                title={t('hero.refreshSuggestions')}
+              >
+                <RefreshCw className={`w-3 h-3 text-neutral-400 dark:text-zinc-500 ${isLoadingSuggestions ? 'animate-spin' : ''}`} />
+              </motion.button>
+            </div>
+
+            <div className="flex items-center gap-3 border-l border-neutral-200 dark:border-zinc-700 pl-4">
+              <span>{charCount} {t('chat.charUnit')}</span>
+              <span>•</span>
+              <span>{wordCount} {t('chat.wordUnit')}</span>
+            </div>
           </div>
         </motion.div>
       )}
@@ -344,19 +361,7 @@ export default function HeroChatInput() {
             transition={{ duration: 0.3, delay: 0.25 }}
             className="space-y-2"
           >
-            <div className="flex items-center justify-center gap-2">
-              <span className="text-[10px] text-neutral-400 dark:text-zinc-500">{t('hero.suggestionsLabel')}</span>
-              <motion.button
-                onClick={handleRefreshSuggestions}
-                disabled={isLoadingSuggestions}
-                className="p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                title={t('hero.refreshSuggestions')}
-              >
-                <RefreshCw className={`w-3 h-3 text-neutral-400 dark:text-zinc-500 ${isLoadingSuggestions ? 'animate-spin' : ''}`} />
-              </motion.button>
-            </div>
+
             <div className="flex flex-wrap items-center justify-center gap-2">
               {Array.from({ length: 4 }).map((_, i) => (
                 i < loadedSuggestionsCount && suggestions[i] ? (

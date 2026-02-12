@@ -19,13 +19,17 @@ export interface QueueItem {
   error?: string
   contextSlides?: Slide[]
   contextSlideNumbers?: number[]
-  responseAction?: 'create' | 'update' | 'append' | 'delete' | 'ask' | 'response'
+  responseAction?: 'create' | 'update' | 'append' | 'delete' | 'ask' | 'response' | 'info' | 'sort'
   // Fields for ask action
   question?: string
   options?: string[]
   allowCustom?: boolean
   // Field for response action
   content?: string
+  // Fields for info action
+  slide_ids?: string[]
+  // Fields for sort action
+  new_order?: string[]
   hasReceivedAction?: boolean // Track when action type is known from stream
 }
 
@@ -107,17 +111,45 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
       ),
     }))
 
-    // Build the actual API prompt
+    // Build the actual API prompt with SKELETON CONTEXT STRATEGY
     let apiPrompt = next.prompt
+    
+    // Helper: Build skeleton list (ID + Title only)
+    const buildSkeletonList = (slides: Slide[]) => {
+      return slides.map(s => ({
+        id: s.id || `slide-${s.slide_number}`,
+        slide_number: s.slide_number,
+        title: s.title,
+        // Omit: content, speaker_notes, visual_description, etc.
+      }))
+    }
+
     if (next.contextSlides && next.contextSlides.length > 0) {
       // Targeted edit: user selected specific slides
-      const selectedContent = next.contextSlides
-        .map((s) => JSON.stringify(s))
-        .join('\n')
-      apiPrompt = `[CONTEXT: The user has selected specific slides to modify. Apply changes ONLY to these slides based on the instruction below. Return the modified slides as a JSON array with the same structure. Preserve their slide_number values exactly.]\n\n--- SELECTED SLIDES ---\n${selectedContent}\n-----------------------\n\nUSER INSTRUCTION: ${next.prompt}`
+      // Send skeleton for ALL slides + full details for SELECTED slides only
+      const skeleton = buildSkeletonList(projectSession?.slides || [])
+      const fullDetailsForSelected = next.contextSlides
+      
+      apiPrompt = `[SYSTEM_STATE: EXISTING_PROJECT_ACTIVE]
+[PROJECT_STRUCTURE (IDs & Titles Only)]:
+${JSON.stringify(skeleton, null, 2)}
+
+[DETAILED_CONTEXT_FOR_SELECTED_SLIDES]:
+${JSON.stringify(fullDetailsForSelected, null, 2)}
+
+[CONTEXT: The user has selected specific slides to modify. Apply changes ONLY to these slides based on the instruction below. Return the modified slides as a JSON array with the same structure. Preserve their slide_number values exactly.]
+
+USER INSTRUCTION: ${next.prompt}`
     } else if (projectSession?.slides && projectSession.slides.length > 0) {
       // Full edit mode: slides exist, user wants to refine
-      apiPrompt = `CURRENT SLIDES JSON:\n${JSON.stringify(projectSession.slides)}\n\nUSER REQUEST: ${next.prompt}`
+      // Send ONLY skeleton for all slides (token optimization!)
+      const skeleton = buildSkeletonList(projectSession.slides)
+      
+      apiPrompt = `[SYSTEM_STATE: EXISTING_PROJECT_ACTIVE]
+[PROJECT_STRUCTURE (IDs & Titles Only)]:
+${JSON.stringify(skeleton, null, 2)}
+
+USER REQUEST: ${next.prompt}`
     }
 
     const abort = streamGenerate(apiUrl, apiKey, apiPrompt, selectedModel, {
@@ -129,7 +161,7 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
       },
       onResponseUpdate: (response) => {
         // Extract all fields from the response object
-        const { action, slides, question, options, allowCustom, content } = response
+        const { action, slides, question, options, allowCustom, content, slide_ids, new_order } = response
 
         // 🐛 DEBUG: Log full bot response
         // console.log('🤖 [Bot Response Update]', {
@@ -138,19 +170,74 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
         //   hasQuestion: !!question,
         //   hasOptions: !!options,
         //   hasContent: !!content,
+        //   slide_ids,
+        //   new_order,
         //   fullResponse: response
         // })
 
         // Store all relevant data in the queue item for UI components to consume
-            get().updateItem(next.id, {
-              slides,
-              responseAction: action as any,
-              question,
-              options,
-              allowCustom,
-              content,
-              hasReceivedAction: true // Mark that action has been detected
-            })
+        get().updateItem(next.id, {
+          slides,
+          responseAction: action as any,
+          question,
+          options,
+          allowCustom,
+          content,
+          hasReceivedAction: true, // Mark that action has been detected
+          slide_ids, // Store for 'info' action
+          new_order, // Store for 'sort' action
+        })
+
+        // 📥 PHASE 49: Handle "info" action (Data Retrieval Protocol)
+        if (action === 'info' && slide_ids && slide_ids.length > 0) {
+          const requestedIds = slide_ids
+          const allSlides = projectSession?.slides || []
+          const fullSlides = allSlides.filter(s => 
+            requestedIds.includes(s.id || `slide-${s.slide_number}`)
+          )
+          
+          // Construct hidden system message with full slide data
+          const hiddenPrompt = `[SYSTEM: DATA_RETRIEVAL_RESULT]
+Here are the full details you requested:
+${JSON.stringify(fullSlides, null, 2)}
+
+NOW, perform the user's original request based on this data.`
+          
+          // Re-submit with full context (append to history)
+          const extendedHistory: HistoryMessage[] = [
+            ...history,
+            { role: 'assistant', content: JSON.stringify({ action: 'info', slide_ids }) },
+            { role: 'user', content: hiddenPrompt }
+          ]
+          
+          // Re-trigger stream generation with extended history
+          const resubmitAbort = streamGenerate(apiUrl, apiKey, '', selectedModel, {
+            onToken: (fullText) => get().updateItem(next.id, { streamingText: fullText }),
+            onThinking: (thinkingText) => get().updateItem(next.id, { thinkingText }),
+            onResponseUpdate: (response) => {
+              const { action, slides, question, options, allowCustom, content, slide_ids, new_order } = response
+              get().updateItem(next.id, {
+                slides,
+                responseAction: action as any,
+                question,
+                options,
+                allowCustom,
+                content,
+                hasReceivedAction: true,
+                slide_ids,
+                new_order,
+              })
+            },
+            onDone: (fullText, slides, thinking, completionMessage) => {
+              get().completeActive(next.id, fullText, slides, thinking, completionMessage)
+            },
+            onError: (error) => get().failActive(next.id, error)
+          }, extendedHistory)
+          
+          // Update abort controller
+          set((state) => ({ activeAborts: { ...state.activeAborts, [next.projectId]: resubmitAbort } }))
+          return // Exit early, wait for resubmit to complete
+        }
       },
       onDone: (fullText, slides, thinking, completionMessage) => {
         // 🐛 DEBUG: Log completion
@@ -238,6 +325,17 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
           options: item.options || [],
           allowCustom: item.allowCustom
         }
+      })
+    }
+
+    // 🔀 PHASE 50: If action is "sort", reorder slides based on new_order
+    if (item.responseAction === 'sort' && item.new_order && item.new_order.length > 0) {
+      useSessionStore.getState().reorderSlidesByIds(item.new_order)
+      useSessionStore.getState().addMessage({
+        role: 'assistant',
+        content: 'I have reordered the slides for better flow.',
+        timestamp: Date.now(),
+        isScriptGeneration: false
       })
     }
 

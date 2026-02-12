@@ -182,6 +182,8 @@ const en = {
       renameHint: 'Double click to rename',
       expandSidebar: 'Expand sidebar',
       collapseSidebar: 'Collapse sidebar',
+      deleteAll: 'Delete all projects',
+      deleteAllConfirm: 'Are you sure you want to delete all projects? This cannot be undone.',
     },
     loading: {
       initializing: 'Initializing...',

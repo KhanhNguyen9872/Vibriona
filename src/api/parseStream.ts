@@ -145,7 +145,7 @@ export function extractCompletionMessage(content: string): string {
 }
 
 export interface DeltaResponse {
-  action?: 'create' | 'update' | 'append' | 'delete' | 'ask' | 'response'
+  action?: 'create' | 'update' | 'append' | 'delete' | 'ask' | 'response' | 'info' | 'sort'
   slides: Slide[]
   // Fields for ask action
   question?: string
@@ -153,6 +153,10 @@ export interface DeltaResponse {
   allowCustom?: boolean
   // Field for response action
   content?: string
+  // Fields for info action
+  slide_ids?: string[]
+  // Fields for sort action
+  new_order?: string[]
 }
 
 /**
@@ -180,17 +184,19 @@ export function parsePartialResponse(text: string): DeltaResponse {
         question: parsed.question,
         options: parsed.options,
         allowCustom: parsed.allow_custom_input,
-        content: parsed.content
+        content: parsed.content,
+        slide_ids: parsed.slide_ids,
+        new_order: parsed.new_order
       }
 
       // 🐛 DEBUG: Log parsed response
-      console.log('📦 [Parsed Bot Response]', {
-        action: response.action,
-        slidesCount: response.slides?.length ?? 0,
-        hasQuestion: !!response.question,
-        hasContent: !!response.content,
-        rawParsed: parsed
-      })
+      // console.log('📦 [Parsed Bot Response]', {
+      //   action: response.action,
+      //   slidesCount: response.slides?.length ?? 0,
+      //   hasQuestion: !!response.question,
+      //   hasContent: !!response.content,
+      //   rawParsed: parsed
+      // })
 
       return response
     }

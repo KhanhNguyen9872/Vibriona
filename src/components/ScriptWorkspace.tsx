@@ -76,10 +76,11 @@ export default function ScriptWorkspace() {
   // 2. Append: Show bottom skeleton AND action is "append"
   // 3. Update: Show NO skeleton (in-place update)
   // 4. Response/Ask: Show NO skeleton (chat only)
-  const showFullSkeleton = isStreaming && displaySlides.length === 0 && responseAction === 'create' && hasReceivedAction && !activeItem?.thinkingText
+  const showFullSkeleton = isStreaming && displaySlides.length === 0 && responseAction === 'create' && hasReceivedAction
 
-  // Show bottom skeleton ONLY if we are appending (after action is known)
-  const showBottomSkeleton = isStreaming && displaySlides.length > 0 && responseAction === 'append' && hasReceivedAction
+  // Show bottom skeleton if we are appending OR creating (and have some slides already)
+  // This ensures that during a "create" stream, we see a skeleton at the bottom for the "next" slide
+  const showBottomSkeleton = isStreaming && displaySlides.length > 0 && (responseAction === 'append' || responseAction === 'create') && hasReceivedAction
   const isReadonly = isStreaming || streamingSlides.length > 0
 
   // Thinking content - show from active item (streaming) or last done item

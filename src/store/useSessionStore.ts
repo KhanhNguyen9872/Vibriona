@@ -63,6 +63,7 @@ interface SessionState {
   deleteSlide: (slideIndex: number) => void
   deleteSlides: (slideIndices: number[]) => void
   reorderSlides: (fromIndex: number, toIndex: number) => void
+  reorderSlidesByIds: (newOrderIds: string[]) => void
   duplicateSlide: (slideIndex: number) => void
   // Highlight
   highlightSlide: (slideNumber: number) => void
@@ -79,6 +80,7 @@ interface SessionState {
   addProcessingSlide: (slideNumber: number) => void
   removeProcessingSlide: (slideNumber: number) => void
   clearProcessingSlides: () => void
+  clearSessions: () => void
 }
 
 export const useSessionStore = create<SessionState>()(
@@ -198,6 +200,8 @@ export const useSessionStore = create<SessionState>()(
         set({ currentSessionId: null })
       },
 
+      clearSessions: () => set({ sessions: [], currentSessionId: null }),
+
       pinSession: (id) =>
         set((state) => ({
           sessions: state.sessions.map((s) =>
@@ -217,9 +221,16 @@ export const useSessionStore = create<SessionState>()(
       setSessionSlides: (slides) => {
         const { currentSessionId } = get()
         if (!currentSessionId) return
+        
+        // Auto-generate IDs for slides that don't have them
+        const slidesWithIds = slides.map(s => ({
+          ...s,
+          id: s.id || `slide-${s.slide_number}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        }))
+        
         set((state) => ({
           sessions: state.sessions.map((s) =>
-            s.id === currentSessionId ? { ...s, slides } : s
+            s.id === currentSessionId ? { ...s, slides: slidesWithIds } : s
           ),
         }))
       },
@@ -227,11 +238,18 @@ export const useSessionStore = create<SessionState>()(
       mergeSlides: (updatedSlides) => {
         const { currentSessionId } = get()
         if (!currentSessionId) return
+        
+        // Auto-generate IDs for updated slides that don't have them
+        const updatedWithIds = updatedSlides.map(s => ({
+          ...s,
+          id: s.id || `slide-${s.slide_number}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        }))
+        
         set((state) => ({
           sessions: state.sessions.map((s) => {
             if (s.id !== currentSessionId) return s
             const newSlides = s.slides.map((existing) => {
-              const updated = updatedSlides.find((u) => u.slide_number === existing.slide_number)
+              const updated = updatedWithIds.find((u) => u.slide_number === existing.slide_number)
               return updated ? { ...existing, ...updated } : existing
             })
             return { ...s, slides: newSlides }
@@ -291,6 +309,38 @@ export const useSessionStore = create<SessionState>()(
             const [moved] = newSlides.splice(fromIndex, 1)
             newSlides.splice(toIndex, 0, moved)
             const renumbered = newSlides.map((sl, i) => ({ ...sl, slide_number: i + 1 }))
+            return { ...s, slides: renumbered }
+          }),
+        }))
+      },
+
+      reorderSlidesByIds: (newOrderIds) => {
+        const { currentSessionId } = get()
+        if (!currentSessionId) return
+        
+        set((state) => ({
+          sessions: state.sessions.map((s) => {
+            if (s.id !== currentSessionId) return s
+            
+            // Create a map for O(1) lookup
+            const slideMap = new Map(
+              s.slides.map((slide) => [
+                slide.id || `slide-${slide.slide_number}`,
+                slide
+              ])
+            )
+            
+            // Reconstruct array based on new ID order
+            const reordered = newOrderIds
+              .map((id) => slideMap.get(id))
+              .filter(Boolean) as Slide[]
+            
+            // Auto-renumber based on new position
+            const renumbered = reordered.map((slide, idx) => ({
+              ...slide,
+              slide_number: idx + 1
+            }))
+            
             return { ...s, slides: renumbered }
           }),
         }))

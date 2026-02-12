@@ -182,6 +182,8 @@ const vi = {
       renameHint: 'Nhấn đúp để đổi tên',
       expandSidebar: 'Mở rộng thanh bên',
       collapseSidebar: 'Thu gọn thanh bên',
+      deleteAll: 'Xóa tất cả dự án',
+      deleteAllConfirm: 'Bạn có chắc chắn muốn xóa tất cả dự án không? Hành động này không thể hoàn tác.',
     },
     loading: {
       initializing: 'Đang khởi tạo...',

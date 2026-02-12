@@ -1,12 +1,13 @@
 import axios from 'axios'
-import { SYSTEM_PROMPT, type Slide } from './prompt'
-import { extractContentFromChunk, separateThinkingFromContent, parsePartialResponse, extractCompletionMessage } from './parseStream'
+import { SYSTEM_PROMPT } from './prompt'
+import type { Slide } from './prompt'
+import { extractContentFromChunk, separateThinkingFromContent, parsePartialResponse, extractCompletionMessage, type DeltaResponse } from './parseStream'
 import { getAPIConfig } from './utils'
 
 export interface StreamCallbacks {
-  onToken: (fullText: string) => void
-  onThinking: (thinkingText: string) => void
-  onResponseUpdate: (response: { action?: string, slides: Slide[], question?: string, options?: string[], allowCustom?: boolean, content?: string }) => void
+  onToken: (content: string) => void
+  onThinking: (thinking: string) => void
+  onResponseUpdate: (response: DeltaResponse) => void
   onDone: (fullText: string, slides: Slide[], thinking: string, completionMessage: string) => void
   onError: (error: string, status?: number) => void
 }

@@ -29,7 +29,7 @@ interface SidebarProps {
 
 export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelect }: SidebarProps) {
   const { t } = useTranslation()
-  const { sessions, currentSessionId, setCurrentSession, deleteSession, importSession, pinSession, renameSession } =
+  const { sessions, currentSessionId, setCurrentSession, deleteSession, importSession, pinSession, renameSession, clearSessions } =
     useSessionStore()
   const { isProjectProcessing } = useQueueStore()
   const [menuSessionId, setMenuSessionId] = useState<string | null>(null)
@@ -366,9 +366,9 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
         </div>
       )}
 
-      {/* Bottom: Import button */}
+      {/* Bottom: Import + Delete All */}
       {!collapsed && (
-        <div className="shrink-0 border-t border-neutral-200 dark:border-neutral-800 px-3 py-2">
+        <div className="shrink-0 border-t border-neutral-200 dark:border-neutral-800 px-3 py-2 space-y-1">
           <button
             onClick={handleImport}
             className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-neutral-500 hover:bg-neutral-200/60 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
@@ -376,6 +376,21 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
             <Upload className="w-3.5 h-3.5" />
             {t('sessions.importChat')}
           </button>
+          
+          <button
+            onClick={() => {
+              confirmAction(
+                t('sessions.deleteAllConfirm'),
+                clearSessions,
+                { confirm: t('sessions.deleteAll'), cancel: t('chat.cancel') }
+              )
+            }}
+            className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-red-500 hover:bg-neutral-200/60 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            {t('sessions.deleteAll')}
+          </button>
+          
           <input
             ref={fileInputRef}
             type="file"

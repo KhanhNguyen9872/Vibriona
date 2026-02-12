@@ -183,7 +183,6 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
                   : 'bg-neutral-200 dark:bg-zinc-800 border-neutral-300 dark:border-zinc-700 text-neutral-700 dark:text-zinc-300 hover:bg-neutral-300 dark:hover:bg-zinc-700'
                 }`}
             >
-              <Presentation className="w-3 h-3" />
               {ref.label}
             </button>
           ))}
