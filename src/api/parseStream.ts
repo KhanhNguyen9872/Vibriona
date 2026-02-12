@@ -195,6 +195,8 @@ export function parsePartialResponse(text: string): DeltaResponse {
       //   slidesCount: response.slides?.length ?? 0,
       //   hasQuestion: !!response.question,
       //   hasContent: !!response.content,
+      //   slide_ids: response.slide_ids,
+      //   new_order: response.new_order,
       //   rawParsed: parsed
       // })
 

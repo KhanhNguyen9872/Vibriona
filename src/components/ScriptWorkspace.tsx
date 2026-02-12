@@ -27,7 +27,8 @@ import SlideEditorModal from './SlideEditorModal'
 import SlideSkeleton from './SlideSkeleton'
 import SkeletonLoader from './SkeletonLoader'
 import ThinkingIndicator from './ThinkingIndicator'
-import { Layers, Clock, Trash2, Download, FileDown, ClipboardCopy, FileJson, ChevronDown, Plus } from 'lucide-react'
+import { confirmAction } from '../utils/confirmAction'
+import { Layers, Clock, Trash2, Download, FileDown, ClipboardCopy, FileJson, ChevronDown, Plus, CheckSquare, X } from 'lucide-react'
 import type { Slide } from '../api/prompt'
 
 import { createDefaultSlide } from '../config/defaults'
@@ -35,7 +36,7 @@ import { createDefaultSlide } from '../config/defaults'
 export default function ScriptWorkspace() {
   const { t } = useTranslation()
   const { items, getActiveProcessForProject } = useQueueStore()
-  const { getCurrentSession, reorderSlides, deleteSlides, updateSlide, getSelectedSlideIndices, toggleSlideSelection, clearSlideSelection, setSessionSlides } = useSessionStore()
+  const { getCurrentSession, reorderSlides, deleteSlides, updateSlide, getSelectedSlideIndices, toggleSlideSelection, clearSlideSelection, selectAllSlides, setSessionSlides } = useSessionStore()
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [activeDragIndex, setActiveDragIndex] = useState<number | null>(null)
   const [editingSlideIndex, setEditingSlideIndex] = useState<number | null>(null)
@@ -168,8 +169,18 @@ export default function ScriptWorkspace() {
   }, [reorderSlides, clearSlideSelection])
 
   const handleBulkDelete = () => {
-    deleteSlides(selectedSlideIndices)
-    clearSlideSelection()
+    confirmAction(
+      t('workspace.deleteSelectedConfirm', { count: selectedSlideIndices.length }),
+      () => {
+        deleteSlides(selectedSlideIndices)
+        clearSlideSelection()
+      },
+      {
+        confirm: t('common.yes'),
+        cancel: t('common.no'),
+        description: t('workspace.deleteSelectedDescription')
+      }
+    )
   }
 
   const sortableIds = displaySlides.map((_, i) => `slide-${i}`)
@@ -328,17 +339,39 @@ export default function ScriptWorkspace() {
             transition={{ duration: 0.2 }}
             className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30"
           >
-            <div className="flex items-center gap-3 px-5 py-3 rounded-2xl border border-neutral-200 dark:border-neutral-700/50 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-sm">
-              <span className="text-xs font-medium text-neutral-500 tabular-nums">
+            <div className="flex items-center gap-1.5 px-3 py-2 rounded-2xl border border-neutral-200 dark:border-neutral-700/50 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-sm shadow-sm">
+              <span className="text-xs font-medium text-neutral-500 tabular-nums px-2">
                 {t('workspace.selected', { count: selectedSlideIndices.length })}
               </span>
-              <div className="w-px h-4 bg-neutral-200 dark:bg-neutral-700" />
+              
+              <div className="w-px h-4 bg-neutral-200 dark:bg-neutral-700 mx-1" />
+              
+              <button
+                onClick={selectAllSlides}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                title={t('workspace.selectAll')}
+              >
+                <CheckSquare className="w-3.5 h-3.5" />
+                {t('workspace.selectAll')}
+              </button>
+
+              <button
+                onClick={clearSlideSelection}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                title={t('workspace.unselectAll')}
+              >
+                <X className="w-3.5 h-3.5" />
+                {t('workspace.unselectAll')}
+              </button>
+
+              <div className="w-px h-4 bg-neutral-200 dark:bg-neutral-700 mx-1" />
+
               <button
                 onClick={handleBulkDelete}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+                title={t('workspace.deleteSelected')}
               >
-                <Trash2 className="w-3 h-3" />
-                {t('workspace.deleteSelected')}
+                <Trash2 className="w-4 h-4" />
               </button>
             </div>
           </motion.div>

@@ -262,12 +262,14 @@ export default function SlideCard({
 
   return (
     <motion.div
+      layout // <--- KEY CHANGE: Enables automatic position animation
+      layoutId={slide.id || `slide-${slide.slide_number}`} // Optional: helps tracking
+      transition={{ type: "spring", stiffness: 300, damping: 30 }} // Snappy physics
       id={`slide-card-${index}`}
       ref={setNodeRef}
       style={style}
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.04 }}
       className={`
         relative border rounded-xl transition-all duration-300
         ${isDragging ? 'opacity-30 z-50' : ''}
@@ -281,7 +283,9 @@ export default function SlideCard({
               ? 'border-green-500/80 bg-green-50/50 dark:bg-green-950/20'
               : slide._actionMarker === 'update'
                 ? 'border-yellow-500/80 bg-yellow-50/50 dark:bg-yellow-950/20'
-                : 'border-neutral-200 dark:border-neutral-700/50 bg-white dark:bg-neutral-900'
+                : slide._actionMarker === 'sort' // <--- NEW STYLE FOR SORT
+                  ? 'border-blue-500/80 bg-blue-50/50 dark:bg-blue-950/20 z-10' // Blue + z-index bump
+                  : 'border-neutral-200 dark:border-neutral-700/50 bg-white dark:bg-neutral-900'
         }
         ${isProcessing ? 'ring-1 ring-neutral-900/50 dark:ring-white/50' : ''}
         ${flashing ? 'slide-flash' : ''}

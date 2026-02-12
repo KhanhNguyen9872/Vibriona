@@ -116,8 +116,10 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
     
     // Helper: Build skeleton list (ID + Title only)
     const buildSkeletonList = (slides: Slide[]) => {
+      // FORCE SIMPLE IDs for LLM Context: "slide-1", "slide-2", etc.
+      // This reduces token usage and confusion for the Bot.
       return slides.map(s => ({
-        id: s.id || `slide-${s.slide_number}`,
+        id: `slide-${s.slide_number}`, // <--- FORCE SIMPLE ID
         slide_number: s.slide_number,
         title: s.title,
         // Omit: content, speaker_notes, visual_description, etc.
@@ -160,95 +162,174 @@ USER REQUEST: ${next.prompt}`
         get().updateItem(next.id, { thinkingText })
       },
       onResponseUpdate: (response) => {
-        // Extract all fields from the response object
-        const { action, slides, question, options, allowCustom, content, slide_ids, new_order } = response
-
-        // 🐛 DEBUG: Log full bot response
-        // console.log('🤖 [Bot Response Update]', {
-        //   action,
-        //   slidesCount: slides?.length ?? 0,
-        //   hasQuestion: !!question,
-        //   hasOptions: !!options,
-        //   hasContent: !!content,
-        //   slide_ids,
-        //   new_order,
-        //   fullResponse: response
-        // })
-
-        // Store all relevant data in the queue item for UI components to consume
-        get().updateItem(next.id, {
-          slides,
+        const { action, slides: newSlides, question, options, allowCustom, content, slide_ids, new_order } = response
+        
+        get().updateItem(next.id, { 
+          slides: newSlides,
           responseAction: action as any,
-          question,
-          options,
+          question, 
+          options, 
           allowCustom,
           content,
-          hasReceivedAction: true, // Mark that action has been detected
-          slide_ids, // Store for 'info' action
-          new_order, // Store for 'sort' action
+          hasReceivedAction: true,
+          slide_ids,
+          new_order
         })
-
-        // 📥 PHASE 49: Handle "info" action (Data Retrieval Protocol)
-        if (action === 'info' && slide_ids && slide_ids.length > 0) {
-          const requestedIds = slide_ids
-          const allSlides = projectSession?.slides || []
-          const fullSlides = allSlides.filter(s => 
-            requestedIds.includes(s.id || `slide-${s.slide_number}`)
-          )
-          
-          // Construct hidden system message with full slide data
-          const hiddenPrompt = `[SYSTEM: DATA_RETRIEVAL_RESULT]
-Here are the full details you requested:
-${JSON.stringify(fullSlides, null, 2)}
-
-NOW, perform the user's original request based on this data.`
-          
-          // Re-submit with full context (append to history)
-          const extendedHistory: HistoryMessage[] = [
-            ...history,
-            { role: 'assistant', content: JSON.stringify({ action: 'info', slide_ids }) },
-            { role: 'user', content: hiddenPrompt }
-          ]
-          
-          // Re-trigger stream generation with extended history
-          const resubmitAbort = streamGenerate(apiUrl, apiKey, '', selectedModel, {
-            onToken: (fullText) => get().updateItem(next.id, { streamingText: fullText }),
-            onThinking: (thinkingText) => get().updateItem(next.id, { thinkingText }),
-            onResponseUpdate: (response) => {
-              const { action, slides, question, options, allowCustom, content, slide_ids, new_order } = response
-              get().updateItem(next.id, {
-                slides,
-                responseAction: action as any,
-                question,
-                options,
-                allowCustom,
-                content,
-                hasReceivedAction: true,
-                slide_ids,
-                new_order,
-              })
-            },
-            onDone: (fullText, slides, thinking, completionMessage) => {
-              get().completeActive(next.id, fullText, slides, thinking, completionMessage)
-            },
-            onError: (error) => get().failActive(next.id, error)
-          }, extendedHistory)
-          
-          // Update abort controller
-          set((state) => ({ activeAborts: { ...state.activeAborts, [next.projectId]: resubmitAbort } }))
-          return // Exit early, wait for resubmit to complete
-        }
       },
       onDone: (fullText, slides, thinking, completionMessage) => {
         // 🐛 DEBUG: Log completion
-        // console.log('✅ [Bot Generation Complete]', {
+        // console.log('✅ [Bot Generation Complete (Phase 1)]', {
         //   slidesCount: slides?.length ?? 0,
         //   hasThinking: !!thinking,
         //   completionMessage,
         //   fullTextLength: fullText?.length ?? 0
         // })
 
-        get().completeActive(next.id, fullText, slides, thinking, completionMessage)
+        const currentItem = get().items.find(i => i.id === next.id)
+        let finalSlides = slides || []
+        let finalAction = currentItem?.responseAction
+
+        // 🛡️ PHASE 53: SALVAGE LOGIC
+        // Check if completionMessage contains lost slides (Bot violated JSON protocol)
+        let salvagedSlides: Slide[] = []
+        
+        if (completionMessage && completionMessage.trim().match(/^,?\s*[\{\[]/)) {
+          // Looks like JSON (starts with { or [ or ,)          
+          try {
+            // 1. Clean up: Remove leading commas or whitespace
+            let cleanJson = completionMessage.trim().replace(/^,/, '')
+            
+            // 2. Wrap in array if it looks like a single object or list of objects
+            if (cleanJson.startsWith('{')) {
+               // It might be "}, { ... }" list pattern. Try to wrap it.
+               cleanJson = `[${cleanJson}]`
+            }
+            
+            // 3. Parse
+            const parsed = JSON.parse(cleanJson)
+            
+            if (Array.isArray(parsed) && parsed.length > 0 && (parsed[0].slide_number || parsed[0].title)) {
+               salvagedSlides = parsed
+            }
+          } catch (e) {
+            console.warn('⚠️ [Salvage] Failed to parse completion text:', e)
+          }
+        }
+
+        // 🔄 MERGE SALVAGED DATA
+        if (salvagedSlides.length > 0) {
+          finalSlides = [...finalSlides, ...salvagedSlides]
+          
+          // If we found slides, the action CANNOT be 'info' or 'ask'. Force 'append' or 'update'
+          if (finalAction === 'info' || finalAction === 'ask' || !finalAction) {
+             finalAction = 'append'
+             // Update the item state with the corrected action
+             get().updateItem(next.id, { responseAction: 'append' })
+          }
+        }
+        
+        // 🔄 PHASE 52 & 54: RECURSIVE LOOP FOR 'INFO' ACTION
+        // Only run if we didn't salvage slides (meaning we genuinely need info)
+        if (finalAction === 'info' && finalSlides.length === 0) {
+          
+          // 1. Determine Target IDs
+          let targetIds = currentItem?.slide_ids || []
+          
+          // 🛡️ PHASE 54: SMART FALLBACK: If Bot requested INFO but gave no IDs (or empty array), fetch ALL slides.
+          if (targetIds.length === 0) {
+            const projectSession = useSessionStore.getState().sessions.find(s => s.id === next.projectId)
+            if (projectSession?.slides) {
+              targetIds = projectSession.slides.map(s => s.id || `slide-${s.slide_number}`)
+            }
+          }
+
+          // 2. Execute Recursion if we have targets
+          if (targetIds.length > 0) {
+            // Retrieve Data
+            const projectSession = useSessionStore.getState().sessions.find(s => s.id === next.projectId)
+            const allSlides = projectSession?.slides || []
+            const requestedSlides = allSlides.filter(s => {
+              // 🛡️ PHASE 56: ROBUST ID MATCHING
+              // Check BOTH the UUID and the 'slide-N' format
+               const simpleId = `slide-${s.slide_number}`
+               return (s.id && targetIds.includes(s.id)) || targetIds.includes(simpleId)
+            })
+
+            // 2. Get Original Intent
+            const originalUserRequest = currentItem?.prompt || "User request unavailable"
+
+            // 3. Construct ENHANCED Hidden Payload
+            const hiddenPayload = `[SYSTEM: DATA_RETRIEVAL_RESULT]
+Here is the FULL CONTENT of the slides you requested (or all slides):
+${JSON.stringify(requestedSlides, null, 2)}
+
+[CRITICAL INSTRUCTION]: 
+1. The user's ORIGINAL REQUEST was: "${originalUserRequest}"
+2. You now have the full context required to fulfill this request.
+3. **DO NOT** reply with "I have received the data".
+4. **IMMEDIATELY** generate the JSON for the next logical action (e.g., "sort", "update", or "append").
+5. If the user asked to reorder, use 'action': 'sort' with the 'new_order' array.`
+
+            // Update History (Append the Bot's "info" request AND the System's "data" response)
+            // Ensure we append the actual text generated by the bot as the assistant response
+            // If bot provided no IDs originally, we might want to synthesize the info request in history 
+            // but relying on fullText is usually safer if it exists. 
+            // If fullText is empty (edge case), we synthesize a proper info output.
+            const infoMessageContent = fullText || JSON.stringify({ action: 'info', slide_ids: targetIds })
+
+            const newHistory: HistoryMessage[] = [
+              ...history, 
+              { role: 'assistant', content: infoMessageContent },
+              { role: 'user', content: hiddenPayload }
+            ]
+
+            // Update UI State (Keep it "Thinking...")
+            get().updateItem(next.id, { 
+              thinkingText: "Reading slide details...",
+              status: 'processing' // Keep it processing
+            })
+
+            // Re-trigger Stream (Recursive Call)
+            const newAbort = streamGenerate(apiUrl, apiKey, '', selectedModel, {
+              onToken: (t) => get().updateItem(next.id, { streamingText: t }),
+              onThinking: (t) => get().updateItem(next.id, { thinkingText: t }),
+              onResponseUpdate: (res) => {
+                 // Handle the NEXT action (e.g., 'sort' or 'update')
+                 const { action, slides, question, options, allowCustom, content, slide_ids, new_order } = res
+                 get().updateItem(next.id, { 
+                   slides,
+                   responseAction: action as any, 
+                   question,
+                   options,
+                   allowCustom,
+                   content,
+                   hasReceivedAction: true,
+                   slide_ids, // In case it asks for info again (rare but possible)
+                   new_order 
+                 })
+              },
+              onDone: (ft, s, th, cm) => {
+                // Finally complete the item
+                get().completeActive(next.id, ft, s, th, cm)
+              },
+              onError: (err) => get().failActive(next.id, err)
+            }, newHistory)
+
+            // Update active controller
+            set(state => ({ activeAborts: { ...state.activeAborts, [next.projectId]: newAbort } }))
+            
+            return // 🛑 EXIT here, do not call completeActive() for the 'info' step
+          }
+        }
+
+        // 🛑 FINAL FALLBACK: If 'info' but NO IDs and NO Slides -> Fail gracefully
+        if (finalAction === 'info' && finalSlides.length === 0) {
+          console.warn('🛑 [Error] Bot returned INFO but gave no IDs and no Slides.')
+          get().failActive(next.id, "AI Error: The system could not retrieve the requested information.")
+          return
+        }
+
+        get().completeActive(next.id, fullText, finalSlides, thinking, completionMessage)
       },
       onError: (error) => {
         get().failActive(next.id, error)
@@ -330,10 +411,31 @@ NOW, perform the user's original request based on this data.`
 
     // 🔀 PHASE 50: If action is "sort", reorder slides based on new_order
     if (item.responseAction === 'sort' && item.new_order && item.new_order.length > 0) {
+      const currentSession = useSessionStore.getState().getCurrentSession()
+      const beforeSlides = currentSession?.slides || []
+      
+      // Reorder the slides
       useSessionStore.getState().reorderSlidesByIds(item.new_order)
+      
+      // Get the new order to compare
+      const afterSlides = useSessionStore.getState().getCurrentSession()?.slides || []
+      
+      // Find which slides moved
+      const movements: string[] = []
+      beforeSlides.forEach((slide: any, oldIndex: number) => {
+        const newIndex = afterSlides.findIndex(s => (s.id || `slide-${s.slide_number}`) === (slide.id || `slide-${slide.slide_number}`))
+        if (newIndex !== -1 && newIndex !== oldIndex) {
+          movements.push(`**${slide.title}** (${oldIndex + 1} → ${newIndex + 1})`)
+        }
+      })
+      
+      const message = movements.length > 0
+        ? `I have reordered the slides:\n${movements.join('\n')}`
+        : 'I have reordered the slides for better flow.'
+      
       useSessionStore.getState().addMessage({
         role: 'assistant',
-        content: 'I have reordered the slides for better flow.',
+        content: message,
         timestamp: Date.now(),
         isScriptGeneration: false
       })

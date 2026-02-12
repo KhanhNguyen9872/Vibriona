@@ -2,8 +2,9 @@
 import type { Slide } from '../api/prompt'
 
 export interface DeltaResponse {
-  action?: 'create' | 'update' | 'append' | 'delete' | 'ask' | 'response'
+  action?: 'create' | 'update' | 'append' | 'delete' | 'ask' | 'response' | 'info' | 'sort'
   slides: Slide[]
+  new_order?: string[] // For sort action
 }
 
 /**
@@ -83,6 +84,31 @@ export const applyDelta = (
       }
       return existingSlide
     })
+  }
+
+  // CASE 5: SORT (Reorder)
+  if (action === 'sort' && delta.new_order) {
+    const slideMap = new Map(currentSlides.map(s => [s.id || `slide-${s.slide_number}`, s]));
+    
+    // 1. Validate: Ensure we don't lose slides if AI forgets some IDs
+    const newOrderIds = delta.new_order;
+    const existingIds = Array.from(slideMap.keys());
+    
+    // Append any missing IDs to the end (Safety Fallback)
+    const missingIds = existingIds.filter(id => !newOrderIds.includes(id));
+    const finalOrder = [...newOrderIds, ...missingIds];
+
+    // 2. Reconstruct
+    const reordered = finalOrder
+      .map(id => slideMap.get(id))
+      .filter((s): s is Slide => !!s)
+      .map((slide, index) => ({
+        ...slide,
+        slide_number: index + 1, // Auto-renumber
+        _actionMarker: options.markActions ? 'sort' as const : undefined // Tag for visual feedback
+      }));
+
+    return reordered;
   }
 
   // Fallback: If no action (e.g. legacy or start of stream), prefer "Create/Replace" behavior

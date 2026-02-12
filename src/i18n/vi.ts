@@ -3,6 +3,8 @@ const vi = {
     common: {
       ok: 'OK',
       cancel: 'Hủy',
+      yes: 'Có',
+      no: 'Không',
     },
     config: {
       title: 'Cấu hình bắt buộc',
@@ -109,6 +111,8 @@ const vi = {
       empty: 'Các slide sẽ hiển thị ở đây.',
       selected: '{{count}} đã chọn',
       deleteSelected: 'Xóa',
+      selectAll: 'Chọn tất cả',
+      unselectAll: 'Bỏ chọn',
       enhance: 'Nâng cấp',
       enhancing: 'Đang nâng cấp...',
       enhanced: 'Đã nâng cấp slide',

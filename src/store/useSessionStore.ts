@@ -71,6 +71,7 @@ interface SessionState {
   // Selection
   toggleSlideSelection: (index: number) => void
   clearSlideSelection: () => void
+  selectAllSlides: () => void
   getSelectedSlideIndices: () => number[]
   // Snapshot restoration
   restoreSnapshot: (snapshot: Slide[]) => void
@@ -405,6 +406,21 @@ export const useSessionStore = create<SessionState>()(
         set((state) => ({
           sessions: state.sessions.map((s) =>
             s.id === currentSessionId ? { ...s, selectedSlideIndices: [] } : s
+          ),
+        }))
+      },
+
+      selectAllSlides: () => {
+        const { currentSessionId, getCurrentSession } = get()
+        if (!currentSessionId) return
+        const session = getCurrentSession()
+        if (!session) return
+        
+        const allIndices = session.slides.map((_, i) => i)
+        
+        set((state) => ({
+          sessions: state.sessions.map((s) =>
+            s.id === currentSessionId ? { ...s, selectedSlideIndices: allIndices } : s
           ),
         }))
       },
