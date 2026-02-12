@@ -191,7 +191,8 @@ export default function HeroChatInput() {
     if (!trimmed || isProcessing || isSubmitted) return
 
     // Check limit before generating
-    if (useSessionStore.getState().sessions.length >= MAX_PROJECTS) {
+    const state = useSessionStore.getState()
+    if (!state.currentSessionId && state.sessions.length >= MAX_PROJECTS) {
       toast.error(t('sessions.limitReached', { limit: MAX_PROJECTS }))
       return
     }

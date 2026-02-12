@@ -24,28 +24,36 @@ export default function ClarificationRequest({
   const [isTypingCustom, setIsTypingCustom] = useState(false)
   const [hasSelected, setHasSelected] = useState(isAnswered || !!selectedOption) // Optimistic lock
 
+  // Determine if this specific instance is the skipped one
+  const isSkipped = selectedOption === '###SKIPPED###'
+
   const handleSelect = (answer: string) => {
-    if (hasSelected || isAnswered) return // Prevent double-click
-    setHasSelected(true) // Lock UI immediately
+    if (hasSelected || isAnswered || isSkipped) return // Prevent if locked or skipped
+    setHasSelected(true) 
     onSelect(answer)
   }
 
   const handleCustomSubmit = () => {
-    if (customInput.trim() && !hasSelected && !isAnswered) {
-      setHasSelected(true) // Lock UI immediately
+    if (customInput.trim() && !hasSelected && !isAnswered && !isSkipped) {
+      setHasSelected(true)
       onSelect(customInput.trim())
       setCustomInput('')
       setIsTypingCustom(false)
     }
   }
 
+  // ... (custom submit logic remains same)
+
   return (
-    <div className={`flex flex-col gap-3 p-4 border rounded-xl transition-all ${hasSelected
-        ? 'bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700 opacity-60 pointer-events-none'
-        : 'bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-200 dark:border-indigo-500/30'
+    <div className={`flex flex-col gap-3 p-4 border rounded-xl transition-all ${
+      isSkipped 
+        ? 'opacity-50 grayscale pointer-events-none border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50' 
+        : hasSelected
+          ? 'bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700 opacity-60 pointer-events-none'
+          : 'bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-200 dark:border-indigo-500/30'
       }`}>
       {/* Header */}
-      <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-300">
+      <div className={`flex items-center gap-2 ${isSkipped ? 'text-neutral-500' : 'text-indigo-600 dark:text-indigo-300'}`}>
         <MessageSquarePlus className="w-4 h-4" />
         <span className="text-xs font-semibold">{t('clarification.header')}</span>
       </div>
@@ -61,8 +69,6 @@ export default function ClarificationRequest({
             onClick={() => handleSelect(opt)}
             disabled={hasSelected || isAnswered || !!selectedOption}
             className={`px-3 py-1.5 text-xs border rounded-full transition-all active:scale-95 ${
-              // If this specific option is the selected one (persisted or local state logic could be added here if needed, 
-              // but for now we rely on selectedOption prop for styling the persisted one)
               selectedOption === opt
                 ? 'bg-indigo-100 dark:bg-indigo-900/50 border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 font-medium ring-1 ring-indigo-500/30'
                 : (hasSelected || isAnswered || !!selectedOption)
@@ -74,8 +80,8 @@ export default function ClarificationRequest({
           </button>
         ))}
 
-        {/* Custom Input Toggle */}
-        {allowCustom && !isTypingCustom && !hasSelected && !isAnswered && !selectedOption && (
+        {/* Custom Input Toggle - Hide if SKIPPED */}
+        {allowCustom && !isTypingCustom && !hasSelected && !isAnswered && !selectedOption && !isSkipped && (
           <button
             onClick={() => setIsTypingCustom(true)}
             className="px-3 py-1.5 text-xs border border-dashed border-neutral-300 dark:border-zinc-600 text-neutral-500 dark:text-zinc-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:border-neutral-400 dark:hover:border-zinc-400 rounded-full transition-colors flex items-center gap-1 cursor-pointer"
@@ -85,8 +91,8 @@ export default function ClarificationRequest({
         )}
       </div>
 
-      {/* Custom Input Field */}
-      {isTypingCustom && !hasSelected && !isAnswered && !selectedOption && (
+      {/* Custom Input Field - Hide if SKIPPED */}
+      {isTypingCustom && !hasSelected && !isAnswered && !selectedOption && !isSkipped && (
         <div className="flex gap-2 mt-1">
           <input
             type="text"
@@ -107,8 +113,8 @@ export default function ClarificationRequest({
         </div>
       )}
 
-      {/* Show selected custom answer if it was not in options */}
-      {selectedOption && !options.includes(selectedOption) && (
+      {/* Show selected custom answer if it was not in options AND NOT SKIPPED */}
+      {selectedOption && !options.includes(selectedOption) && !isSkipped && (
         <div className="mt-2 px-3 py-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/50 rounded-lg text-xs text-indigo-700 dark:text-indigo-300 italic">
           "{selectedOption}"
         </div>

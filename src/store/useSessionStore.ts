@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import { MAX_PERSISTED_SESSIONS } from '../config/limits'
 import { STORAGE_KEYS } from '../config/defaults'
 import type { Slide } from '../api/prompt'
+export const SKIPPED_VALUE = '###SKIPPED###'
 
 export interface ChatMessage {
   id: string
@@ -104,8 +105,24 @@ export const useSessionStore = create<SessionState>()(
       },
 
       addMessage: (message) => {
-        const { currentSessionId } = get()
+        const { currentSessionId, sessions } = get()
         if (!currentSessionId) return ''
+
+        const session = sessions.find(s => s.id === currentSessionId)
+        let updatedMessages = session?.messages || []
+
+        // Intent-aware: Check if the LAST message was an 'ask' action that hasn't been answered
+        // If so, and we are adding a NEW USER message that isn't the answer (which is handled by MessageBubble separately),
+        // then we should mark that Ask action as SKIPPED.
+        // Note: MessageBubble calls updateMessage directly for the answer, so if we reach here, it's a manual chat input.
+        if (message.role === 'user' && updatedMessages.length > 0) {
+          const lastMsg = updatedMessages[updatedMessages.length - 1]
+          if (lastMsg.role === 'assistant' && lastMsg.action === 'ask' && !lastMsg.selectedOption) {
+             updatedMessages = updatedMessages.map(m => 
+                m.id === lastMsg.id ? { ...m, selectedOption: SKIPPED_VALUE } : m
+             )
+          }
+        }
 
         const fullMessage: ChatMessage = {
           ...message,
@@ -115,7 +132,7 @@ export const useSessionStore = create<SessionState>()(
         set((state) => ({
           sessions: state.sessions.map((s) =>
             s.id === currentSessionId
-              ? { ...s, messages: [...s.messages, fullMessage], timestamp: Date.now() }
+              ? { ...s, messages: [...updatedMessages, fullMessage], timestamp: Date.now() }
               : s
           ),
         }))
