@@ -34,8 +34,8 @@ export function streamGenerate(
   let fullContent = ''
   let apiThinking = '' // reasoning_content from API field
 
-  // Get API configuration from shared utility
-  const config = getAPIConfig()
+  // Get API configuration from shared utility, using the passed arguments
+  const config = getAPIConfig({ apiUrl, apiKey, model })
 
   const messages: { role: string; content: string }[] = [
     { role: 'system', content: SYSTEM_PROMPT },

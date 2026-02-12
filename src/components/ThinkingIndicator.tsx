@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
+// import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'motion/react'
 import { Brain, ChevronDown } from 'lucide-react'
 
@@ -9,7 +9,7 @@ interface ThinkingIndicatorProps {
 }
 
 export default function ThinkingIndicator({ thinkingText, isStreaming }: ThinkingIndicatorProps) {
-  const { t } = useTranslation()
+  // const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
 
   if (!thinkingText && !isStreaming) return null
@@ -34,9 +34,6 @@ export default function ThinkingIndicator({ thinkingText, isStreaming }: Thinkin
             </span>
           )}
         </div>
-        <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
-          {isStreaming ? t('thinking.active') : t('thinking.done')}
-        </span>
         {isStreaming && (
           <span className="dot-typing text-neutral-400 ml-0.5">
             <span /><span /><span />

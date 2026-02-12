@@ -12,8 +12,13 @@ export interface APIConfig {
  * Get API configuration from settings store
  * Detects endpoint type and returns appropriate config
  */
-export function getAPIConfig(): APIConfig {
-    const { apiUrl, apiKey, selectedModel } = useSettingsStore.getState()
+export function getAPIConfig(overrides?: { apiUrl?: string, apiKey?: string, model?: string }): APIConfig {
+    const settings = useSettingsStore.getState()
+    
+    // Use overrides if provided, otherwise use settings from store
+    const apiUrl = overrides?.apiUrl || settings.apiUrl
+    const apiKey = overrides?.apiKey || settings.apiKey
+    const selectedModel = overrides?.model || settings.selectedModel
 
     // Detect endpoint type from URL
     const isOllama = apiUrl.includes('11434') || apiUrl.includes('ollama')
