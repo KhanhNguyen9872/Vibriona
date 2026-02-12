@@ -172,8 +172,9 @@ export default function SlideCard({
           apiUrl,
           apiKey,
           selectedModel,
+          store.getApiType(),
           slide,
-          (enhanced) => {
+          (enhanced: Slide) => {
             updateSlide(index, enhanced)
             removeProcessingSlide(slide.slide_number)
 
@@ -195,7 +196,7 @@ export default function SlideCard({
             })
             toast.success(t('workspace.enhanced'))
           },
-          (error) => {
+          (error: string) => {
             removeProcessingSlide(slide.slide_number)
             updateMessage(thinkingMsgId, {
               content: t('workspace.enhanceFailed'),
