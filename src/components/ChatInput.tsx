@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'motion/react'
 import { useQueueStore } from '../store/useQueueStore'
 import { useSessionStore } from '../store/useSessionStore'
+import { useSettingsStore } from '../store/useSettingsStore'
 import { toast } from 'sonner'
 import { Sparkles, Loader2, Square, AlertCircle, X, Layers, Pencil } from 'lucide-react'
 
@@ -18,6 +19,7 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { addToQueue, cancelProjectProcess, isProjectProcessing, items } = useQueueStore()
   const { addMessage, createSession, currentSessionId, clearSlideSelection, getSelectedSlideIndices, getCurrentSession, setProcessingSlides } = useSessionStore()
+  const { isConfigured } = useSettingsStore()
 
   const currentSession = getCurrentSession()
   const sessionSlides = currentSession?.slides ?? []
@@ -54,13 +56,31 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
   // Toast on error
   useEffect(() => {
     if (lastError?.error) {
-      toast.error(t('chat.error'), { description: lastError.error })
+      toast.error(t('chat.error'), { 
+        description: lastError.error,
+        id: `error-${lastError.id}`
+      })
     }
   }, [lastError?.id, lastError?.error, t])
 
   const handleSubmit = () => {
     const trimmed = prompt.trim()
     if (!trimmed || isOverLimit || isProcessing) return
+
+    const activeProfileId = useSettingsStore.getState().activeProfileId;
+    if (!activeProfileId) {
+        toast.error(t('config.noProfile'), {
+            description: t('config.noProfileDesc')
+        });
+        return;
+    }
+
+    if (!isConfigured()) {
+        toast.error(t('config.validation'), {
+            description: t('config.validationDesc')
+        });
+        return;
+    }
 
     // Optimistic: create session if needed
     let activeProjectId = currentSessionId

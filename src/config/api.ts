@@ -4,4 +4,9 @@ export const API_CONFIG = {
   SUGGESTION_COUNT: 4,
   DEFAULT_MODEL_OLLAMA: 'llama3',
   DEFAULT_MODEL_OPENAI: 'gpt-4o-mini',
+  DEFAULT_ENDPOINTS: {
+    ollama: 'http://127.0.0.1:11434',
+    gemini: 'https://generativelanguage.googleapis.com',
+    openai: 'https://api.openai.com/v1',
+  }
 }

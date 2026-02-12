@@ -7,6 +7,7 @@ import { MAX_PROJECTS } from '../config/limits'
 import { useQueueStore } from '../store/useQueueStore'
 import { useSessionStore } from '../store/useSessionStore'
 import { useUIStore } from '../store/useUIStore'
+import { useSettingsStore } from '../store/useSettingsStore'
 import { generateDynamicSuggestions } from '../api/suggestions'
 
 
@@ -26,6 +27,7 @@ export default function HeroChatInput() {
   const { addToQueue, isProjectProcessing } = useQueueStore()
   const { addMessage, createSession, currentSessionId } = useSessionStore()
   const { startHeroHold } = useUIStore()
+  const { isConfigured, disableSuggestions } = useSettingsStore()
 
   const projectId = currentSessionId || ''
   const isProcessing = isProjectProcessing(projectId)
@@ -60,12 +62,26 @@ export default function HeroChatInput() {
   // Load dynamic suggestions with sessionStorage caching
   useEffect(() => {
     const loadSuggestions = async (forceRefresh = false) => {
+      if (disableSuggestions) {
+        setSuggestions([])
+        setLoadedSuggestionsCount(0)
+        setIsLoadingSuggestions(false)
+        return
+      }
+
       const fallbackSuggestions = [
         t('hero.suggestion1'),
         t('hero.suggestion2'),
         t('hero.suggestion3'),
         t('hero.suggestion4'),
       ]
+
+      if (!isConfigured()) {
+          setSuggestions(fallbackSuggestions)
+          setLoadedSuggestionsCount(4)
+          setIsLoadingSuggestions(false)
+          return
+      }
 
       const language = i18n.language as 'en' | 'vi'
       const storageKey = `${STORAGE_KEY}-${language}`
@@ -95,8 +111,9 @@ export default function HeroChatInput() {
         setLoadedSuggestionsCount(0)
 
         const streamingSuggestions: string[] = []
+        const apiType = useSettingsStore.getState().getApiType()
 
-        await generateDynamicSuggestions(language, {
+        await generateDynamicSuggestions(language, apiType, {
           onSuggestion: (suggestion, index) => {
             streamingSuggestions[index] = suggestion
             setSuggestions([...streamingSuggestions])
@@ -129,16 +146,20 @@ export default function HeroChatInput() {
     }
 
     loadSuggestions()
-  }, [i18n.language, t])
+  }, [i18n.language, t, isConfigured, disableSuggestions])
 
   // Refresh suggestions handler
   const handleRefreshSuggestions = async () => {
+    if (disableSuggestions) return;
+
     const fallbackSuggestions = [
       t('hero.suggestion1'),
       t('hero.suggestion2'),
       t('hero.suggestion3'),
       t('hero.suggestion4'),
     ]
+
+    if (!isConfigured()) return; // Silent failure for suggestions
 
     try {
       setIsLoadingSuggestions(true)
@@ -152,8 +173,9 @@ export default function HeroChatInput() {
       sessionStorage.removeItem(storageKey)
 
       const streamingSuggestions: string[] = []
+      const apiType = useSettingsStore.getState().getApiType()
 
-      await generateDynamicSuggestions(language, {
+      await generateDynamicSuggestions(language, apiType, {
         onSuggestion: (suggestion, index) => {
           streamingSuggestions[index] = suggestion
           setSuggestions([...streamingSuggestions])
@@ -189,6 +211,21 @@ export default function HeroChatInput() {
     e?.preventDefault()
     const trimmed = prompt.trim()
     if (!trimmed || isProcessing || isSubmitted) return
+
+    const activeProfileId = useSettingsStore.getState().activeProfileId;
+    if (!activeProfileId) {
+        toast.error(t('config.noProfile'), {
+            description: t('config.noProfileDesc')
+        })
+        return
+    }
+
+    if (!isConfigured()) {
+        toast.error(t('config.validation'), {
+            description: t('config.validationDesc')
+        })
+        return
+    }
 
     // Check limit before generating
     const state = useSessionStore.getState()
@@ -328,6 +365,7 @@ export default function HeroChatInput() {
           <span>{t('chat.hint')}</span>
 
           <div className="flex items-center gap-4">
+          {!disableSuggestions && (
             <div className="flex items-center gap-2">
               <span>{t('hero.suggestionsLabel')}</span>
               <motion.button
@@ -341,6 +379,7 @@ export default function HeroChatInput() {
                 <RefreshCw className={`w-3 h-3 text-neutral-400 dark:text-zinc-500 ${isLoadingSuggestions ? 'animate-spin' : ''}`} />
               </motion.button>
             </div>
+          )}
 
             <div className="flex items-center gap-3 border-l border-neutral-200 dark:border-zinc-700 pl-4">
               <span>{charCount} {t('chat.charUnit')}</span>
@@ -353,7 +392,7 @@ export default function HeroChatInput() {
 
       {/* Suggestion Chips */}
       <AnimatePresence>
-        {!isSubmitted && (
+        {!isSubmitted && !disableSuggestions && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}

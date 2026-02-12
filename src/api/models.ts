@@ -1,25 +1,47 @@
+import { type ApiType } from '../store/useSettingsStore'
 import axios from 'axios'
+
+export interface ModelInfo {
+  id: string;
+  thinking?: boolean;
+}
 
 /**
  * Fetch available models from an OpenAI-compatible or Ollama endpoint.
- * OpenAI: GET /v1/models  → { data: [{ id: "gpt-4" }, ...] }
- * Ollama: GET /api/tags    → { models: [{ name: "llama3" }, ...] }
  */
-export async function fetchModels(apiUrl: string, apiKey: string): Promise<string[]> {
-  const isOllama = apiUrl.includes('11434') || apiUrl.includes('ollama')
-
-  if (isOllama) {
+export async function fetchModels(apiUrl: string, apiKey: string, apiType: ApiType = 'openai'): Promise<ModelInfo[]> {
+  if (apiType === 'ollama') {
     const base = apiUrl.replace(/\/+$/, '').replace(/\/api$/, '')
     const { data } = await axios.get(`${base}/api/tags`, {
       headers: { 'Content-Type': 'application/json' },
       timeout: 10000,
     })
     // Ollama returns { models: [{ name: "llama3:latest", ... }] }
-    const models: string[] = (data.models || []).map((m: { name: string }) => m.name)
-    return models.sort()
+    const models: ModelInfo[] = (data.models || []).map((m: { name: string }) => ({
+      id: m.name,
+      thinking: false
+    }))
+    return models.sort((a, b) => a.id.localeCompare(b.id))
   }
 
-  // OpenAI-compatible
+  if (apiType === 'gemini') {
+    const base = apiUrl.replace(/\/+$/, '').replace(/\/v1$/, '').replace(/\/v1beta$/, '')
+    const { data } = await axios.get(`${base}/v1beta/models`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
+      },
+      timeout: 10000,
+    })
+    // Gemini returns { models: [{ name: "models/gemini-1.5-flash", thinking: true, ... }] }
+    const models: ModelInfo[] = (data.models || []).map((m: { name: string, thinking?: boolean }) => ({
+      id: m.name.replace(/^models\//, ''),
+      thinking: !!m.thinking
+    }))
+    return models.sort((a, b) => a.id.localeCompare(b.id))
+  }
+
+  // OpenAI-compatible / Gemini Proxy
   const base = apiUrl.replace(/\/+$/, '').replace(/\/chat\/completions$/, '').replace(/\/v1$/, '')
   const { data } = await axios.get(`${base}/v1/models`, {
     headers: {
@@ -29,6 +51,9 @@ export async function fetchModels(apiUrl: string, apiKey: string): Promise<strin
     timeout: 10000,
   })
   // OpenAI returns { data: [{ id: "gpt-4o-mini", ... }] }
-  const models: string[] = (data.data || []).map((m: { id: string }) => m.id)
-  return models.sort()
+  const models: ModelInfo[] = (data.data || []).map((m: { id: string }) => ({
+    id: m.id,
+    thinking: false
+  }))
+  return models.sort((a, b) => a.id.localeCompare(b.id))
 }

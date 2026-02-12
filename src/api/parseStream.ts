@@ -49,9 +49,27 @@ export function extractContentFromChunk(raw: string, processedLength: number): C
       continue
     }
 
-    // Ollama format: {"message":{"content":"..."}} per line
+    // Generic JSON per line (Ollama or Gemini)
     try {
-      const parsed = JSON.parse(trimmed)
+      // 🛡️ Gemini-specific: Support stream format that wraps objects in array [{},{},...]
+      // Strip leading/trailing brackets and commas that cause JSON.parse to fail
+      let cleanLine = trimmed
+        .replace(/^\[/, '')
+        .replace(/^,/, '')
+        .replace(/\]$/, '')
+        .trim()
+        
+      if (!cleanLine) continue
+
+      const parsed = JSON.parse(cleanLine)
+      
+      // Handle Gemini (candidates[0].content.parts[0].text)
+      if (parsed.candidates?.[0]?.content?.parts?.[0]?.text) {
+        content += parsed.candidates[0].content.parts[0].text
+        continue
+      }
+
+      // Handle Ollama format: {"message":{"content":"..."}} per line
       const msg = parsed.message?.content ?? parsed.response
       if (msg) content += msg
     } catch {

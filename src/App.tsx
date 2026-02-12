@@ -7,7 +7,6 @@ import { useSettingsStore } from './store/useSettingsStore'
 import { useQueueStore } from './store/useQueueStore'
 import { useSessionStore } from './store/useSessionStore'
 import { applyDelta } from './utils/slideMerger'
-import ConfigurationModal from './components/ConfigurationModal'
 import Settings from './components/Settings'
 import Sidebar from './components/Sidebar'
 import MessageList from './components/MessageList'
@@ -33,13 +32,12 @@ function useIsMobile(breakpoint = 768) {
 
 function App() {
   const { t } = useTranslation()
-  const { theme, isConfigured } = useSettingsStore()
+  const { theme } = useSettingsStore()
   const { items, getActiveProcessForProject, isProjectProcessing } = useQueueStore()
   const { sessions, createSession, addMessage, currentSessionId, getCurrentSession, setCurrentSession, setSessionSlides, newChat } = useSessionStore()
   const [showSettings, setShowSettings] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
-  const configured = isConfigured()
   const savedItemIds = useRef<Set<string>>(new Set())
   const scheduledDeletions = useRef<Set<string>>(new Set())
   const mountedRef = useRef(false)
@@ -327,12 +325,12 @@ function App() {
         }}
       />
 
-      {!configured && <ConfigurationModal />}
+
       <AnimatePresence>
         {showSettings && <Settings onClose={() => setShowSettings(false)} />}
       </AnimatePresence>
 
-      <div className={`h-screen flex flex-col transition-opacity ${!configured ? 'opacity-30 pointer-events-none select-none' : ''}`}>
+      <div className="h-screen flex flex-col transition-opacity">
         {/* Header */}
         <header className="shrink-0 h-12 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 z-40 relative">
           <div className="h-full flex items-center justify-between px-4">

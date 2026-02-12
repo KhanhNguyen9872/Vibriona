@@ -2,7 +2,8 @@ import axios from 'axios'
 import { SYSTEM_PROMPT } from './prompt'
 import type { Slide } from './prompt'
 import { extractContentFromChunk, separateThinkingFromContent, parsePartialResponse, extractCompletionMessage, type DeltaResponse } from './parseStream'
-import { getAPIConfig } from './utils'
+import { getAPIConfig, parseAPIError } from './utils'
+import { API_CONFIG } from '../config/api'
 
 export interface StreamCallbacks {
   onToken: (content: string) => void
@@ -26,6 +27,7 @@ export function streamGenerate(
   apiKey: string,
   userPrompt: string,
   model: string,
+  apiType: 'ollama' | 'gemini' | 'openai',
   callbacks: StreamCallbacks,
   history: HistoryMessage[] = []
 ): AbortController {
@@ -34,24 +36,74 @@ export function streamGenerate(
   let fullContent = ''
   let apiThinking = '' // reasoning_content from API field
 
-  // Get API configuration from shared utility, using the passed arguments
-  const config = getAPIConfig({ apiUrl, apiKey, model })
+  const config = getAPIConfig({ apiUrl, apiKey, model, apiType })
 
-  const messages: { role: string; content: string }[] = [
-    { role: 'system', content: SYSTEM_PROMPT },
-    ...history,
-    { role: 'user', content: userPrompt },
-  ]
-
-  const body = {
+  let url = config.endpoint
+  let body: any = {
     model: config.model,
-    messages,
     stream: true,
+  }
+
+  if (apiType === 'gemini') {
+    url = `${url}:streamGenerateContent`
+    
+    const contents: any[] = []
+    const systemPart = { text: `"""\nSYSTEM PROMPT: ${SYSTEM_PROMPT}\n"""` }
+
+    if (history.length > 0) {
+      // Find the first user message in history or handle the start
+      // Gemini expects alternating user/model. We wrap system into the first item.
+      history.forEach((m, idx) => {
+        const parts = [{ text: m.content }]
+        if (idx === 0 && m.role === 'user') {
+          parts.unshift(systemPart)
+        }
+        contents.push({
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts
+        })
+      })
+
+      // If the first message was NOT user (unlikely), prepend a user message with system prompt
+      if (contents.length > 0 && contents[0].role !== 'user') {
+        contents.unshift({
+          role: 'user',
+          parts: [systemPart]
+        })
+      }
+
+      contents.push({
+        role: 'user',
+        parts: [{ text: userPrompt }]
+      })
+    } else {
+      contents.push({
+        role: 'user',
+        parts: [
+          systemPart,
+          { text: userPrompt }
+        ]
+      })
+    }
+
+    body = {
+      contents,
+      generationConfig: {
+        temperature: API_CONFIG.DEFAULT_TEMPERATURE,
+        maxOutputTokens: API_CONFIG.MAX_TOKENS,
+      }
+    }
+  } else {
+    body.messages = [
+      { role: 'system', content: SYSTEM_PROMPT },
+      ...history,
+      { role: 'user', content: userPrompt },
+    ]
   }
 
   axios({
     method: 'post',
-    url: config.endpoint,
+    url,
     data: body,
     headers: config.headers,
     responseType: 'text',
@@ -106,22 +158,24 @@ export function streamGenerate(
       if (axios.isCancel(err)) return
 
       const status = err.response?.status
-      let message = 'Connection failed'
+      let message = parseAPIError(err) || 'Connection failed'
 
-      if (status === 401) {
-        message = 'Invalid API key (401 Unauthorized)'
-      } else if (status === 403) {
-        message = 'Access denied (403 Forbidden)'
-      } else if (status === 404) {
-        message = 'Endpoint not found (404). Check your API URL.'
-      } else if (status === 429) {
-        message = 'Rate limited (429). Try again later.'
-      } else if (status && status >= 500) {
-        message = `Server error (${status})`
-      } else if (err.code === 'ERR_NETWORK') {
-        message = 'Network error. Is the API server running?'
-      } else if (err.message) {
-        message = err.message
+      if (message === 'Connection failed') {
+        if (status === 401) {
+          message = 'Invalid API key (401 Unauthorized)'
+        } else if (status === 403) {
+          message = 'Access denied (403 Forbidden)'
+        } else if (status === 404) {
+          message = 'Endpoint not found (404). Check your API URL.'
+        } else if (status === 429) {
+          message = 'Rate limited (429). Try again later.'
+        } else if (status && status >= 500) {
+          message = `Server error (${status})`
+        } else if (err.code === 'ERR_NETWORK') {
+          message = 'Network error. Is the API server running?'
+        } else if (err.message) {
+          message = err.message
+        }
       }
 
       callbacks.onError(message, status)

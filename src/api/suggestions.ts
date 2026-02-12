@@ -1,4 +1,4 @@
-import { getAPIConfig, parseStreamingContent } from './utils'
+import { getAPIConfig, parseStreamingContent, parseAPIError } from './utils'
 
 import { API_CONFIG } from '../config/api'
 
@@ -15,6 +15,7 @@ export interface SuggestionsCallbacks {
 
 export async function generateDynamicSuggestions(
     language: 'en' | 'vi',
+    apiType: 'ollama' | 'gemini' | 'openai',
     callbacks?: SuggestionsCallbacks
 ): Promise<string[]> {
     const languagePrompt = language === 'vi'
@@ -22,33 +23,67 @@ export async function generateDynamicSuggestions(
         : 'Generate 4 short presentation topic examples in English. Each should be 4-6 words max. Return ONLY pure JSON: {"suggestions": ["...", "...", "...", "..."]}. No explanatory text.'
 
     // Get API configuration from shared utility
-    const config = getAPIConfig()
+    const config = getAPIConfig({ apiType })
 
-    const response = await fetch(config.endpoint, {
-        method: 'POST',
-        headers: config.headers,
-        body: JSON.stringify({
-            model: config.model,
-            messages: [
-                {
-                    role: 'system',
-                    content: 'You are a helpful assistant that generates presentation topic suggestions. Always respond with ONLY valid JSON, nothing else.',
-                },
+    // Specialize body and URL for Gemini-native
+    let url = config.endpoint
+    let body: any = {
+        model: config.model,
+        stream: true,
+        temperature: API_CONFIG.DEFAULT_TEMPERATURE,
+    }
+
+    if (apiType === 'gemini') {
+        url = `${url}:streamGenerateContent`
+        body = {
+            contents: [
                 {
                     role: 'user',
-                    content: languagePrompt,
-                },
+                    parts: [
+                        { text: `"""\nSYSTEM PROMPT: You are a helpful assistant that generates presentation topic suggestions. Always respond with ONLY valid JSON, nothing else.\n"""` },
+                        { text: languagePrompt }
+                    ]
+                }
             ],
-            temperature: API_CONFIG.DEFAULT_TEMPERATURE,
-            stream: true,
-            ...(config.isOllama ? {} : { max_tokens: API_CONFIG.MAX_TOKENS }),
-        }),
+            generationConfig: {
+                temperature: API_CONFIG.DEFAULT_TEMPERATURE,
+                maxOutputTokens: 800,
+            }
+        }
+    } else {
+        body.messages = [
+            {
+                role: 'system',
+                content: 'You are a helpful assistant that generates presentation topic suggestions. Always respond with ONLY valid JSON, nothing else.',
+            },
+            {
+                role: 'user',
+                content: languagePrompt,
+            },
+        ]
+        if (config.apiType !== 'ollama') {
+            body.max_tokens = API_CONFIG.MAX_TOKENS
+        }
+    }
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: config.headers,
+        body: JSON.stringify(body),
     })
 
     if (!response.ok) {
-        const error = `Failed to generate suggestions (${response.status})`
-        callbacks?.onError(error)
-        throw new Error(error)
+        let errorData = ''
+        try {
+            errorData = await response.text()
+        } catch (e) {}
+        
+        const error = new Error(`Failed to generate suggestions (${response.status})`) as any
+        error.status = response.status
+        error.data = errorData
+        const errorMsg = parseAPIError(error) || error.message
+        callbacks?.onError(errorMsg)
+        throw error
     }
 
     // Stream the response
@@ -80,7 +115,17 @@ export async function generateDynamicSuggestions(
                 if (!jsonStr) continue
 
                 try {
-                    const parsed = JSON.parse(jsonStr)
+                    // 🛡️ Gemini-specific: Support stream format that wraps objects in array [{},{},...]
+                    // Strip leading/trailing brackets and commas that cause JSON.parse to fail
+                    const cleanJsonStr = jsonStr
+                        .replace(/^\[/, '')
+                        .replace(/^,/, '')
+                        .replace(/\]$/, '')
+                        .trim()
+
+                    if (!cleanJsonStr) continue
+
+                    const parsed = JSON.parse(cleanJsonStr)
                     const content = parseStreamingContent(parsed)
 
                     if (content) {
@@ -113,8 +158,8 @@ export async function generateDynamicSuggestions(
         callbacks?.onComplete(finalSuggestions)
         return finalSuggestions
 
-    } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+    } catch (error: any) {
+        const errorMsg = parseAPIError(error) || (error instanceof Error ? error.message : 'Unknown error')
         callbacks?.onError(errorMsg)
         throw error
     }

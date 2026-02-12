@@ -2,6 +2,8 @@ import axios from 'axios'
 import i18n from '../i18n'
 import type { Slide } from './prompt'
 import { extractContentFromChunk, parsePartialSlides } from './parseStream'
+import { getAPIConfig, parseAPIError } from './utils'
+import { API_CONFIG } from '../config/api'
 
 const ENHANCE_PROMPT = `You are a presentation content enhancer. You will receive a single slide object. Rewrite and improve its content to be more engaging, professional, and detailed. Also improve the visual_description to be more specific and creative.
 
@@ -11,6 +13,7 @@ export function enhanceSlide(
   apiUrl: string,
   apiKey: string,
   model: string,
+  apiType: 'ollama' | 'gemini' | 'openai',
   slide: Slide,
   onDone: (enhanced: Slide) => void,
   onError: (error: string) => void
@@ -19,31 +22,44 @@ export function enhanceSlide(
   let processedLength = 0
   let fullContent = ''
 
-  const isOllama = apiUrl.includes('11434') || apiUrl.includes('ollama')
-  const endpoint = isOllama
-    ? `${apiUrl.replace(/\/+$/, '')}/chat`
-    : `${apiUrl.replace(/\/+$/, '')}/chat/completions`
-
-  const resolvedModel = model || (isOllama ? 'llama3' : 'gpt-4o-mini')
+  const config = getAPIConfig({ apiUrl, apiKey, model, apiType })
   const userMessage = JSON.stringify(slide)
 
-  const body = {
-    model: resolvedModel,
-    messages: [
+  let url = config.endpoint
+  let body: any = {
+    model: config.model,
+    stream: true,
+  }
+
+  if (apiType === 'gemini') {
+    url = `${url}:streamGenerateContent`
+    body = {
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: `"""\nSYSTEM PROMPT: ${ENHANCE_PROMPT}\n"""` },
+            { text: userMessage }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: API_CONFIG.DEFAULT_TEMPERATURE,
+        maxOutputTokens: API_CONFIG.MAX_TOKENS,
+      }
+    }
+  } else {
+    body.messages = [
       { role: 'system', content: ENHANCE_PROMPT },
       { role: 'user', content: userMessage },
-    ],
-    stream: true,
+    ]
   }
 
   axios({
     method: 'post',
-    url: endpoint,
+    url,
     data: body,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(apiKey && !isOllama ? { Authorization: `Bearer ${apiKey}` } : {}),
-    },
+    headers: config.headers,
     responseType: 'text',
     signal: controller.signal,
     onDownloadProgress: (event) => {
@@ -78,6 +94,12 @@ export function enhanceSlide(
     .catch((err) => {
       if (axios.isCancel(err)) return
       const status = err.response?.status
+      const parsedError = parseAPIError(err)
+      if (parsedError) {
+        onError(parsedError)
+        return
+      }
+
       if (status === 401) onError(i18n.t('errors.invalidKey'))
       else if (status === 429) onError(i18n.t('errors.rateLimit'))
       else if (err.code === 'ERR_NETWORK') onError(i18n.t('errors.network'))

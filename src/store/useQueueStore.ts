@@ -81,7 +81,11 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
     const next = items.find((i) => i.status === 'queued' && !activeProcesses[i.projectId])
     if (!next) return
 
-    const { apiUrl, apiKey, selectedModel } = useSettingsStore.getState()
+    const settings = useSettingsStore.getState()
+    const apiUrl = settings.getApiUrl()
+    const apiKey = settings.getApiKey()
+    const apiType = settings.getApiType()
+    const selectedModel = settings.getModel()
 
     // Build conversation history from the project's session (sliding window of 10)
     const sessions = useSessionStore.getState().sessions
@@ -154,7 +158,7 @@ ${JSON.stringify(skeleton, null, 2)}
 USER REQUEST: ${next.prompt}`
     }
 
-    const abort = streamGenerate(apiUrl, apiKey, apiPrompt, selectedModel, {
+    const abort = streamGenerate(apiUrl, apiKey, apiPrompt, selectedModel, apiType, {
       onToken: (fullText) => {
         get().updateItem(next.id, { streamingText: fullText })
       },
@@ -290,7 +294,7 @@ ${JSON.stringify(requestedSlides, null, 2)}
             })
 
             // Re-trigger Stream (Recursive Call)
-            const newAbort = streamGenerate(apiUrl, apiKey, '', selectedModel, {
+            const newAbort = streamGenerate(apiUrl, apiKey, '', selectedModel, apiType, {
               onToken: (t) => get().updateItem(next.id, { streamingText: t }),
               onThinking: (t) => get().updateItem(next.id, { thinkingText: t }),
               onResponseUpdate: (res) => {

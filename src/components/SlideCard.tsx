@@ -57,7 +57,10 @@ export default function SlideCard({
     'full-image': t('workspace.layoutFullImage'),
   }
   const { updateSlide, deleteSlide, addMessage, updateMessage, highlightedSlideIndex, clearHighlight, getCurrentSession, processingSlideNumbers, addProcessingSlide, removeProcessingSlide, duplicateSlide, reorderSlides } = useSessionStore()
-  const { apiUrl, apiKey, selectedModel } = useSettingsStore()
+  const store = useSettingsStore()
+  const apiUrl = store.getApiUrl()
+  const apiKey = store.getApiKey()
+  const selectedModel = store.getModel()
   const { activeMenuSlideNumber, setActiveMenuSlideNumber } = useUIStore()
 
   const [expanded, setExpanded] = useState(false)
