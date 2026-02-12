@@ -14,6 +14,9 @@ import {
   Trash2,
   Download,
   Upload,
+  Pin,
+  PinOff,
+  Pencil,
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -25,10 +28,13 @@ interface SidebarProps {
 
 export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelect }: SidebarProps) {
   const { t } = useTranslation()
-  const { sessions, currentSessionId, setCurrentSession, deleteSession, importSession } =
+  const { sessions, currentSessionId, setCurrentSession, deleteSession, importSession, pinSession, renameSession } =
     useSessionStore()
   const { isProjectProcessing } = useQueueStore()
   const [menuSessionId, setMenuSessionId] = useState<string | null>(null)
+  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const renameInputRef = useRef<HTMLInputElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -57,6 +63,44 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
       { confirm: t('sessions.deleteSession'), cancel: t('chat.cancel') },
     )
   }
+
+  const handlePin = (id: string) => {
+    setMenuSessionId(null)
+    pinSession(id)
+  }
+
+  const handleStartRename = (session: Session) => {
+    setMenuSessionId(null)
+    setRenamingSessionId(session.id)
+    setRenameValue(session.title)
+    setTimeout(() => renameInputRef.current?.focus(), 50)
+  }
+
+  const handleRenameSubmit = () => {
+    if (renamingSessionId && renameValue.trim()) {
+      renameSession(renamingSessionId, renameValue.trim())
+      toast.success(t('sessions.projectRenamed'))
+    }
+    setRenamingSessionId(null)
+    setRenameValue('')
+  }
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleRenameSubmit()
+    } else if (e.key === 'Escape') {
+      setRenamingSessionId(null)
+      setRenameValue('')
+    }
+  }
+
+  // Sort: pinned first, then by timestamp descending
+  const sortedSessions = [...sessions].sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1
+    if (!a.pinned && b.pinned) return 1
+    return b.timestamp - a.timestamp
+  })
 
   const handleExportSession = (id: string) => {
     setMenuSessionId(null)
@@ -184,7 +228,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
             </p>
           ) : (
             <AnimatePresence>
-              {sessions.map((session) => (
+              {sortedSessions.map((session) => (
                 <motion.div
                   key={session.id}
                   initial={{ opacity: 0, x: -8 }}
@@ -203,11 +247,28 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                       menuSessionId && menuSessionId !== session.id ? 'blur-[2px] opacity-50 scale-[0.98] pointer-events-none' : ''
                     }`}
                   >
-                    <MessageSquare className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                    <div className="relative shrink-0">
+                      <MessageSquare className="w-3.5 h-3.5 text-neutral-400" />
+                      {session.pinned && (
+                        <Pin className="w-2 h-2 text-amber-500 absolute -top-1 -right-1" />
+                      )}
+                    </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-medium truncate leading-tight text-neutral-700 dark:text-neutral-300">
-                        {session.title}
-                      </p>
+                      {renamingSessionId === session.id ? (
+                        <input
+                          ref={renameInputRef}
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onKeyDown={handleRenameKeyDown}
+                          onBlur={handleRenameSubmit}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-full text-[11px] font-medium leading-tight text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-blue-400"
+                        />
+                      ) : (
+                        <p className="text-[11px] font-medium truncate leading-tight text-neutral-700 dark:text-neutral-300">
+                          {session.title}
+                        </p>
+                      )}
                         <div className="flex items-center justify-between mt-0.5">
                           <p className="text-[10px] text-neutral-400">
                             {formatTime(session.timestamp)}
@@ -248,6 +309,24 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                         transition={{ duration: 0.12 }}
                         className="absolute right-2 top-full mt-0.5 z-50 w-40 py-1 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-lg"
                       >
+                        <button
+                          onClick={() => handlePin(session.id)}
+                          className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                        >
+                          {session.pinned ? (
+                            <><PinOff className="w-3 h-3 text-neutral-400" />{t('sessions.unpinProject')}</>
+                          ) : (
+                            <><Pin className="w-3 h-3 text-neutral-400" />{t('sessions.pinProject')}</>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleStartRename(session)}
+                          className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                        >
+                          <Pencil className="w-3 h-3 text-neutral-400" />
+                          {t('sessions.renameProject')}
+                        </button>
+                        <div className="my-0.5 mx-2 border-t border-neutral-100 dark:border-neutral-800" />
                         <button
                           onClick={() => handleExportSession(session.id)}
                           className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"

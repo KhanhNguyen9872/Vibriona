@@ -28,6 +28,7 @@ export interface Session {
   slides: Slide[]
   timestamp: number
   selectedSlideIndices?: number[]
+  pinned?: boolean
 }
 
 interface SessionState {
@@ -43,6 +44,8 @@ interface SessionState {
   importSession: (session: Session) => void
   clearCurrentMessages: () => void
   newChat: () => void
+  pinSession: (id: string) => void
+  renameSession: (id: string, title: string) => void
   // Slide operations (session-scoped)
   setSessionSlides: (slides: Slide[]) => void
   mergeSlides: (updatedSlides: Slide[]) => void
@@ -168,6 +171,20 @@ export const useSessionStore = create<SessionState>()(
       newChat: () => {
         set({ currentSessionId: null })
       },
+
+      pinSession: (id) =>
+        set((state) => ({
+          sessions: state.sessions.map((s) =>
+            s.id === id ? { ...s, pinned: !s.pinned } : s
+          ),
+        })),
+
+      renameSession: (id, title) =>
+        set((state) => ({
+          sessions: state.sessions.map((s) =>
+            s.id === id ? { ...s, title } : s
+          ),
+        })),
 
       // --- Slide operations (scoped to current session) ---
 
