@@ -79,7 +79,7 @@ export default function ConfigurationModal() {
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-md mx-4 border border-neutral-200 dark:border-neutral-700/50 bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl"
+        className="w-full max-w-md mx-4 border border-neutral-200 dark:border-neutral-700/50 bg-white dark:bg-neutral-900 rounded-2xl"
       >
         {/* Header bar */}
         <div className="px-8 pt-8 pb-2">
@@ -175,18 +175,17 @@ export default function ConfigurationModal() {
                     exit={{ opacity: 0, y: -4, scaleY: 0.96 }}
                     transition={{ duration: 0.15, ease: 'easeOut' }}
                     style={{ transformOrigin: 'top' }}
-                    className="absolute top-full left-0 right-0 z-50 mt-1.5 max-h-48 overflow-y-auto rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-xl"
+                    className="absolute top-full left-0 right-0 z-50 mt-1.5 max-h-48 overflow-y-auto rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900"
                   >
                     {filteredModels.map((m) => (
                       <button
                         key={m}
                         type="button"
                         onClick={() => handleSelectModel(m)}
-                        className={`w-full flex items-center gap-2.5 px-3.5 py-2 text-left text-xs font-mono transition-colors cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
-                          m === model
+                        className={`w-full flex items-center gap-2.5 px-3.5 py-2 text-left text-xs font-mono transition-colors cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 ${m === model
                             ? 'text-black dark:text-white bg-neutral-50 dark:bg-neutral-800/50'
                             : 'text-neutral-600 dark:text-neutral-400'
-                        }`}
+                          }`}
                       >
                         {m === model && <Check className="w-3 h-3 shrink-0" />}
                         <span className={m === model ? '' : 'ml-5'}>{m}</span>

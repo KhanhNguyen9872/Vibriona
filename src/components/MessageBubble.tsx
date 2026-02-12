@@ -5,6 +5,8 @@ import MarkdownRenderer from './MarkdownRenderer'
 import { Sparkles, Presentation, RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import ClarificationRequest from './ClarificationRequest'
+import { useQueueStore } from '../store/useQueueStore'
 
 interface MessageBubbleProps {
   message: ChatMessage
@@ -12,7 +14,44 @@ interface MessageBubbleProps {
 
 export default function MessageBubble({ message }: MessageBubbleProps) {
   const { t } = useTranslation()
-  const { highlightSlide, restoreSnapshot, getCurrentSession } = useSessionStore()
+  const { highlightSlide, restoreSnapshot, getCurrentSession, addMessage, updateMessage, createSession, currentSessionId } = useSessionStore()
+  const { addToQueue } = useQueueStore()
+
+  // Handle clarification selection
+  const handleClarificationSelect = (answer: string) => {
+    // Send user's answer as a new message
+    addMessage({
+      role: 'user',
+      content: answer,
+      timestamp: Date.now(),
+      isScriptGeneration: false
+    })
+
+    // Update the Ask message to persist the selection
+    updateMessage(message.id, { selectedOption: answer })
+
+    // Trigger new generation with the clarification answer
+    let activeProjectId = currentSessionId
+    if (!currentSessionId) {
+      activeProjectId = createSession(answer.slice(0, 60))
+    }
+    addToQueue(answer, activeProjectId!)
+  }
+
+  // Render interactive clarification if present
+  if (message.isInteractive && message.clarification) {
+    return (
+      <div className="max-w-[85%]">
+        <ClarificationRequest
+          question={message.clarification.question}
+          options={message.clarification.options}
+          allowCustom={message.clarification.allowCustom}
+          onSelect={handleClarificationSelect}
+          selectedOption={message.selectedOption}
+        />
+      </div>
+    )
+  }
 
   // Clean content logic
   const displayContent = useMemo(() => {
@@ -43,7 +82,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
     }
     restoreSnapshot(JSON.parse(JSON.stringify(message.slideSnapshot)))
   }
-  
+
   // Styling based on role
   const bubbleClass = message.role === 'user'
     ? 'bg-neutral-200 dark:bg-zinc-700 text-neutral-900 dark:text-zinc-100 rounded-2xl rounded-br-md px-4 py-2.5 max-w-[80%]'
@@ -55,7 +94,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
       {message.role === 'assistant' && !message.isThinking && message.slideSnapshot && message.slideSnapshot.length > 0 && (
         <div className="flex items-center justify-between mb-1.5 w-full">
           <div className="flex items-center gap-3">
-             {/* Slides count (only for script generation) */}
+            {/* Slides count (only for script generation) */}
             {message.isScriptGeneration && (
               <div className="flex items-center gap-1.5">
                 <Sparkles className="w-3 h-3 text-neutral-400" />
@@ -99,9 +138,9 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
           <span className="text-[12px] text-neutral-500">{t('workspace.enhancing')}</span>
         </div>
       ) : (
-        <MarkdownRenderer 
-          content={displayContent} 
-          className="text-[13px]" 
+        <MarkdownRenderer
+          content={displayContent}
+          className="text-[13px]"
         />
       )}
 
@@ -125,27 +164,24 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
 
       {/* Smart Navigation Buttons */}
       {message.relatedSlideReferences && message.relatedSlideReferences.length > 0 && (
-        <div className={`mt-3 flex flex-wrap gap-2 pt-2 border-t ${
-          message.role === 'user'
+        <div className={`mt-3 flex flex-wrap gap-2 pt-2 border-t ${message.role === 'user'
             ? 'border-neutral-300/50 dark:border-zinc-600'
             : 'border-neutral-200 dark:border-zinc-800'
-        }`}>
-          <span className={`text-[10px] uppercase tracking-wider font-semibold self-center mr-1 ${
-            message.role === 'user'
+          }`}>
+          <span className={`text-[10px] uppercase tracking-wider font-semibold self-center mr-1 ${message.role === 'user'
               ? 'text-neutral-500 dark:text-zinc-400'
               : 'text-neutral-400 dark:text-zinc-500'
-          }`}>
+            }`}>
             {t('chat.quickLinks')}:
           </span>
           {message.relatedSlideReferences.map((ref) => (
             <button
               key={ref.number}
               onClick={() => highlightSlide(ref.number)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors border active:scale-95 ${
-                message.role === 'user'
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors border active:scale-95 ${message.role === 'user'
                   ? 'bg-neutral-300/60 dark:bg-zinc-600 border-neutral-400/50 dark:border-zinc-500 text-neutral-700 dark:text-zinc-200 hover:bg-neutral-400/60 dark:hover:bg-zinc-500'
                   : 'bg-neutral-200 dark:bg-zinc-800 border-neutral-300 dark:border-zinc-700 text-neutral-700 dark:text-zinc-300 hover:bg-neutral-300 dark:hover:bg-zinc-700'
-              }`}
+                }`}
             >
               <Presentation className="w-3 h-3" />
               {ref.label}
@@ -156,9 +192,8 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
 
       {/* Footer: Snapshot restore button & Time (Only for non-script-generation messages or user messages) */}
       {(message.role === 'user' || (message.role === 'assistant' && !(message.slideSnapshot && message.slideSnapshot.length > 0))) && (
-        <div className={`flex items-center flex-wrap gap-2 mt-2 ${
-          message.role === 'user' ? 'justify-end' : 'justify-between'
-        }`}>
+        <div className={`flex items-center flex-wrap gap-2 mt-2 ${message.role === 'user' ? 'justify-end' : 'justify-between'
+          }`}>
           {message.slideSnapshot && message.slideSnapshot.length > 0 && message.role === 'assistant' ? (
             <button
               onClick={handleRestore}
@@ -172,11 +207,10 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
             </button>
           ) : null}
 
-          <p className={`text-[10px] whitespace-nowrap ${
-            message.role === 'user'
+          <p className={`text-[10px] whitespace-nowrap ${message.role === 'user'
               ? 'text-neutral-400 dark:text-zinc-400'
               : 'text-neutral-400 dark:text-zinc-500'
-          }`}>
+            }`}>
             {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             {' '}
             {new Date(message.timestamp).toLocaleDateString([], { day: '2-digit', month: '2-digit' })}

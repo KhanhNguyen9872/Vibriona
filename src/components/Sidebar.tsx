@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { confirmAction } from '../utils/confirmAction'
 import { motion, AnimatePresence } from 'motion/react'
+import { MAX_PROJECTS } from '../config/limits'
 import { useSessionStore, type Session } from '../store/useSessionStore'
 import { useQueueStore } from '../store/useQueueStore'
 import {
@@ -64,6 +65,15 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
     )
   }
 
+  const handleNewChatClick = useCallback(() => {
+    // Check limit
+    if (sessions.length >= MAX_PROJECTS) {
+      toast.error(t('sessions.limitReached', { limit: MAX_PROJECTS }))
+      return
+    }
+    onNewChat()
+  }, [onNewChat, t])
+
   const handlePin = (id: string) => {
     setMenuSessionId(null)
     pinSession(id)
@@ -79,7 +89,6 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
   const handleRenameSubmit = () => {
     if (renamingSessionId && renameValue.trim()) {
       renameSession(renamingSessionId, renameValue.trim())
-      toast.success(t('sessions.projectRenamed'))
     }
     setRenamingSessionId(null)
     setRenameValue('')
@@ -140,6 +149,14 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
   }
 
   const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Check limit
+    if (sessions.length >= MAX_PROJECTS) {
+      toast.error(t('sessions.limitReached', { limit: MAX_PROJECTS }))
+      // Reset input even if failed
+      e.target.value = ''
+      return
+    }
+
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -197,13 +214,12 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
     >
       {/* Top bar */}
       <div
-        className={`shrink-0 flex items-center h-12 border-b border-neutral-200 dark:border-neutral-800 ${
-          collapsed ? 'justify-center' : 'justify-between px-3'
-        }`}
+        className={`shrink-0 flex items-center h-12 border-b border-neutral-200 dark:border-neutral-800 ${collapsed ? 'justify-center' : 'justify-between px-3'
+          }`}
       >
         {!collapsed && (
           <button
-            onClick={onNewChat}
+            onClick={handleNewChatClick}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200/60 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -239,13 +255,11 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                 >
                   <button
                     onClick={() => handleSelect(session.id)}
-                    className={`group w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-all duration-200 cursor-pointer ${
-                      session.id === currentSessionId
+                    className={`group w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-all duration-200 cursor-pointer ${session.id === currentSessionId
                         ? 'bg-neutral-200/70 dark:bg-neutral-800'
                         : 'hover:bg-neutral-200/40 dark:hover:bg-neutral-800/40'
-                    } ${
-                      menuSessionId && menuSessionId !== session.id ? 'blur-[2px] opacity-50 scale-[0.98] pointer-events-none' : ''
-                    }`}
+                      } ${menuSessionId && menuSessionId !== session.id ? 'blur-[2px] opacity-50 scale-[0.98] pointer-events-none' : ''
+                      }`}
                   >
                     <div className="relative shrink-0">
                       <MessageSquare className="w-3.5 h-3.5 text-neutral-400" />
@@ -269,21 +283,21 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                           {session.title}
                         </p>
                       )}
-                        <div className="flex items-center justify-between mt-0.5">
-                          <p className="text-[10px] text-neutral-400">
-                            {formatTime(session.timestamp)}
-                          </p>
-                          <div className="flex items-center gap-2">
-                             {isProjectProcessing(session.id) && (
-                               <span className="dot-typing-mini scale-75 origin-right" />
-                             )}
-                             {session.slides && session.slides.length > 0 && (
-                               <span className="text-[10px] font-medium text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-1.5 rounded-full">
-                                 {session.slides.length}{t('workspace.slidesUnitShort')}
-                               </span>
-                             )}
-                          </div>
+                      <div className="flex items-center justify-between mt-0.5">
+                        <p className="text-[10px] text-neutral-400">
+                          {formatTime(session.timestamp)}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          {isProjectProcessing(session.id) && (
+                            <span className="dot-typing-mini scale-75 origin-right" />
+                          )}
+                          {session.slides && session.slides.length > 0 && (
+                            <span className="text-[10px] font-medium text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-1.5 rounded-full">
+                              {session.slides.length}{t('workspace.slidesUnitShort')}
+                            </span>
+                          )}
                         </div>
+                      </div>
                     </div>
 
                     {/* Three-dot menu trigger */}
@@ -307,7 +321,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: -2 }}
                         transition={{ duration: 0.12 }}
-                        className="absolute right-2 top-full mt-0.5 z-50 w-40 py-1 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-lg"
+                        className="absolute right-2 top-full mt-0.5 z-50 w-40 py-1 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900"
                       >
                         <button
                           onClick={() => handlePin(session.id)}
@@ -376,7 +390,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
       {collapsed && (
         <div className="flex flex-col items-center gap-1 pt-2">
           <button
-            onClick={onNewChat}
+            onClick={handleNewChatClick}
             className="p-2 rounded-lg text-neutral-400 hover:bg-neutral-200/60 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
             title={t('sessions.newChat')}
           >

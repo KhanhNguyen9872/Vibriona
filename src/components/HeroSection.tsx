@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import ChatInput from './ChatInput'
+import HeroChatInput from './HeroChatInput'
 
 interface HeroSectionProps {
   className?: string
@@ -19,7 +19,7 @@ export default function HeroSection({ className = '' }: HeroSectionProps) {
             {t('app.heroSub')}
           </p>
         </div>
-        <ChatInput variant="centered" />
+        <HeroChatInput />
       </div>
     </div>
   )

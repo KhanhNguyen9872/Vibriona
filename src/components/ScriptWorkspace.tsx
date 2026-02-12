@@ -27,16 +27,19 @@ import SlideEditorModal from './SlideEditorModal'
 import SlideSkeleton from './SlideSkeleton'
 import SkeletonLoader from './SkeletonLoader'
 import ThinkingIndicator from './ThinkingIndicator'
-import { Layers, Clock, Trash2, Download, FileDown, ClipboardCopy, FileJson, ChevronDown } from 'lucide-react'
+import { Layers, Clock, Trash2, Download, FileDown, ClipboardCopy, FileJson, ChevronDown, Plus } from 'lucide-react'
 import type { Slide } from '../api/prompt'
+
+import { createDefaultSlide } from '../config/defaults'
 
 export default function ScriptWorkspace() {
   const { t } = useTranslation()
   const { items, getActiveProcessForProject } = useQueueStore()
-  const { getCurrentSession, reorderSlides, deleteSlides, updateSlide, getSelectedSlideIndices, toggleSlideSelection, clearSlideSelection } = useSessionStore()
+  const { getCurrentSession, reorderSlides, deleteSlides, updateSlide, getSelectedSlideIndices, toggleSlideSelection, clearSlideSelection, setSessionSlides } = useSessionStore()
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [activeDragIndex, setActiveDragIndex] = useState<number | null>(null)
   const [editingSlideIndex, setEditingSlideIndex] = useState<number | null>(null)
+  const [addingSlide, setAddingSlide] = useState<Slide | null>(null)
   const exportRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -66,15 +69,17 @@ export default function ScriptWorkspace() {
   }, [sessionSlides, streamingSlides, responseAction])
 
   const isStreaming = !!activeItem
-  
-  // Skeleton Logic:
-  // 1. Create/Reset: Show full skeleton if empty
-  // 2. Append: Show bottom skeleton
+  const hasReceivedAction = activeItem?.hasReceivedAction ?? false
+
+  // Skeleton Logic (Intent-Aware):
+  // 1. Create/Reset: Show full skeleton if empty AND action is "create"
+  // 2. Append: Show bottom skeleton AND action is "append"
   // 3. Update: Show NO skeleton (in-place update)
-  const showFullSkeleton = isStreaming && displaySlides.length === 0 && !activeItem?.thinkingText
-  
-  // Show bottom skeleton ONLY if we are appending or default streaming (and not updating specific slides)
-  const showBottomSkeleton = isStreaming && displaySlides.length > 0 && responseAction !== 'update'
+  // 4. Response/Ask: Show NO skeleton (chat only)
+  const showFullSkeleton = isStreaming && displaySlides.length === 0 && responseAction === 'create' && hasReceivedAction && !activeItem?.thinkingText
+
+  // Show bottom skeleton ONLY if we are appending (after action is known)
+  const showBottomSkeleton = isStreaming && displaySlides.length > 0 && responseAction === 'append' && hasReceivedAction
   const isReadonly = isStreaming || streamingSlides.length > 0
 
   // Thinking content - show from active item (streaming) or last done item
@@ -137,6 +142,15 @@ export default function ScriptWorkspace() {
     toast.success(t('workspace.exportDone'))
   }
 
+
+
+
+  const handleAddSlide = () => {
+    const newSlideNumber = displaySlides.length + 1
+    const newSlide: Slide = createDefaultSlide(newSlideNumber)
+    setAddingSlide(newSlide)
+  }
+
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveDragIndex(Number(String(event.active.id).replace('slide-', '')))
   }, [])
@@ -196,7 +210,7 @@ export default function ScriptWorkspace() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -4, scale: 0.95 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-full mt-1 w-52 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700/50 bg-white dark:bg-neutral-900 shadow-xl z-50"
+                    className="absolute right-0 top-full mt-1 w-52 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700/50 bg-white dark:bg-neutral-900 z-50"
                   >
                     <button
                       onClick={handleExportPptx}
@@ -224,14 +238,24 @@ export default function ScriptWorkspace() {
               </AnimatePresence>
             </div>
           )}
+
+          {/* Add Slide Button */}
+          {!isStreaming && (
+            <button
+              onClick={handleAddSlide}
+              className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+              title={t('workspace.addSlide')}
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
       {/* Slides area */}
-      <div 
-        className={`flex-1 overflow-y-auto px-6 py-5 transition-all duration-200 ${
-          showExportMenu ? 'blur-sm pointer-events-none select-none opacity-60' : ''
-        }`}
+      <div
+        className={`flex-1 overflow-y-auto px-6 py-5 transition-all duration-200 ${showExportMenu ? 'blur-sm pointer-events-none select-none opacity-60' : ''
+          }`}
       >
         {/* Thinking indicator */}
         {showThinking && (
@@ -274,12 +298,12 @@ export default function ScriptWorkspace() {
 
             <DragOverlay dropAnimation={null}>
               {activeDragIndex !== null && displaySlides[activeDragIndex] && (
-                <div className="scale-[1.03] shadow-2xl rounded-xl ring-1 ring-black/10 dark:ring-white/10 opacity-95">
+                <div className="scale-[1.03] rounded-xl ring-1 ring-black/10 dark:ring-white/10 opacity-95">
                   <SlideCard
                     slide={displaySlides[activeDragIndex]}
                     index={activeDragIndex}
                     selected={false}
-                    onToggleSelect={() => {}}
+                    onToggleSelect={() => { }}
                     readonly
                   />
                 </div>
@@ -303,7 +327,7 @@ export default function ScriptWorkspace() {
             transition={{ duration: 0.2 }}
             className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30"
           >
-            <div className="flex items-center gap-3 px-5 py-3 rounded-2xl border border-neutral-200 dark:border-neutral-700/50 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-sm shadow-xl">
+            <div className="flex items-center gap-3 px-5 py-3 rounded-2xl border border-neutral-200 dark:border-neutral-700/50 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-sm">
               <span className="text-xs font-medium text-neutral-500 tabular-nums">
                 {t('workspace.selected', { count: selectedSlideIndices.length })}
               </span>
@@ -330,6 +354,27 @@ export default function ScriptWorkspace() {
               setEditingSlideIndex(null)
             }}
             onClose={() => setEditingSlideIndex(null)}
+            mode="edit"
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Add slide modal */}
+      <AnimatePresence>
+        {addingSlide && (
+          <SlideEditorModal
+            slide={addingSlide}
+            onSave={(patch) => {
+              const newSlide = { ...addingSlide, ...patch }
+              setSessionSlides([...displaySlides, newSlide])
+              setAddingSlide(null)
+              // Scroll to bottom after adding
+              setTimeout(() => {
+                bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+              }, 100)
+            }}
+            onClose={() => setAddingSlide(null)}
+            mode="add"
           />
         )}
       </AnimatePresence>

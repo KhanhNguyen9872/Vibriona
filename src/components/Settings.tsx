@@ -110,7 +110,7 @@ export default function Settings({ onClose }: SettingsProps) {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.97, y: 8 }}
         transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-lg mx-4 border border-neutral-200 dark:border-neutral-700/50 bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl"
+        className="w-full max-w-lg mx-4 border border-neutral-200 dark:border-neutral-700/50 bg-white dark:bg-neutral-900 rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -140,11 +140,10 @@ export default function Settings({ onClose }: SettingsProps) {
                   setKey(e.target.value)
                   if (errors.key) setErrors((prev) => ({ ...prev, key: false }))
                 }}
-                className={`w-full pl-10 pr-4 py-2.5 rounded-lg border bg-neutral-50 dark:bg-neutral-800/50 text-sm font-mono focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
-                  errors.key
+                className={`w-full pl-10 pr-4 py-2.5 rounded-lg border bg-neutral-50 dark:bg-neutral-800/50 text-sm font-mono focus:outline-none focus:ring-2 focus:border-transparent transition-all ${errors.key
                     ? 'border-red-500 focus:ring-red-500'
                     : 'border-neutral-200 dark:border-neutral-700 focus:ring-black dark:focus:ring-neutral-400'
-                }`}
+                  }`}
               />
             </div>
           </div>
@@ -163,11 +162,10 @@ export default function Settings({ onClose }: SettingsProps) {
                   setUrl(e.target.value)
                   if (errors.url) setErrors((prev) => ({ ...prev, url: false }))
                 }}
-                className={`w-full pl-10 pr-4 py-2.5 rounded-lg border bg-neutral-50 dark:bg-neutral-800/50 text-sm font-mono focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
-                  errors.url
+                className={`w-full pl-10 pr-4 py-2.5 rounded-lg border bg-neutral-50 dark:bg-neutral-800/50 text-sm font-mono focus:outline-none focus:ring-2 focus:border-transparent transition-all ${errors.url
                     ? 'border-red-500 focus:ring-red-500'
                     : 'border-neutral-200 dark:border-neutral-700 focus:ring-black dark:focus:ring-neutral-400'
-                }`}
+                  }`}
               />
             </div>
           </div>
@@ -192,11 +190,10 @@ export default function Settings({ onClose }: SettingsProps) {
                 }}
                 placeholder={t('settings.modelPlaceholder')}
                 ref={modelInputRef}
-                className={`w-full pl-10 pr-36 py-2.5 rounded-lg border bg-neutral-50 dark:bg-neutral-800/50 text-sm font-mono placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
-                  errors.model
+                className={`w-full pl-10 pr-36 py-2.5 rounded-lg border bg-neutral-50 dark:bg-neutral-800/50 text-sm font-mono placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${errors.model
                     ? 'border-red-500 focus:ring-red-500'
                     : 'border-neutral-200 dark:border-neutral-700 focus:ring-black dark:focus:ring-neutral-400'
-                }`}
+                  }`}
               />
               {/* Right side buttons */}
               <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -241,18 +238,17 @@ export default function Settings({ onClose }: SettingsProps) {
                     exit={{ opacity: 0, y: -4, scaleY: 0.96 }}
                     transition={{ duration: 0.15, ease: 'easeOut' }}
                     style={{ transformOrigin: 'top' }}
-                    className="absolute top-full left-0 right-0 z-50 mt-1.5 max-h-48 overflow-y-auto rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-xl"
+                    className="absolute top-full left-0 right-0 z-50 mt-1.5 max-h-48 overflow-y-auto rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900"
                   >
                     {filteredModels.map((m) => (
                       <button
                         key={m}
                         type="button"
                         onClick={() => handleSelectModel(m)}
-                        className={`w-full flex items-center gap-2.5 px-3.5 py-2 text-left text-xs font-mono transition-colors cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
-                          m === model
+                        className={`w-full flex items-center gap-2.5 px-3.5 py-2 text-left text-xs font-mono transition-colors cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 ${m === model
                             ? 'text-black dark:text-white bg-neutral-50 dark:bg-neutral-800/50'
                             : 'text-neutral-600 dark:text-neutral-400'
-                        }`}
+                          }`}
                       >
                         {m === model && <Check className="w-3 h-3 shrink-0" />}
                         <span className={m === model ? '' : 'ml-5'}>{m}</span>
@@ -274,22 +270,20 @@ export default function Settings({ onClose }: SettingsProps) {
               <div className="flex rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-hidden">
                 <button
                   onClick={() => setTheme('light')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors cursor-pointer ${
-                    theme === 'light'
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors cursor-pointer ${theme === 'light'
                       ? 'bg-black text-white dark:bg-white dark:text-black'
                       : 'bg-neutral-50 dark:bg-neutral-800/50 hover:bg-neutral-100 dark:hover:bg-neutral-800'
-                  }`}
+                    }`}
                 >
                   <Sun className="w-3.5 h-3.5" />
                   {t('settings.light')}
                 </button>
                 <button
                   onClick={() => setTheme('dark')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors cursor-pointer ${
-                    theme === 'dark'
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors cursor-pointer ${theme === 'dark'
                       ? 'bg-black text-white dark:bg-white dark:text-black'
                       : 'bg-neutral-50 dark:bg-neutral-800/50 hover:bg-neutral-100 dark:hover:bg-neutral-800'
-                  }`}
+                    }`}
                 >
                   <Moon className="w-3.5 h-3.5" />
                   {t('settings.dark')}
@@ -305,22 +299,20 @@ export default function Settings({ onClose }: SettingsProps) {
               <div className="flex rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-hidden">
                 <button
                   onClick={() => setLanguage('en')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors cursor-pointer ${
-                    language === 'en'
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors cursor-pointer ${language === 'en'
                       ? 'bg-black text-white dark:bg-white dark:text-black'
                       : 'bg-neutral-50 dark:bg-neutral-800/50 hover:bg-neutral-100 dark:hover:bg-neutral-800'
-                  }`}
+                    }`}
                 >
                   <Languages className="w-3.5 h-3.5" />
                   EN
                 </button>
                 <button
                   onClick={() => setLanguage('vi')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors cursor-pointer ${
-                    language === 'vi'
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors cursor-pointer ${language === 'vi'
                       ? 'bg-black text-white dark:bg-white dark:text-black'
                       : 'bg-neutral-50 dark:bg-neutral-800/50 hover:bg-neutral-100 dark:hover:bg-neutral-800'
-                  }`}
+                    }`}
                 >
                   <Languages className="w-3.5 h-3.5" />
                   VI

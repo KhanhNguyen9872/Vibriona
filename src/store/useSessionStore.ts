@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { MAX_PERSISTED_SESSIONS } from '../config/limits'
+import { STORAGE_KEYS } from '../config/defaults'
 import type { Slide } from '../api/prompt'
 
 export interface ChatMessage {
@@ -18,7 +20,14 @@ export interface ChatMessage {
     number: number
     label: string
   }[]
-  action?: 'create' | 'update' | 'append' | 'delete'
+  action?: 'create' | 'update' | 'append' | 'delete' | 'ask'
+  isInteractive?: boolean
+  clarification?: {
+    question: string
+    options: string[]
+    allowCustom?: boolean
+  }
+  selectedOption?: string // Persisted selection
 }
 
 export interface Session {
@@ -279,13 +288,13 @@ export const useSessionStore = create<SessionState>()(
             const newSlides = [...s.slides]
             const slideToCopy = newSlides[slideIndex]
             if (!slideToCopy) return s
-            
+
             const newSlide = {
               ...slideToCopy,
               title: `${slideToCopy.title} (Copy)`,
               slide_number: slideToCopy.slide_number + 1 // Temporary, renumbering fixes it
             }
-            
+
             newSlides.splice(slideIndex + 1, 0, newSlide)
             const renumbered = newSlides.map((sl, i) => ({ ...sl, slide_number: i + 1 }))
             return { ...s, slides: renumbered }
@@ -351,24 +360,24 @@ export const useSessionStore = create<SessionState>()(
 
       setProcessingSlides: (nums) => set({ processingSlideNumbers: nums }),
 
-      addProcessingSlide: (num) => set((state) => ({ 
-        processingSlideNumbers: state.processingSlideNumbers.includes(num) 
-          ? state.processingSlideNumbers 
-          : [...state.processingSlideNumbers, num] 
+      addProcessingSlide: (num) => set((state) => ({
+        processingSlideNumbers: state.processingSlideNumbers.includes(num)
+          ? state.processingSlideNumbers
+          : [...state.processingSlideNumbers, num]
       })),
 
-      removeProcessingSlide: (num) => set((state) => ({ 
-        processingSlideNumbers: state.processingSlideNumbers.filter((n) => n !== num) 
+      removeProcessingSlide: (num) => set((state) => ({
+        processingSlideNumbers: state.processingSlideNumbers.filter((n) => n !== num)
       })),
-      
+
       clearProcessingSlides: () => set({ processingSlideNumbers: [] }),
     }),
     {
-      name: 'vibriona-sessions',
+      name: STORAGE_KEYS.SESSIONS,
       partialize: (state) => ({
-        sessions: state.sessions.slice(0, 50),
+        sessions: state.sessions.slice(0, MAX_PERSISTED_SESSIONS),
         currentSessionId: state.currentSessionId,
       }),
-    }
+    },
   )
 )

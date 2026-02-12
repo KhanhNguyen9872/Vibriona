@@ -43,8 +43,8 @@ export default function GlobalSearch({ isOpen, onClose, isMobile }: GlobalSearch
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setShowResults(false)
         if (isMobile) {
-             // On mobile, clicking outside might not be enough if it covers screen, 
-             // but here it's in header. We'll rely on X button or explicit close.
+          // On mobile, clicking outside might not be enough if it covers screen, 
+          // but here it's in header. We'll rely on X button or explicit close.
         }
       }
     }
@@ -75,34 +75,34 @@ export default function GlobalSearch({ isOpen, onClose, isMobile }: GlobalSearch
       // 2. Match Messages
       session.messages.forEach(msg => {
         if (msg.role === 'user' || (msg.role === 'assistant' && !msg.isScriptGeneration)) { // Skip massive script payloads if desired, or include them
-           // Actually, let's include all text content but truncate
-           if (msg.content.toLowerCase().includes(lowerQuery)) {
-             searchBuffer.push({
-               type: 'message',
-               sessionId: session.id,
-               sessionTitle: session.title,
-               title: msg.content.slice(0, 60) + (msg.content.length > 60 ? '...' : ''),
-               subtitle: msg.role === 'user' ? t('search.userMatch') : t('search.botMatch'),
-             })
-           }
+          // Actually, let's include all text content but truncate
+          if (msg.content.toLowerCase().includes(lowerQuery)) {
+            searchBuffer.push({
+              type: 'message',
+              sessionId: session.id,
+              sessionTitle: session.title,
+              title: msg.content.slice(0, 60) + (msg.content.length > 60 ? '...' : ''),
+              subtitle: msg.role === 'user' ? t('search.userMatch') : t('search.botMatch'),
+            })
+          }
         }
       })
 
       // 3. Match Slides
       session.slides.forEach(slide => {
         if (
-          slide.title?.toLowerCase().includes(lowerQuery) || 
+          slide.title?.toLowerCase().includes(lowerQuery) ||
           slide.content?.toLowerCase().includes(lowerQuery) ||
           slide.speaker_notes?.toLowerCase().includes(lowerQuery)
         ) {
-           searchBuffer.push({
-             type: 'slide',
-             sessionId: session.id,
-             sessionTitle: session.title,
-             title: slide.title || t('chat.slideLabel', { number: slide.slide_number }),
-             subtitle: t('search.slideMatch', 'Slide Content'),
-             slideNumber: slide.slide_number
-           })
+          searchBuffer.push({
+            type: 'slide',
+            sessionId: session.id,
+            sessionTitle: session.title,
+            title: slide.title || t('chat.slideLabel', { number: slide.slide_number }),
+            subtitle: t('search.slideMatch', 'Slide Content'),
+            slideNumber: slide.slide_number
+          })
         }
       })
     })
@@ -114,9 +114,9 @@ export default function GlobalSearch({ isOpen, onClose, isMobile }: GlobalSearch
   const handleSelect = (result: SearchResult) => {
     setCurrentSession(result.sessionId)
     if (result.type === 'slide' && result.slideNumber) {
-        // We need a small delay to ensure session switch happened if we want to highlight 
-        // effectively, though zustand is sync. The workspace might need to mount.
-        setTimeout(() => highlightSlide(result.slideNumber!), 300)
+      // We need a small delay to ensure session switch happened if we want to highlight 
+      // effectively, though zustand is sync. The workspace might need to mount.
+      setTimeout(() => highlightSlide(result.slideNumber!), 300)
     }
     setQuery('')
     setShowResults(false)
@@ -134,12 +134,12 @@ export default function GlobalSearch({ isOpen, onClose, isMobile }: GlobalSearch
   if (isMobile && !isOpen) return null
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className={`
         relative flex items-center
-        ${isMobile 
-          ? 'flex-1 w-full' 
+        ${isMobile
+          ? 'flex-1 w-full'
           : 'w-[400px] mx-4'
         }
       `}
@@ -172,7 +172,7 @@ export default function GlobalSearch({ isOpen, onClose, isMobile }: GlobalSearch
             className="absolute inset-y-0 right-0 pr-2 flex items-center"
           >
             <div className="p-1 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-md transition-colors">
-               <X className="h-3.5 w-3.5 text-neutral-500" />
+              <X className="h-3.5 w-3.5 text-neutral-500" />
             </div>
           </button>
         )}
@@ -185,7 +185,7 @@ export default function GlobalSearch({ isOpen, onClose, isMobile }: GlobalSearch
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 4 }}
-            className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-neutral-900 rounded-xl shadow-xl border border-neutral-200 dark:border-neutral-800 max-h-[400px] overflow-y-auto z-50 py-2"
+            className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 max-h-[400px] overflow-y-auto z-50 py-2"
           >
             {results.map((result, idx) => (
               <button
@@ -194,27 +194,27 @@ export default function GlobalSearch({ isOpen, onClose, isMobile }: GlobalSearch
                 className="w-full text-left px-4 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-start gap-3 group"
               >
                 <div className="mt-1 shrink-0 text-neutral-400 group-hover:text-black dark:group-hover:text-white transition-colors">
-                    {result.type === 'project' && <LayoutTemplate className="w-4 h-4" />}
-                    {result.type === 'message' && <MessageSquare className="w-4 h-4" />}
-                    {result.type === 'slide' && <Presentation className="w-4 h-4" />}
+                  {result.type === 'project' && <LayoutTemplate className="w-4 h-4" />}
+                  {result.type === 'message' && <MessageSquare className="w-4 h-4" />}
+                  {result.type === 'slide' && <Presentation className="w-4 h-4" />}
                 </div>
                 <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">
-                        {result.title}
-                    </div>
-                    <div className="text-xs text-neutral-500 flex items-center gap-1.5 truncate">
-                        <span className="font-medium">{result.sessionTitle}</span>
+                  <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">
+                    {result.title}
+                  </div>
+                  <div className="text-xs text-neutral-500 flex items-center gap-1.5 truncate">
+                    <span className="font-medium">{result.sessionTitle}</span>
+                    <span className="text-neutral-300 dark:text-neutral-700">•</span>
+                    <span>{result.subtitle}</span>
+                    {result.type === 'project' && (
+                      <>
                         <span className="text-neutral-300 dark:text-neutral-700">•</span>
-                        <span>{result.subtitle}</span>
-                        {result.type === 'project' && (
-                          <>
-                            <span className="text-neutral-300 dark:text-neutral-700">•</span>
-                            <span>{t('search.slidesCount', { count: result.slideCount })}</span>
-                            <span className="text-neutral-300 dark:text-neutral-700">•</span>
-                            <span>{new Date(result.timestamp || 0).toLocaleDateString()}</span>
-                          </>
-                        )}
-                    </div>
+                        <span>{t('search.slidesCount', { count: result.slideCount })}</span>
+                        <span className="text-neutral-300 dark:text-neutral-700">•</span>
+                        <span>{new Date(result.timestamp || 0).toLocaleDateString()}</span>
+                      </>
+                    )}
+                  </div>
                 </div>
               </button>
             ))}

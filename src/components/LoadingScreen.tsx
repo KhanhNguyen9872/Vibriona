@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 export default function LoadingScreen() {
   const { t } = useTranslation()
   const [progress, setProgress] = useState(0)
-  
+
   // Select random text once on mount
   const [loadingText] = useState(() => {
     const texts = [
@@ -57,20 +57,20 @@ export default function LoadingScreen() {
       <div className="flex flex-col items-center gap-6 p-4">
         {/* Logo or Icon */}
         <motion.div
-           initial={{ opacity: 0, scale: 0.8 }}
-           animate={{ opacity: 1, scale: 1 }}
-           transition={{ duration: 0.5, ease: "easeOut" }}
-           className="relative"
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="relative"
         >
-           <img 
-             src={`${import.meta.env.BASE_URL}assets/logo.png`} 
-             alt="Logo" 
-             className="w-16 h-16 object-contain" 
-           />
+          <img
+            src={`${import.meta.env.BASE_URL}assets/logo.png`}
+            alt="Logo"
+            className="w-16 h-16 object-contain"
+          />
         </motion.div>
-        
+
         {/* App Title */}
-        <motion.h1 
+        <motion.h1
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.5 }}
@@ -83,14 +83,14 @@ export default function LoadingScreen() {
           {/* Progress Bar Container */}
           <div className="w-64 h-1 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
             {/* Progress Bar Filler */}
-            <motion.div 
+            <motion.div
               className="h-full bg-neutral-900 dark:bg-white rounded-full"
               initial={{ width: "0%" }}
               animate={{ width: `${progress}%` }}
               transition={{ duration: 0.5, ease: "easeInOut" }}
             />
           </div>
-          
+
           {/* Loading Status Text */}
           <motion.p
             initial={{ opacity: 0, y: 5 }}

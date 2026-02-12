@@ -3,30 +3,27 @@ import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'motion/react'
 import { useQueueStore } from '../store/useQueueStore'
 import { useSessionStore } from '../store/useSessionStore'
-import { useUIStore } from '../store/useUIStore'
 import { toast } from 'sonner'
 import { Sparkles, Loader2, Square, AlertCircle, X, Layers, Pencil } from 'lucide-react'
 
 const MAX_CHARS = 4096
 
 interface ChatInputProps {
-  variant?: 'default' | 'centered'
   className?: string
 }
 
-export default function ChatInput({ variant = 'default', className = '' }: ChatInputProps) {
+export default function ChatInput({ className = '' }: ChatInputProps) {
   const { t } = useTranslation()
   const [prompt, setPrompt] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { addToQueue, cancelProjectProcess, isProjectProcessing, items } = useQueueStore()
-  const { addMessage, createSession, currentSessionId, getSelectedSlideIndices, clearSlideSelection, getCurrentSession, setProcessingSlides } = useSessionStore()
-  const { setMobileActiveTab, startHeroHold } = useUIStore()
+  const { addMessage, createSession, currentSessionId, clearSlideSelection, getSelectedSlideIndices, getCurrentSession, setProcessingSlides } = useSessionStore()
 
   const currentSession = getCurrentSession()
   const sessionSlides = currentSession?.slides ?? []
   const projectId = currentSessionId || ''
   const isProcessing = isProjectProcessing(projectId)
-  
+
   const selectedSlideIndices = getSelectedSlideIndices()
   const selectedSlides = selectedSlideIndices
     .filter((i) => i < sessionSlides.length)
@@ -65,11 +62,6 @@ export default function ChatInput({ variant = 'default', className = '' }: ChatI
     const trimmed = prompt.trim()
     if (!trimmed || isOverLimit || isProcessing) return
 
-    // In new project (centered) mode, lock the hero view for 2s before transitioning
-    if (isCentered) {
-      startHeroHold()
-    }
-
     // Optimistic: create session if needed
     let activeProjectId = currentSessionId
     if (!currentSessionId) {
@@ -94,34 +86,24 @@ export default function ChatInput({ variant = 'default', className = '' }: ChatI
       })
     })
 
-    // Clear input + selection — in centered mode, delay clearing until after hero hold
-    if (!isCentered) {
-      setPrompt('')
-      if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto'
-      }
-    } else {
-      // In centered mode, clear after 2s (after hero hold)
-      setTimeout(() => {
-        setPrompt('')
-        if (textareaRef.current) {
-          textareaRef.current.style.height = 'auto'
-        }
-      }, 2000)
+    // Clear input
+    setPrompt('')
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
     }
 
     // Queue with or without context - use activeProjectId!
     addToQueue(trimmed, activeProjectId!, isContextEdit ? selectedSlides : undefined)
-    
+
     // Trigger "Magic Overlay" immediately for selected slides
     if (isContextEdit) {
       setProcessingSlides(slideNums)
     }
-    
+
     if (isContextEdit) clearSlideSelection()
 
-    // Auto-switch to script view on mobile
-    setMobileActiveTab('script')
+    // Note: Mobile tab switching now happens automatically in App.tsx 
+    // only when action is confirmed to be slide-related (intent-aware)
 
     if (queuedCount > 0) {
       toast(t('chat.queued'), {
@@ -137,14 +119,8 @@ export default function ChatInput({ variant = 'default', className = '' }: ChatI
     }
   }
 
-  const isCentered = variant === 'centered'
-
   return (
-    <div className={`
-      shrink-0 
-      ${isCentered ? 'bg-transparent pb-0 w-full max-w-3xl mx-auto' : 'border-t border-neutral-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 sm:px-6 py-3'}
-      ${className}
-    `}>
+    <div className={`shrink-0 border-t border-neutral-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 sm:px-6 py-3 ${className}`}>
       {/* Selection context bar */}
       <AnimatePresence>
         {selectedSlides.length > 0 && (
@@ -182,20 +158,14 @@ export default function ChatInput({ variant = 'default', className = '' }: ChatI
         </div>
       )}
 
-      <div className={isCentered ? '' : 'max-w-full mx-auto'}>
-        <div className={`relative border rounded-2xl shadow-sm transition-all ${
-          isProcessing
+      <div className="max-w-full mx-auto">
+        <div className={`relative border rounded-2xl transition-all ${isProcessing
             ? 'bg-neutral-100 dark:bg-zinc-800/50 border-neutral-200 dark:border-zinc-600/50'
-            : isCentered
-              ? 'bg-white dark:bg-zinc-800/50 shadow-md border-neutral-200 dark:border-zinc-700 focus-within:ring-2 focus-within:border-neutral-400 dark:focus-within:border-zinc-500 hover:shadow-lg' 
-              : 'bg-neutral-50 dark:bg-zinc-800/30 focus-within:ring-2 focus-within:border-neutral-400 dark:focus-within:border-zinc-500'
-        } ${
-          isOverLimit
+            : 'bg-neutral-50 dark:bg-zinc-800/30 focus-within:ring-2 focus-within:border-neutral-400 dark:focus-within:border-zinc-500'
+          } ${isOverLimit
             ? 'border-red-300 dark:border-red-800 focus-within:ring-red-200/50 dark:focus-within:ring-red-900/30'
-            : isCentered 
-              ? '' 
-              : 'border-neutral-200 dark:border-zinc-700 focus-within:ring-black/20 dark:focus-within:ring-zinc-500/30'
-        }`}>
+            : 'border-neutral-200 dark:border-zinc-700 focus-within:ring-black/20 dark:focus-within:ring-zinc-500/30'
+          }`}>
           <textarea
             ref={textareaRef}
             value={prompt}
@@ -209,13 +179,12 @@ export default function ChatInput({ variant = 'default', className = '' }: ChatI
           {/* Bottom bar */}
           <div className="absolute inset-x-3 bottom-2.5 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <span className={`text-[10px] tabular-nums font-medium transition-colors ${
-                isOverLimit
+              <span className={`text-[10px] tabular-nums font-medium transition-colors ${isOverLimit
                   ? 'text-red-500'
                   : charCount > MAX_CHARS * 0.9
                     ? 'text-amber-500'
                     : 'text-neutral-400'
-              }`}>
+                }`}>
                 {t('chat.charCount', { count: charCount, max: MAX_CHARS })}
               </span>
               {charCount > 0 && (
@@ -234,40 +203,20 @@ export default function ChatInput({ variant = 'default', className = '' }: ChatI
                   {t('chat.cancel')}
                 </button>
               )}
-              {isCentered && isProcessing ? (
-                <motion.button
-                  disabled
-                  className="relative flex items-center gap-2 px-4 py-2 rounded-xl bg-black dark:bg-white text-white dark:text-black text-[11px] font-semibold tracking-wide cursor-not-allowed overflow-hidden"
-                  animate={{ scale: [1, 1.02, 1] }}
-                  transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-                >
-                  <motion.div
-                    className="absolute inset-0 rounded-xl"
-                    style={{
-                      background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent)',
-                    }}
-                    animate={{ x: ['-100%', '100%'] }}
-                    transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
-                  />
+              <button
+                onClick={handleSubmit}
+                disabled={!prompt.trim() || isOverLimit || isProcessing}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black dark:bg-white text-white dark:text-black text-[11px] font-semibold tracking-wide hover:opacity-90 active:scale-[0.97] transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {isProcessing ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>{t('chat.generating')}</span>
-                </motion.button>
-              ) : (
-                <button
-                  onClick={handleSubmit}
-                  disabled={!prompt.trim() || isOverLimit || isProcessing}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black dark:bg-white text-white dark:text-black text-[11px] font-semibold tracking-wide hover:opacity-90 active:scale-[0.97] transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  {isProcessing ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : isEditMode ? (
-                    <Pencil className="w-3.5 h-3.5" />
-                  ) : (
-                    <Sparkles className="w-3.5 h-3.5" />
-                  )}
-                  {isEditMode ? t('chat.update') : t('chat.generate')}
-                </button>
-              )}
+                ) : isEditMode ? (
+                  <Pencil className="w-3.5 h-3.5" />
+                ) : (
+                  <Sparkles className="w-3.5 h-3.5" />
+                )}
+                {isEditMode ? t('chat.update') : t('chat.generate')}
+              </button>
             </div>
           </div>
         </div>

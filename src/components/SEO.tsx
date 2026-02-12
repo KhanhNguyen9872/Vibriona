@@ -8,8 +8,8 @@ interface SEOProps {
   url?: string;
 }
 
-const SEO = ({ 
-  title = 'Vibriona - AI Presentation Generator', 
+const SEO = ({
+  title = 'Vibriona - AI Presentation Generator',
   description = 'Generate professional presentations in seconds with AI. Simply describe your topic and get a complete slide deck.',
   keywords = 'AI presentation, slide generator, powerpoint AI, presentation maker',
   image = '/og-image.png',

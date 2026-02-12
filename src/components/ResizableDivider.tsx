@@ -80,7 +80,6 @@ export default function ResizableDivider({ onResize, minWidth = 320, maxPercenta
           absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
           rounded-full
           bg-neutral-300 dark:bg-neutral-700
-          shadow-sm
           transition-all duration-200
           ${isHovering || isDragging ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}
           ${isDragging ? 'bg-blue-500 dark:bg-blue-500' : ''}
@@ -89,7 +88,7 @@ export default function ResizableDivider({ onResize, minWidth = 320, maxPercenta
           padding: '6px',
         }}
       >
-        <GripVertical 
+        <GripVertical
           className={`
             w-3.5 h-3.5
             transition-colors duration-200

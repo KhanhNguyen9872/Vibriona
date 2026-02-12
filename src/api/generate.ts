@@ -1,11 +1,12 @@
 import axios from 'axios'
 import { SYSTEM_PROMPT, type Slide } from './prompt'
 import { extractContentFromChunk, separateThinkingFromContent, parsePartialResponse, extractCompletionMessage } from './parseStream'
+import { getAPIConfig } from './utils'
 
 export interface StreamCallbacks {
   onToken: (fullText: string) => void
   onThinking: (thinkingText: string) => void
-  onResponseUpdate: (action: string | undefined, slides: Slide[]) => void
+  onResponseUpdate: (response: { action?: string, slides: Slide[], question?: string, options?: string[], allowCustom?: boolean, content?: string }) => void
   onDone: (fullText: string, slides: Slide[], thinking: string, completionMessage: string) => void
   onError: (error: string, status?: number) => void
 }
@@ -32,13 +33,8 @@ export function streamGenerate(
   let fullContent = ''
   let apiThinking = '' // reasoning_content from API field
 
-  // Detect endpoint type from URL
-  const isOllama = apiUrl.includes('11434') || apiUrl.includes('ollama')
-  const endpoint = isOllama
-    ? `${apiUrl.replace(/\/+$/, '')}/chat`
-    : `${apiUrl.replace(/\/+$/, '')}/chat/completions`
-
-  const resolvedModel = model || (isOllama ? 'llama3' : 'gpt-4o-mini')
+  // Get API configuration from shared utility
+  const config = getAPIConfig()
 
   const messages: { role: string; content: string }[] = [
     { role: 'system', content: SYSTEM_PROMPT },
@@ -47,19 +43,16 @@ export function streamGenerate(
   ]
 
   const body = {
-    model: resolvedModel,
+    model: config.model,
     messages,
     stream: true,
   }
 
   axios({
     method: 'post',
-    url: endpoint,
+    url: config.endpoint,
     data: body,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(apiKey && !isOllama ? { Authorization: `Bearer ${apiKey}` } : {}),
-    },
+    headers: config.headers,
     responseType: 'text',
     signal: controller.signal,
     onDownloadProgress: (event) => {
@@ -90,11 +83,11 @@ export function streamGenerate(
         callbacks.onToken(fullContent)
 
         // Parse slides from clean content (without think tags)
-        // Now using Delta Protocol: { action, slides }
-        const { action, slides } = parsePartialResponse(separated.content)
-        
-        if (slides.length > 0 || action) {
-          callbacks.onResponseUpdate(action, slides)
+        // Now using Delta Protocol: { action, slides, content, question, options, allowCustom }
+        const parsedResponse = parsePartialResponse(separated.content)
+
+        if (parsedResponse.slides.length > 0 || parsedResponse.action) {
+          callbacks.onResponseUpdate(parsedResponse)
         }
       }
     },
@@ -102,10 +95,10 @@ export function streamGenerate(
     .then(() => {
       const separated = separateThinkingFromContent(fullContent)
       const allThinking = [apiThinking, separated.thinking].filter(Boolean).join('\n')
-      
+
       const { slides: finalSlides } = parsePartialResponse(separated.content)
       const completionMessage = extractCompletionMessage(separated.content)
-      
+
       callbacks.onDone(fullContent, finalSlides, allThinking, completionMessage)
     })
     .catch((err) => {

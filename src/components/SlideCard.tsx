@@ -276,11 +276,11 @@ export default function SlideCard({
         ${selected
           ? 'border-black dark:border-neutral-400 bg-neutral-50 dark:bg-neutral-800/50'
           : slide._actionMarker === 'delete'
-            ? 'border-red-500/80 bg-red-50/50 dark:bg-red-950/20 shadow-[0_0_15px_rgba(239,68,68,0.25)]'
+            ? 'border-red-500/80 bg-red-50/50 dark:bg-red-950/20'
             : slide._actionMarker === 'create' || slide._actionMarker === 'append'
-              ? 'border-green-500/80 bg-green-50/50 dark:bg-green-950/20 shadow-[0_0_15px_rgba(34,197,94,0.25)]'
+              ? 'border-green-500/80 bg-green-50/50 dark:bg-green-950/20'
               : slide._actionMarker === 'update'
-                ? 'border-yellow-500/80 bg-yellow-50/50 dark:bg-yellow-950/20 shadow-[0_0_15px_rgba(234,179,8,0.25)]'
+                ? 'border-yellow-500/80 bg-yellow-50/50 dark:bg-yellow-950/20'
                 : 'border-neutral-200 dark:border-neutral-700/50 bg-white dark:bg-neutral-900'
         }
         ${isProcessing ? 'ring-1 ring-neutral-900/50 dark:ring-white/50' : ''}
@@ -378,19 +378,19 @@ export default function SlideCard({
               >
                 <Wand2 className={`w-3.5 h-3.5 ${isProcessing ? 'text-indigo-400 animate-pulse' : 'text-neutral-400 hover:text-indigo-500 dark:hover:text-indigo-400'}`} />
               </button>
-            {/* <button
+              {/* <button
                 onClick={handleDelete}
                 title={t('workspace.delete')}
                 className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5 text-neutral-400 hover:text-red-500" />
               </button> */}
-             <button
+              <button
                 onClick={() => setActiveMenuSlideNumber(showMenu ? null : slide.slide_number)}
                 className={`p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer ${showMenu ? 'bg-neutral-100 dark:bg-neutral-800' : ''}`}
-             >
+              >
                 <MoreVertical className="w-3.5 h-3.5 text-neutral-400" />
-             </button>
+              </button>
             </>
           )}
           <button
@@ -441,33 +441,33 @@ export default function SlideCard({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -10 }}
             transition={{ duration: 0.1 }}
-            className="absolute right-3 top-10 z-50 w-48 py-1 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-xl"
+            className="absolute right-3 top-10 z-50 w-48 py-1 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900"
           >
             <button
-               onClick={handleDuplicate}
-               className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+              onClick={handleDuplicate}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
             >
               <Copy className="w-3.5 h-3.5 text-neutral-400" />
               {t('workspace.duplicateSlide')}
             </button>
             <button
-               onClick={handleMoveToStart}
-               className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+              onClick={handleMoveToStart}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
             >
               <ArrowUpToLine className="w-3.5 h-3.5 text-neutral-400" />
               {t('workspace.moveToStart')}
             </button>
             <button
-               onClick={handleMoveToEnd}
-               className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+              onClick={handleMoveToEnd}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
             >
               <ArrowDownToLine className="w-3.5 h-3.5 text-neutral-400" />
               {t('workspace.moveToEnd')}
             </button>
             <div className="my-1 border-t border-neutral-100 dark:border-neutral-800" />
             <button
-               onClick={handleDelete}
-               className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+              onClick={handleDelete}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
               {t('workspace.delete')}

@@ -108,24 +108,24 @@ export function isInsideThinkTag(fullText: string): boolean {
 export function extractCompletionMessage(content: string): string {
   const trimmed = content.trim()
   const successJsonEnd = trimmed.lastIndexOf('}')
-  
+
   if (successJsonEnd === -1) return ''
 
   // Look for the end of the MAIN object, not just any object
   // Heuristic: The main object starts typically at char 0 or near it.
   // We can also try to parse what's before various '}' to see if it's the full JSON.
-  
+
   // Simple heuristic: If the text continues significantly after the last '}', it's likely the message.
   // A robust way is to rely on the fact that the JSON is valid (or almost valid).
-  
+
   // For now, let's assume the JSON object is the first major block.
   // finding the matching closing brace for the first opening brace.
   const openIdx = trimmed.indexOf('{')
   if (openIdx === -1) return ''
-  
+
   let depth = 0
   let closeIdx = -1
-  
+
   for (let i = openIdx; i < trimmed.length; i++) {
     if (trimmed[i] === '{') depth++
     else if (trimmed[i] === '}') {
@@ -136,17 +136,23 @@ export function extractCompletionMessage(content: string): string {
       }
     }
   }
-  
+
   if (closeIdx !== -1 && closeIdx < trimmed.length - 1) {
     return trimmed.slice(closeIdx + 1).trim()
   }
-  
+
   return ''
 }
 
 export interface DeltaResponse {
-  action?: 'create' | 'update' | 'append' | 'delete'
+  action?: 'create' | 'update' | 'append' | 'delete' | 'ask' | 'response'
   slides: Slide[]
+  // Fields for ask action
+  question?: string
+  options?: string[]
+  allowCustom?: boolean
+  // Field for response action
+  content?: string
 }
 
 /**
@@ -154,19 +160,39 @@ export interface DeltaResponse {
  * Expected format: { "action": "...", "slides": [ ... ] }
  */
 export function parsePartialResponse(text: string): DeltaResponse {
-  const trimmed = text.trim()
+  let trimmed = text.trim()
   if (!trimmed) return { slides: [] }
 
+  // 🛡️ SAFETY: Strip markdown code blocks if AI wrapped the JSON
+  // Remove ```json at start and ``` at end (common LLM behavior)
+  trimmed = trimmed.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/```\s*$/, '')
+  trimmed = trimmed.trim()
+
   // Strategy: Try to find "action" and "slides" even in partial JSON
-  
+
   // 1. Try full parse first
   try {
     const parsed = JSON.parse(trimmed)
-    if (parsed && Array.isArray(parsed.slides)) {
-      return { 
-        action: parsed.action, 
-        slides: parsed.slides 
+    if (parsed && (Array.isArray(parsed.slides) || parsed.action === 'ask' || parsed.action === 'response')) {
+      const response = {
+        action: parsed.action,
+        slides: parsed.slides || [],
+        question: parsed.question,
+        options: parsed.options,
+        allowCustom: parsed.allow_custom_input,
+        content: parsed.content
       }
+
+      // 🐛 DEBUG: Log parsed response
+      console.log('📦 [Parsed Bot Response]', {
+        action: response.action,
+        slidesCount: response.slides?.length ?? 0,
+        hasQuestion: !!response.question,
+        hasContent: !!response.content,
+        rawParsed: parsed
+      })
+
+      return response
     }
   } catch {
     // Partial parse
@@ -198,10 +224,10 @@ export function parsePartialResponse(text: string): DeltaResponse {
 export function parsePartialSlides(text: string): Slide[] {
   const trimmed = text.trim()
   if (!trimmed) return []
-  
+
   // If it starts with [, it's an array. If it starts with {, it might be the object wrapper (handled above), 
   // but this function expects the ARRAY string specifically.
-  
+
   const arrStart = trimmed.indexOf('[')
   if (arrStart === -1) return []
 
@@ -215,12 +241,12 @@ export function parsePartialSlides(text: string): Slide[] {
   // Truncate to the last complete object and close the array
   // This is a naive repair but works well for streaming lists
   let repaired = json.slice(0, lastCloseBrace + 1)
-  
+
   // Check if we need to add a closing bracket
   if (!repaired.endsWith(']')) {
     repaired += ']'
   }
-  
+
   // Fix trailing command if any: "[{...}, ]" -> "[{...}]"
   repaired = repaired.replace(/,\s*\]$/, ']')
 
@@ -232,7 +258,7 @@ export function parsePartialSlides(text: string): Slide[] {
     const objects: Slide[] = []
     // Match balanced braces is hard with regex, assuming no nested objects for now or simple structure
     // Actually, Prompt ensures flat structure mostly.
-    
+
     // Improved Regex to capture top-level objects in the array
     // This is still fragile but better than nothing for a broken stream
     const objectRegex = /\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g
@@ -241,7 +267,7 @@ export function parsePartialSlides(text: string): Slide[] {
       try {
         const obj = JSON.parse(match[0])
         if (obj.slide_number || obj.title) objects.push(obj)
-      } catch {}
+      } catch { }
     }
     return objects
   }

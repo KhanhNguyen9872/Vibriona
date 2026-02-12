@@ -58,26 +58,28 @@ function App() {
 
   const currentSession = getCurrentSession()
   const messages = currentSession?.messages ?? []
-  const sessionSlides = currentSession?.slides ?? []
   const projectId = currentSessionId || ''
-  const isCurrentProjectProcessing = isProjectProcessing(projectId)
-
-  // Show workspace when we have slides (session-scoped or streaming)
-  const hasSlideData =
-    isCurrentProjectProcessing ||
-    items.some((i) => i.status === 'done' && i.slides && i.slides.length > 0 && i.projectId === projectId) ||
-    sessionSlides.length > 0
-
-  // Streaming state for message list
+  const isStreaming = isProjectProcessing(projectId)
   const activeItem = getActiveProcessForProject(projectId)
-  const isStreaming = !!activeItem
+  
+  // Intent-Aware: Only consider it "slide data" if action is slide-related
+  const isSlideAction = activeItem?.responseAction === 'create' || 
+                        activeItem?.responseAction === 'append' || 
+                        activeItem?.responseAction === 'update'
+  const hasReceivedSlideAction = activeItem?.hasReceivedAction && isSlideAction
 
-  // Auto-switch to workspace on mobile when slides arrive
+  const hasSlideData =
+    hasReceivedSlideAction ||
+    items.some((i) => i.status === 'done' && i.slides && i.slides.length > 0 && i.projectId === projectId) ||
+    (currentSession?.slides && currentSession.slides.length > 0)
+
+  // Auto-switch to script panel on mobile when generating slides (but not for chat responses)
   useEffect(() => {
-    if (isMobile && hasSlideData && isStreaming) {
+    if (!isMobile || !isStreaming) return
+    if (hasReceivedSlideAction) {
       setMobileActiveTab('script')
     }
-  }, [isMobile, hasSlideData, isStreaming, setMobileActiveTab])
+  }, [isMobile, hasReceivedSlideAction, isStreaming, setMobileActiveTab])
 
   // Background completion notification (global listener)
   useEffect(() => {
@@ -85,7 +87,7 @@ function App() {
       // Find projects that just completed
       const prevProcesses = prevState?.activeProcesses || {}
       const currentProcesses = state?.activeProcesses || {}
-      
+
       Object.keys(prevProcesses).forEach(pid => {
         // If project was processing but now isn't, and it's not the current project
         if (prevProcesses[pid] && !currentProcesses[pid] && pid !== currentSessionId) {
@@ -119,7 +121,7 @@ function App() {
       if (item.responseAction === 'delete') {
         scheduledDeletions.current.add(item.id)
         setTimeout(() => {
-            handleMsgCreation(item)
+          handleMsgCreation(item)
         }, 2000)
         continue
       }
@@ -130,68 +132,68 @@ function App() {
 
   // Helper to process the message creation (extracted from effect)
   const handleMsgCreation = (item: any) => {
-      // Re-check session in case it changed during timeout
-      const currentSessionId = useSessionStore.getState().currentSessionId
-      if (!currentSessionId && !item.prompt) return 
+    // Re-check session in case it changed during timeout
+    const currentSessionId = useSessionStore.getState().currentSessionId
+    if (!currentSessionId && !item.prompt) return
 
-      if (savedItemIds.current.has(item.id)) return
+    if (savedItemIds.current.has(item.id)) return
 
-      let sessionId = currentSessionId
-      if (!sessionId) {
-        const title = item.prompt.length > 60
-          ? item.prompt.slice(0, 60) + '...'
-          : item.prompt
-        sessionId = createSession(title)
-      }
+    let sessionId = currentSessionId
+    if (!sessionId) {
+      const title = item.prompt.length > 60
+        ? item.prompt.slice(0, 60) + '...'
+        : item.prompt
+      sessionId = createSession(title)
+    }
 
-      // Capture previous state BEFORE updating
-      const prevSlides = getCurrentSession()?.slides || []
+    // Capture previous state BEFORE updating
+    const prevSlides = getCurrentSession()?.slides || []
 
-      // Save slides to current session
-      const action = item.responseAction || (item.contextSlideNumbers?.length ? 'update' : 'create')
-      const mergedSlides = applyDelta(prevSlides, { action, slides: item.slides! })
-      setSessionSlides(mergedSlides)
+    // Save slides to current session
+    const action = item.responseAction || (item.contextSlideNumbers?.length ? 'update' : 'create')
+    const mergedSlides = applyDelta(prevSlides, { action, slides: item.slides! })
+    setSessionSlides(mergedSlides)
 
-      // Capture full slide state after the update
-      const updatedSession = getCurrentSession()
-      const slideSnapshot = updatedSession?.slides
-        ? JSON.parse(JSON.stringify(updatedSession.slides))
-        : item.slides!
+    // Capture full slide state after the update
+    const updatedSession = getCurrentSession()
+    const slideSnapshot = updatedSession?.slides
+      ? JSON.parse(JSON.stringify(updatedSession.slides))
+      : item.slides!
 
-      let affectedSlides: any[] = []
+    let affectedSlides: any[] = []
 
-      if (item.contextSlideNumbers && item.contextSlideNumbers.length > 0) {
-        affectedSlides = item.slides!
-      } else {
-        affectedSlides = item.slides!.filter((s: any) => {
-          const prev = prevSlides.find(p => p.slide_number === s.slide_number)
-          if (!prev) return true 
-          return prev.content !== s.content || prev.title !== s.title
-        })
-      }
-
-      addMessage({
-        role: 'assistant',
-        content: item.completionMessage 
-          || (item.responseAction === 'delete' && item.slides!.length > 0
-              ? t('chat.deletedSlides', { count: item.slides!.length, slides: item.slides!.map((s: any) => s.slide_number).join(', ') })
-              : (item.slides!.length > 0
-                ? t('chat.generatedSlides', { count: item.slides!.length })
-                : item.result!)),
-        thinking: item.thinking,
-        slides: item.slides,
-        timestamp: Date.now(),
-        isScriptGeneration: true,
-        slideSnapshot,
-        relatedSlideReferences: affectedSlides.map((s: any) => ({
-          id: `slide-card-${s.slide_number}`,
-          number: s.slide_number,
-          label: t('chat.slideLabel', { number: s.slide_number })
-        })),
-        action // Pass the determined action to the message
+    if (item.contextSlideNumbers && item.contextSlideNumbers.length > 0) {
+      affectedSlides = item.slides!
+    } else {
+      affectedSlides = item.slides!.filter((s: any) => {
+        const prev = prevSlides.find(p => p.slide_number === s.slide_number)
+        if (!prev) return true
+        return prev.content !== s.content || prev.title !== s.title
       })
+    }
 
-      savedItemIds.current.add(item.id)
+    addMessage({
+      role: 'assistant',
+      content: item.completionMessage
+        || (item.responseAction === 'delete' && item.slides!.length > 0
+          ? t('chat.deletedSlides', { count: item.slides!.length, slides: item.slides!.map((s: any) => s.slide_number).join(', ') })
+          : (item.slides!.length > 0
+            ? t('chat.generatedSlides', { count: item.slides!.length })
+            : item.result!)),
+      thinking: item.thinking,
+      slides: item.slides,
+      timestamp: Date.now(),
+      isScriptGeneration: true,
+      slideSnapshot,
+      relatedSlideReferences: affectedSlides.map((s: any) => ({
+        id: `slide-card-${s.slide_number}`,
+        number: s.slide_number,
+        label: t('chat.slideLabel', { number: s.slide_number })
+      })),
+      action // Pass the determined action to the message
+    })
+
+    savedItemIds.current.add(item.id)
   }
 
   // Sync dark class
@@ -266,7 +268,7 @@ function App() {
   // Auto-adjust chat panel width when sidebar expands/collapses
   useEffect(() => {
     if (isMobile || !hasSlideData) return
-    
+
     if (sidebarCollapsed) {
       // Sidebar collapsed: can use smaller chat width
       setSplitPaneWidth(35)
@@ -334,7 +336,7 @@ function App() {
         {/* Header */}
         <header className="shrink-0 h-12 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 z-40 relative">
           <div className="h-full flex items-center justify-between px-4">
-            
+
             {/* Left Side */}
             <div className={`flex items-center gap-2.5 ${isMobile && isMobileSearchOpen ? 'hidden' : 'flex'}`}>
               {/* Mobile hamburger */}
@@ -344,13 +346,13 @@ function App() {
               >
                 <Menu className="w-4 h-4" />
               </button>
-              <div 
+              <div
                 onClick={handleNewChat}
                 className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
               >
                 <img src={`${import.meta.env.BASE_URL}assets/logo.png`} alt="Logo" className="w-7 h-7 object-contain" />
                 <span className="text-sm font-bold tracking-tight">{t('app.title')}</span>
-                {isCurrentProjectProcessing && (
+                {isStreaming && (
                   <span className="dot-typing text-neutral-400 ml-0.5">
                     <span /><span /><span />
                   </span>
@@ -359,44 +361,44 @@ function App() {
             </div>
 
             {/* Global Search Center */}
-             {/* Desktop */}
-             {!isMobile && (
-               <div className="flex-1 flex justify-center">
-                  <GlobalSearch 
-                    isOpen={false} 
-                    onClose={() => {}} 
-                    isMobile={false}
-                  />
-               </div>
-             )}
+            {/* Desktop */}
+            {!isMobile && (
+              <div className="flex-1 flex justify-center">
+                <GlobalSearch
+                  isOpen={false}
+                  onClose={() => { }}
+                  isMobile={false}
+                />
+              </div>
+            )}
 
-             {/* Mobile Overlay */}
-             <AnimatePresence>
-               {isMobile && isMobileSearchOpen && (
-                 <motion.div 
-                    initial={{ opacity: 0, scale: 0.98 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.98 }}
-                    transition={{ duration: 0.2, ease: "easeOut" }}
-                    className="absolute inset-x-0 top-0 h-12 bg-white dark:bg-neutral-950 z-50 px-2 flex items-center border-b border-neutral-200 dark:border-neutral-800"
-                 >
-                    <GlobalSearch 
-                      isOpen={true} 
-                      onClose={() => setIsMobileSearchOpen(false)} 
-                      isMobile={true}
-                    />
-                 </motion.div>
-               )}
-             </AnimatePresence>
+            {/* Mobile Overlay */}
+            <AnimatePresence>
+              {isMobile && isMobileSearchOpen && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  className="absolute inset-x-0 top-0 h-12 bg-white dark:bg-neutral-950 z-50 px-2 flex items-center border-b border-neutral-200 dark:border-neutral-800"
+                >
+                  <GlobalSearch
+                    isOpen={true}
+                    onClose={() => setIsMobileSearchOpen(false)}
+                    isMobile={true}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Right side actions */}
             <div className={`flex items-center gap-2 ${isMobile && isMobileSearchOpen ? 'hidden' : 'flex'}`}>
               {isMobile && (
                 <button
-                   onClick={() => setIsMobileSearchOpen(true)}
-                   className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                  onClick={() => setIsMobileSearchOpen(true)}
+                  className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
                 >
-                   <Search className="w-[18px] h-[18px] text-neutral-500" />
+                  <Search className="w-[18px] h-[18px] text-neutral-500" />
                 </button>
               )}
 
@@ -478,8 +480,8 @@ function App() {
             md:flex ${hasSlideData && !heroHold ? 'md:min-w-[320px]' : 'md:flex-1 w-full'}
           `}
             style={hasSlideData && !isMobile && !heroHold ? { width: `${splitPaneWidth}%` } : undefined}>
-            {/* Stay on hero view during heroHold (2s animation) or when no messages */}
-            {heroHold || messages.length === 0 ? (
+            {/* Show hero only when no messages AND no slides (new project state) */}
+            {heroHold || (messages.length === 0 && !hasSlideData) ? (
               <HeroSection />
             ) : (
               <>
@@ -517,7 +519,7 @@ function App() {
                 `}
                 style={!isMobile ? { width: `${100 - splitPaneWidth}%` } : undefined}
               >
-                 <ScriptWorkspace />
+                <ScriptWorkspace />
               </motion.div>
             )}
           </AnimatePresence>

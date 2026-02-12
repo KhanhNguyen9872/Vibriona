@@ -19,7 +19,14 @@ export interface QueueItem {
   error?: string
   contextSlides?: Slide[]
   contextSlideNumbers?: number[]
-  responseAction?: 'create' | 'update' | 'append' | 'delete'
+  responseAction?: 'create' | 'update' | 'append' | 'delete' | 'ask' | 'response'
+  // Fields for ask action
+  question?: string
+  options?: string[]
+  allowCustom?: boolean
+  // Field for response action
+  content?: string
+  hasReceivedAction?: boolean // Track when action type is known from stream
 }
 
 interface QueueState {
@@ -65,7 +72,7 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
 
   processNext: () => {
     const { items, activeProcesses } = get()
-    
+
     // Find next queued item whose project is not already processing
     const next = items.find((i) => i.status === 'queued' && !activeProcesses[i.projectId])
     if (!next) return
@@ -120,39 +127,40 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
       onThinking: (thinkingText) => {
         get().updateItem(next.id, { thinkingText })
       },
-      onResponseUpdate: (action: any, slides) => {
-        // Delta Update Logic:
-        // We receive the "delta" (slides usually containing the new/changed ones)
-        // We store the RAW slides from the stream in 'slides' property for now?
-        // NO. ScriptWorkspace uses 'activeItem.slides' to render.
-        // If we just store the partial delta there, ScriptWorkspace will flicker if it expects full.
-        // BUT Step 2 says: "ScriptWorkspace needs to track responseAction".
-        
-        // Wait, if 'slides' in queue item is just the incoming ones, ScriptWorkspace needs to know how to merge them?
-        // OR should we merge them HERE in the store so 'activeItem.slides' is always the FULL view?
-        // The Plan said: "Update `ScriptWorkspace.tsx` to handle visual feedback based on `action`."
-        // And "Logic Update: The `mergeSlides` Utility" in Phase 31 was about merging in frontend.
-        
-        // However, Phase 33 says: "Update `utils/slideMerger.ts` to implement `applyDelta`... Update `store/useQueueStore.ts` to use `applyDelta`"
-        
-        // Let's decide: QueueItem.slides should probably hold the ACCUMULATED/MERGED result or the RAW stream?
-        // If we hold merged result, ScriptWorkspace is simple (just display).
-        // If we hold raw stream, ScriptWorkspace must merge every render.
-        
-        // Given `applyDelta` takes (current, delta) -> newSlides, it suggests we should maintain the FULL state in QueueItem if possible,
-        // OR we just store the incoming delta and let ScriptWorkspace merge it with Session slides?
-        
-        // ScriptWorkspace currently does: `mergeSlides(sessionSlides, streamingSlides)`
-        // If streamingSlides is just the delta, `mergeSlides` (from Phase 31) handles overlay.
-        // `applyDelta` (Phase 33) handles 'create' vs 'append' vs 'update'.
-        
-        // Let's store the RAW incoming slides (slide list from stream) in `items.slides`
-        // AND store the action in `items.responseAction`.
-        // ScriptWorkspace will use `applyDelta(sessionSlides, { action, slides: streamingSlides })`.
-        
-        get().updateItem(next.id, { slides, responseAction: action })
+      onResponseUpdate: (response) => {
+        // Extract all fields from the response object
+        const { action, slides, question, options, allowCustom, content } = response
+
+        // 🐛 DEBUG: Log full bot response
+        // console.log('🤖 [Bot Response Update]', {
+        //   action,
+        //   slidesCount: slides?.length ?? 0,
+        //   hasQuestion: !!question,
+        //   hasOptions: !!options,
+        //   hasContent: !!content,
+        //   fullResponse: response
+        // })
+
+        // Store all relevant data in the queue item for UI components to consume
+            get().updateItem(next.id, {
+              slides,
+              responseAction: action as any,
+              question,
+              options,
+              allowCustom,
+              content,
+              hasReceivedAction: true // Mark that action has been detected
+            })
       },
       onDone: (fullText, slides, thinking, completionMessage) => {
+        // 🐛 DEBUG: Log completion
+        // console.log('✅ [Bot Generation Complete]', {
+        //   slidesCount: slides?.length ?? 0,
+        //   hasThinking: !!thinking,
+        //   completionMessage,
+        //   fullTextLength: fullText?.length ?? 0
+        // })
+
         get().completeActive(next.id, fullText, slides, thinking, completionMessage)
       },
       onError: (error) => {
@@ -206,6 +214,32 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
         i.id === id ? { ...i, status: 'done' as const, result, slides, thinking: thinking || undefined, completionMessage: completionMessage || undefined, streamingText: undefined, thinkingText: undefined } : i
       ),
     }))
+
+    // 💬 If action is "response", create a chat message with the content
+    if (item.responseAction === 'response' && item.content) {
+      useSessionStore.getState().addMessage({
+        role: 'assistant',
+        content: item.content,
+        timestamp: Date.now(),
+        isScriptGeneration: false
+      })
+    }
+
+    // ❓ If action is "ask", create an interactive clarification message
+    if (item.responseAction === 'ask' && item.question) {
+      useSessionStore.getState().addMessage({
+        role: 'assistant',
+        content: item.question, // Fallback text
+        timestamp: Date.now(),
+        isScriptGeneration: false,
+        isInteractive: true,
+        clarification: {
+          question: item.question,
+          options: item.options || [],
+          allowCustom: item.allowCustom
+        }
+      })
+    }
 
     useSessionStore.getState().clearProcessingSlides()
 
