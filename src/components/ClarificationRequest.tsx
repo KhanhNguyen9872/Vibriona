@@ -49,17 +49,19 @@ export default function ClarificationRequest({
       isSkipped 
         ? 'opacity-50 grayscale pointer-events-none border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50' 
         : hasSelected
-          ? 'bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700 opacity-60 pointer-events-none'
+          ? 'bg-neutral-50 dark:bg-neutral-900/80 border-neutral-200 dark:border-neutral-700'
           : 'bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-200 dark:border-indigo-500/30'
       }`}>
       {/* Header */}
-      <div className={`flex items-center gap-2 ${isSkipped ? 'text-neutral-500' : 'text-indigo-600 dark:text-indigo-300'}`}>
+      <div className={`flex items-center gap-2 ${isSkipped ? 'text-neutral-500' : hasSelected ? 'text-indigo-500 dark:text-indigo-400' : 'text-indigo-600 dark:text-indigo-300'}`}>
         <MessageSquarePlus className="w-4 h-4" />
         <span className="text-xs font-semibold">{t('clarification.header')}</span>
       </div>
 
       {/* The Question */}
-      <p className="text-sm text-neutral-800 dark:text-neutral-200 font-medium">{question}</p>
+      <p className="text-sm text-neutral-800 dark:text-neutral-200 font-medium">
+        {question}
+      </p>
 
       {/* Options Grid */}
       <div className="flex flex-wrap gap-2">
@@ -72,7 +74,7 @@ export default function ClarificationRequest({
               selectedOption === opt
                 ? 'bg-indigo-100 dark:bg-indigo-900/50 border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 font-medium ring-1 ring-indigo-500/30'
                 : (hasSelected || isAnswered || !!selectedOption)
-                  ? 'bg-neutral-100 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-400 dark:text-neutral-600 cursor-not-allowed opacity-50'
+                  ? 'bg-neutral-100 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 cursor-not-allowed pointer-events-none'
                   : 'bg-white dark:bg-zinc-800 hover:bg-indigo-100 dark:hover:bg-indigo-600 hover:text-indigo-700 dark:hover:text-white text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-zinc-700 cursor-pointer'
               }`}
           >

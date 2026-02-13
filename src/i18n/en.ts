@@ -201,6 +201,13 @@ const en = {
       fieldVisualDescriptionPlaceholder: 'Describe the visual for this slide...',
       cancelEdit: 'Cancel',
       saveChanges: 'Save Changes',
+      undo: 'Undo',
+      redo: 'Redo',
+      gridView: 'Card View',
+      scriptView: 'Script View',
+      exportPdf: 'Download Script PDF',
+      deleteSelectedConfirm: 'Delete {{count}} selected slides?',
+      deleteSelectedDescription: 'This action cannot be undone.',
     },
     thinking: {
       active: 'Vibriona is thinking...',

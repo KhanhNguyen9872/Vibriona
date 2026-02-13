@@ -1,5 +1,4 @@
 import { useConfirmStore } from '../store/useConfirmStore' // Ensure path is correct based on alias config
-import i18n from '../i18n'
 
 /**
  * Show a confirmation dialog.

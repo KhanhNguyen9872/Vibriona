@@ -352,7 +352,7 @@ function App() {
                 className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
               >
                 <img src={`${import.meta.env.BASE_URL}assets/logo.png`} alt="Logo" className="w-7 h-7 object-contain" />
-                <span className="text-sm font-bold tracking-tight">{t('app.title')}</span>
+                <span className="text-sm font-bold tracking-tight max-[480px]:hidden">{t('app.title')}</span>
                 {isStreaming && (
                   <span className="dot-typing text-neutral-400 ml-0.5">
                     <span /><span /><span />

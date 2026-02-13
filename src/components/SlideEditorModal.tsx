@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'motion/react'
+import TextareaAutosize from 'react-textarea-autosize'
+import MDEditor from '@uiw/react-md-editor'
 import { X, FileText, Image, Mic, Type } from 'lucide-react'
+import { useSettingsStore } from '../store/useSettingsStore'
 import type { Slide } from '../api/prompt'
 
 interface SlideEditorModalProps {
@@ -13,6 +16,7 @@ interface SlideEditorModalProps {
 
 export default function SlideEditorModal({ slide, onSave, onClose, mode = 'edit' }: SlideEditorModalProps) {
   const { t } = useTranslation()
+  const { theme } = useSettingsStore()
   const [title, setTitle] = useState(slide.title)
   const [content, setContent] = useState(slide.content)
   const [speakerNotes, setSpeakerNotes] = useState(slide.speaker_notes ?? '')
@@ -63,7 +67,7 @@ export default function SlideEditorModal({ slide, onSave, onClose, mode = 'edit'
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 12 }}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="w-full max-w-5xl max-h-[90vh] flex flex-col mx-4 rounded-2xl border border-neutral-200 dark:border-neutral-700/60 bg-white dark:bg-neutral-900 overflow-hidden"
+        className="w-full h-full md:max-w-5xl md:max-h-[90vh] flex flex-col md:mx-4 md:rounded-2xl border border-neutral-200 dark:border-neutral-700/60 bg-white dark:bg-neutral-900 overflow-hidden"
       >
         {/* Header */}
         <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-neutral-100 dark:border-neutral-800">
@@ -126,13 +130,15 @@ export default function SlideEditorModal({ slide, onSave, onClose, mode = 'edit'
               <FileText className="w-3 h-3" />
               {t('workspace.fieldContent')}
             </label>
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              rows={8}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 text-sm leading-relaxed resize-y min-h-[350px] focus:outline-none focus:ring-2 focus:ring-neutral-300 dark:focus:ring-neutral-600 transition-shadow"
-              placeholder={t('workspace.fieldContentPlaceholder')}
-            />
+            <div data-color-mode={theme === 'dark' ? 'dark' : 'light'}>
+              <MDEditor
+                value={content}
+                onChange={(val) => setContent(val || '')}
+                height={280}
+                preview="live"
+                className="!rounded-xl !border-neutral-200 dark:!border-neutral-700 !shadow-none"
+              />
+            </div>
           </div>
 
           {/* Speaker Notes */}
@@ -141,11 +147,11 @@ export default function SlideEditorModal({ slide, onSave, onClose, mode = 'edit'
               <Mic className="w-3 h-3" />
               {t('workspace.fieldSpeakerNotes')}
             </label>
-            <textarea
+            <TextareaAutosize
               value={speakerNotes}
               onChange={(e) => setSpeakerNotes(e.target.value)}
-              rows={3}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 text-sm leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-neutral-300 dark:focus:ring-neutral-600 transition-shadow"
+              minRows={2}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-neutral-300 dark:focus:ring-neutral-600 transition-shadow"
               placeholder={t('workspace.fieldSpeakerNotesPlaceholder')}
             />
           </div>
@@ -156,11 +162,11 @@ export default function SlideEditorModal({ slide, onSave, onClose, mode = 'edit'
               <Image className="w-3 h-3" />
               {t('workspace.fieldVisualDescription')}
             </label>
-            <textarea
+            <TextareaAutosize
               value={visualDescription}
               onChange={(e) => setVisualDescription(e.target.value)}
-              rows={3}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 text-sm leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-neutral-300 dark:focus:ring-neutral-600 transition-shadow italic text-neutral-500 dark:text-neutral-400"
+              minRows={2}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-neutral-300 dark:focus:ring-neutral-600 transition-shadow italic text-neutral-500 dark:text-neutral-400"
               placeholder={t('workspace.fieldVisualDescriptionPlaceholder')}
             />
           </div>

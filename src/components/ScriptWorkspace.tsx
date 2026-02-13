@@ -20,15 +20,17 @@ import {
 import { motion, AnimatePresence } from 'motion/react'
 import { useQueueStore } from '../store/useQueueStore'
 import { useSessionStore } from '../store/useSessionStore'
+import { useUIStore } from '../store/useUIStore'
 import { mergeSlides, applyDelta } from '../utils/slideMerger'
-import { generatePPTX, copyMarkdown, downloadJSON } from '../api/export'
+import { generatePPTX, copyMarkdown, downloadJSON, generatePDF } from '../api/export'
 import SlideCard from './SlideCard'
+import ScriptView from './ScriptView'
 import SlideEditorModal from './SlideEditorModal'
 import SlideSkeleton from './SlideSkeleton'
 import SkeletonLoader from './SkeletonLoader'
 import ThinkingIndicator from './ThinkingIndicator'
 import { confirmAction } from '../utils/confirmAction'
-import { Layers, Clock, Trash2, Download, FileDown, ClipboardCopy, FileJson, ChevronDown, Plus, CheckSquare, X } from 'lucide-react'
+import { Layers, Clock, Trash2, Download, FileDown, ClipboardCopy, FileJson, ChevronDown, Plus, CheckSquare, X, Undo2, Redo2, LayoutGrid, ScrollText, FileText } from 'lucide-react'
 import type { Slide } from '../api/prompt'
 
 import { createDefaultSlide } from '../config/defaults'
@@ -37,6 +39,8 @@ export default function ScriptWorkspace() {
   const { t } = useTranslation()
   const { items, getActiveProcessForProject } = useQueueStore()
   const { getCurrentSession, reorderSlides, deleteSlides, updateSlide, getSelectedSlideIndices, toggleSlideSelection, clearSlideSelection, selectAllSlides, setSessionSlides } = useSessionStore()
+  const { viewMode, setViewMode } = useUIStore()
+  const { undo, redo, pastStates, futureStates } = useSessionStore.temporal.getState()
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [activeDragIndex, setActiveDragIndex] = useState<number | null>(null)
   const [editingSlideIndex, setEditingSlideIndex] = useState<number | null>(null)
@@ -144,6 +148,33 @@ export default function ScriptWorkspace() {
     toast.success(t('workspace.exportDone'))
   }
 
+  const handleExportPdf = async () => {
+    setShowExportMenu(false)
+    const tid = toast.loading(t('workspace.exporting'))
+    try {
+      await generatePDF(displaySlides, scriptName)
+      toast.success(t('workspace.exportDone'), { id: tid })
+    } catch {
+      toast.error(t('workspace.enhanceFailed'), { id: tid })
+    }
+  }
+
+  // Undo/Redo keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        undo()
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault()
+        redo()
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [undo, redo])
+
 
 
 
@@ -195,18 +226,69 @@ export default function ScriptWorkspace() {
           <Layers className="w-4 h-4 text-neutral-400" />
           <h2 className="text-sm font-semibold tracking-tight">{t('workspace.title')}</h2>
           {displaySlides.length > 0 && (
-            <span className="px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-[10px] font-medium text-neutral-500 tabular-nums">
+            <span className="px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-[10px] font-medium text-neutral-500 tabular-nums max-[480px]:hidden">
               {displaySlides.length} {t('workspace.slidesUnit')}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5">
           {timestamp && !isStreaming && (
-            <div className="flex items-center gap-1.5 text-[10px] text-neutral-400">
+            <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-neutral-400">
               <Clock className="w-3 h-3" />
               {timestamp}
             </div>
           )}
+          {/* Undo / Redo */}
+          {!isStreaming && displaySlides.length > 0 && (
+            <>
+              <button
+                onClick={() => undo()}
+                disabled={pastStates.length === 0}
+                className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                title={`${t('workspace.undo')} (Ctrl+Z)`}
+              >
+                <Undo2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => redo()}
+                disabled={futureStates.length === 0}
+                className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                title={`${t('workspace.redo')} (Ctrl+Y)`}
+              >
+                <Redo2 className="w-3.5 h-3.5" />
+              </button>
+              <div className="w-px h-4 bg-neutral-200 dark:bg-neutral-700 mx-0.5" />
+            </>
+          )}
+
+          {/* View Mode Toggle */}
+          {displaySlides.length > 0 && !isStreaming && (
+            <div className="flex items-center bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-1.5 rounded-md transition-all duration-150 cursor-pointer ${
+                  viewMode === 'grid'
+                    ? 'bg-white dark:bg-neutral-700 shadow-sm text-neutral-900 dark:text-neutral-100'
+                    : 'text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300'
+                }`}
+                title={t('workspace.gridView')}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setViewMode('script')}
+                className={`p-1.5 rounded-md transition-all duration-150 cursor-pointer ${
+                  viewMode === 'script'
+                    ? 'bg-white dark:bg-neutral-700 shadow-sm text-neutral-900 dark:text-neutral-100'
+                    : 'text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300'
+                }`}
+                title={t('workspace.scriptView')}
+              >
+                <ScrollText className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {displaySlides.length > 0 && !isStreaming && (
             <div className="relative" ref={exportRef}>
               <button
@@ -247,6 +329,14 @@ export default function ScriptWorkspace() {
                       <FileJson className="w-3.5 h-3.5 text-neutral-400" />
                       {t('workspace.exportJson')}
                     </button>
+                    <div className="my-0.5 border-t border-neutral-100 dark:border-neutral-800" />
+                    <button
+                      onClick={handleExportPdf}
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-neutral-400" />
+                      {t('workspace.exportPdf')}
+                    </button>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -282,6 +372,9 @@ export default function ScriptWorkspace() {
         {showFullSkeleton ? (
           <SkeletonLoader />
         ) : displaySlides.length > 0 ? (
+          viewMode === 'script' ? (
+            <ScriptView slides={displaySlides} readonly={isReadonly} onEdit={(idx) => setEditingSlideIndex(idx)} />
+          ) : (
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -324,6 +417,7 @@ export default function ScriptWorkspace() {
               )}
             </DragOverlay>
           </DndContext>
+          )
         ) : (
           <div className="flex items-center justify-center h-full">
             <p className="text-xs text-neutral-400">{t('workspace.empty')}</p>

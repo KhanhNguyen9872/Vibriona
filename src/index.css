@@ -104,3 +104,4 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-neutral-300 dark:bg-neutral-700;
 }
+

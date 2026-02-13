@@ -12,6 +12,8 @@ interface UIState {
   setInitialLoad: (loading: boolean) => void
   activeMenuSlideNumber: number | null
   setActiveMenuSlideNumber: (number: number | null) => void
+  viewMode: 'grid' | 'script'
+  setViewMode: (mode: 'grid' | 'script') => void
 }
 
 let heroHoldTimer: ReturnType<typeof setTimeout> | null = null
@@ -39,4 +41,15 @@ export const useUIStore = create<UIState>((set) => ({
   setInitialLoad: (loading) => set({ isInitialLoad: loading }),
   activeMenuSlideNumber: null,
   setActiveMenuSlideNumber: (number) => set({ activeMenuSlideNumber: number }),
+  viewMode: (() => {
+    try {
+      const saved = localStorage.getItem('vibriona-view-mode')
+      if (saved === 'grid' || saved === 'script') return saved
+    } catch { /* noop */ }
+    return 'grid'
+  })(),
+  setViewMode: (mode) => {
+    try { localStorage.setItem('vibriona-view-mode', mode) } catch { /* noop */ }
+    set({ viewMode: mode })
+  },
 }))

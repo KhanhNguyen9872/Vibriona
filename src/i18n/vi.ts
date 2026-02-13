@@ -201,6 +201,13 @@ const vi = {
       fieldVisualDescriptionPlaceholder: 'Mô tả hình ảnh cho slide này...',
       cancelEdit: 'Hủy',
       saveChanges: 'Lưu thay đổi',
+      undo: 'Hoàn tác',
+      redo: 'Làm lại',
+      gridView: 'Xem thẻ',
+      scriptView: 'Xem kịch bản',
+      exportPdf: 'Tải PDF kịch bản',
+      deleteSelectedConfirm: 'Xóa {{count}} slide đã chọn?',
+      deleteSelectedDescription: 'Hành động này không thể hoàn tác.',
     },
     thinking: {
       active: 'Vibriona đang suy nghĩ...',

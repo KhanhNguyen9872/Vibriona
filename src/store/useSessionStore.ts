@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { temporal } from 'zundo'
 import { MAX_PERSISTED_SESSIONS } from '../config/limits'
 import { STORAGE_KEYS } from '../config/defaults'
 import type { Slide } from '../api/prompt'
@@ -85,8 +86,9 @@ interface SessionState {
 }
 
 export const useSessionStore = create<SessionState>()(
-  persist(
-    (set, get) => ({
+  temporal(
+    persist(
+      (set, get) => ({
       sessions: [],
       currentSessionId: null,
       highlightedSlideIndex: null,
@@ -462,5 +464,14 @@ export const useSessionStore = create<SessionState>()(
         currentSessionId: state.currentSessionId,
       }),
     },
+  ),
+  {
+    limit: 50,
+    partialize: (state) => {
+      // Only track session data for undo/redo, ignore transient UI state
+      const { highlightedSlideIndex: _, processingSlideNumbers: __, ...rest } = state
+      return rest
+    },
+  },
   )
 )
