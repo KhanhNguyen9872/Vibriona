@@ -345,7 +345,7 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        className="w-full h-full md:max-w-4xl md:h-[600px] md:mx-4 border border-neutral-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 md:rounded-2xl flex overflow-hidden shadow-2xl"
+        className="w-full h-full md:max-w-4xl md:h-[700px] md:mx-4 border border-neutral-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 md:rounded-2xl flex overflow-hidden shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
         {/* Left Sidebar: Profile List */}
@@ -725,7 +725,7 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                                         exit={{ opacity: 0, y: -4, scaleY: 0.96 }}
                                         transition={{ duration: 0.15, ease: 'easeOut' }}
                                         style={{ transformOrigin: 'top' }}
-                                        className="absolute top-full left-0 right-0 z-50 mt-1.5 max-h-48 overflow-y-auto rounded-lg border border-neutral-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl"
+                                        className="absolute top-full left-0 right-0 z-50 mt-1.5 max-h-80 overflow-y-auto rounded-lg border border-neutral-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl"
                                     >
                                         {filteredModels.map((m) => (
                                         <button

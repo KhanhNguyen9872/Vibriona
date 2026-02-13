@@ -204,7 +204,7 @@ export default function MessageList({ messages, isStreaming, streamingThinking }
       {ChatHeader}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 md:px-4 py-5">
+      <div className={`flex-1 overflow-y-auto px-3 md:px-4 py-5 transition-all duration-200 ${menuOpen ? 'blur-sm pointer-events-none select-none opacity-60' : ''}`}>
         <div className="max-w-full mx-auto space-y-4">
           {messages.map((msg) => (
             <motion.div
@@ -214,19 +214,20 @@ export default function MessageList({ messages, isStreaming, streamingThinking }
               transition={{ duration: 0.2 }}
               className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              {msg.role === 'assistant' && (
-                <div className="shrink-0 w-7 h-7 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mt-0.5">
-                  <img src="assets/logo.png" alt="Vibriona" className="w-5 h-5 object-contain" />
-                </div>
-              )}
+              <div className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                {msg.role === 'assistant' && (
+                  <div className="shrink-0 w-7 h-7 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mt-0.5">
+                    <img src="assets/logo.png" alt="Vibriona" className="w-5 h-5 object-contain" />
+                  </div>
+                )}
+                {msg.role === 'user' && (
+                  <div className="shrink-0 w-7 h-7 rounded-lg bg-neutral-300 dark:bg-white flex items-center justify-center mt-0.5">
+                    <User className="w-3.5 h-3.5 text-neutral-600 dark:text-black" />
+                  </div>
+                )}
 
-              <MessageBubble message={msg} />
-
-              {msg.role === 'user' && (
-                <div className="shrink-0 w-7 h-7 rounded-lg bg-neutral-300 dark:bg-white flex items-center justify-center mt-0.5">
-                  <User className="w-3.5 h-3.5 text-neutral-600 dark:text-black" />
-                </div>
-              )}
+                <MessageBubble message={msg} />
+              </div>
             </motion.div>
           ))}
 

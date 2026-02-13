@@ -226,7 +226,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
       <motion.aside
         animate={{ width: collapsed ? 48 : 260 }}
         transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-        className="shrink-0 h-full bg-neutral-50 dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 flex flex-col overflow-hidden"
+        className="shrink-0 h-full bg-neutral-50 dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 flex flex-col overflow-visible z-20"
       >
         {/* Top bar */}
         <div
@@ -252,7 +252,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
         </div>
 
         {/* Session list */}
-        <div className="flex-1 overflow-y-auto py-2 px-2 scrollbar-thin">
+        <div className={`flex-1 overflow-y-auto py-2 px-2 scrollbar-thin transition-all duration-200 ${showFooterMenu ? 'blur-sm pointer-events-none select-none opacity-60' : ''}`}>
             {!collapsed && sessions.length === 0 ? (
               <p className="text-[11px] text-neutral-400 text-center mt-8 px-4">
                 {t('sessions.empty')}
@@ -451,10 +451,10 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                         {showFooterMenu && (
                             <motion.div
                                 ref={footerMenuRef}
-                                initial={{ opacity: 0, scale: 0.95, y: -20, x: collapsed ? 10 : 0 }}
-                                animate={{ opacity: 1, scale: 1, y: -45, x: collapsed ? 10 : 0 }}
-                                exit={{ opacity: 0, scale: 0.95, y: -20, x: collapsed ? 10 : 0 }}
-                                className={`absolute bottom-full ${collapsed ? 'left-full ml-2' : 'right-0'} mb-2 z-50 w-48 py-1 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-xl`}
+                                initial={{ opacity: 0, scale: 0.95, y: -20, x: collapsed ? 50 : 0 }}
+                                animate={{ opacity: 1, scale: 1, y: -45, x: collapsed ? 50 : 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: -20, x: collapsed ? 50 : 0 }}
+                                className={`absolute bottom-full ${collapsed ? 'left-0' : 'right-0'} mb-2 z-50 w-48 py-1 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-xl`}
                             >
                                 <button
                                     onClick={handleImport}

@@ -333,7 +333,7 @@ function App() {
         {showSettings && <Settings onClose={() => setShowSettings(false)} />}
       </AnimatePresence>
 
-      <div className="h-screen flex flex-col transition-opacity">
+      <div className="h-[100dvh] flex flex-col overflow-hidden bg-white dark:bg-neutral-950 transition-opacity">
         {/* Header */}
         <header className="shrink-0 h-12 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 z-40 relative">
           <div className="h-full flex items-center justify-between px-4">
@@ -422,7 +422,7 @@ function App() {
         </header>
 
         {/* Main content area */}
-        <div className="flex-1 flex min-h-0 relative">
+        <div className="flex-1 flex min-h-0 relative overflow-hidden">
           {/* Desktop sidebar */}
           <div className="hidden md:block">
             <Sidebar
