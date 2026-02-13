@@ -97,7 +97,11 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
             {/* Slides count (only for script generation) */}
             {message.isScriptGeneration && (
               <div className="flex items-center gap-1.5">
-                <Sparkles className="w-3 h-3 text-neutral-400" />
+                {message.action === 'update' ? (
+                   <Presentation className="w-3 h-3 text-neutral-400" />
+                ) : (
+                   <Sparkles className="w-3 h-3 text-neutral-400" />
+                )}
                 <span className="text-[10px] font-medium text-neutral-400">
                   {message.action === 'delete' ? '-' : (message.action === 'update' ? '' : '+')}
                   {message.slides?.length ?? 0} {t('workspace.slidesUnit')}
@@ -109,7 +113,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
             {message.slideSnapshot && message.slideSnapshot.length > 0 && (
               <button
                 onClick={handleRestore}
-                className="snapshot-restore flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold border border-neutral-200/80 dark:border-zinc-700/80 text-neutral-500 dark:text-zinc-400 hover:border-neutral-400 dark:hover:border-zinc-500 hover:text-neutral-700 dark:hover:text-zinc-200 transition-all active:scale-[0.97] cursor-pointer"
+                className="snapshot-restore flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold border border-neutral-200/80 dark:border-zinc-700/80 text-neutral-500 dark:text-zinc-400 hover:border-neutral-400 dark:hover:border-zinc-500 hover:text-neutral-700 dark:hover:text-zinc-200 transition-all active:scale-[0.97] cursor-pointer whitespace-nowrap"
               >
                 <RotateCcw className="w-2.5 h-2.5" />
                 {t('chat.restoreSnapshot')}
@@ -121,8 +125,8 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
           </div>
 
           {/* Time */}
-          <p className="text-[10px] text-neutral-400 dark:text-zinc-500 whitespace-nowrap ml-2">
-            {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          <p className="text-[10px] text-neutral-400 dark:text-zinc-500 whitespace-nowrap ml-2 pr-4">
+            {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
             {' '}
             {new Date(message.timestamp).toLocaleDateString([], { day: '2-digit', month: '2-digit' })}
           </p>
@@ -196,7 +200,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
           {message.slideSnapshot && message.slideSnapshot.length > 0 && message.role === 'assistant' ? (
             <button
               onClick={handleRestore}
-              className="snapshot-restore flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-semibold border border-neutral-200/80 dark:border-zinc-700/80 text-neutral-500 dark:text-zinc-400 hover:border-neutral-400 dark:hover:border-zinc-500 hover:text-neutral-700 dark:hover:text-zinc-200 transition-all active:scale-[0.97] cursor-pointer w-fit"
+              className="snapshot-restore flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-semibold border border-neutral-200/80 dark:border-zinc-700/80 text-neutral-500 dark:text-zinc-400 hover:border-neutral-400 dark:hover:border-zinc-500 hover:text-neutral-700 dark:hover:text-zinc-200 transition-all active:scale-[0.97] cursor-pointer w-fit whitespace-nowrap"
             >
               <RotateCcw className="w-2.5 h-2.5" />
               {t('chat.restoreSnapshot')}
@@ -206,11 +210,11 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
             </button>
           ) : null}
 
-          <p className={`text-[10px] whitespace-nowrap ${message.role === 'user'
+          <p className={`text-[10px] whitespace-nowrap pr-1 ${message.role === 'user'
               ? 'text-neutral-400 dark:text-zinc-400'
               : 'text-neutral-400 dark:text-zinc-500'
             }`}>
-            {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
             {' '}
             {new Date(message.timestamp).toLocaleDateString([], { day: '2-digit', month: '2-digit' })}
           </p>

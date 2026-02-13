@@ -3,7 +3,7 @@ import { AlertTriangle, Check } from 'lucide-react'
 import { useConfirmStore } from '../store/useConfirmStore'
 
 export default function ConfirmDialog() {
-  const { isOpen, title, message, confirmText, cancelText, variant, onConfirm, onCancel, closeConfirm } = useConfirmStore();
+  const { isOpen, title, message, confirmText, cancelText, variant, icon, onConfirm, onCancel, closeConfirm } = useConfirmStore();
 
   if (!isOpen) return null;
 
@@ -29,7 +29,11 @@ export default function ConfirmDialog() {
                 ? 'bg-red-100 dark:bg-red-900/20' 
                 : 'bg-neutral-100 dark:bg-zinc-900'
             }`}>
-              {variant === 'destructive' ? (
+              {icon ? (
+                <div className={variant === 'destructive' ? "text-red-600 dark:text-red-500" : "text-neutral-900 dark:text-white"}>
+                  {icon}
+                </div>
+              ) : variant === 'destructive' ? (
                 <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-500" />
               ) : (
                 <Check className="w-6 h-6 text-neutral-900 dark:text-white" />

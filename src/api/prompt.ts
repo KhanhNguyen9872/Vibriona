@@ -141,5 +141,6 @@ export interface Slide {
   estimated_duration: string
   // Internal UI state
   _actionMarker?: 'create' | 'append' | 'update' | 'delete' | 'sort'
+  isEnhancing?: boolean
 }
 

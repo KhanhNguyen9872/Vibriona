@@ -119,7 +119,7 @@ const en = {
       restoreAction: 'Restore',
       snapshotRestored: 'Script restored to version from {{time}}',
       snapshotSlides: '{{count}} slides',
-      quickLinks: 'Quick Links',
+      quickLinks: 'Link',
       alreadyAtCheckpoint: 'You are already at this checkpoint',
       scriptGenerated: 'Script generated successfully. You can review the slides on the right.',
       deletedSlides: 'Deleted {{count}} slide(s) ({{slides}}).',

@@ -18,8 +18,23 @@ export interface ChunkResult {
  * Detects reasoning_content from API fields (DeepSeek/OpenAI o1).
  */
 export function extractContentFromChunk(raw: string, processedLength: number): ChunkResult {
-  const newData = raw.slice(processedLength)
-  const lines = newData.split('\n')
+  // Only process complete lines to ensure we don't lose data from partial JSON chunks.
+  // We look for the last newline character in the NEW data.
+  const lastNewlineIndex = raw.lastIndexOf('\n')
+  
+  // If no new complete line since last process, return early
+  if (lastNewlineIndex < processedLength) {
+    return { 
+      content: '', 
+      thinking: '', 
+      finishReason: undefined, 
+      newProcessedLength: processedLength 
+    }
+  }
+
+  // Extract only the valid complete text block
+  const validChunk = raw.slice(processedLength, lastNewlineIndex + 1)
+  const lines = validChunk.split('\n')
 
   let content = ''
   let thinking = ''
@@ -36,6 +51,8 @@ export function extractContentFromChunk(raw: string, processedLength: number): C
 
       try {
         const parsed = JSON.parse(payload)
+        
+        // 1. OpenAI format
         const choice = parsed.choices?.[0]
         const delta = choice?.delta
 
@@ -49,6 +66,14 @@ export function extractContentFromChunk(raw: string, processedLength: number): C
         // OpenAI finish_reason
         if (choice?.finish_reason && !['stop', 'null', null].includes(choice.finish_reason)) {
           finishReason = choice.finish_reason
+        }
+
+        // 2. Ollama format (sometimes wrapped in SSE data:)
+        if (!delta && parsed.message?.content) {
+             content += parsed.message.content
+        }
+        if (parsed.done === true) {
+             finishReason = 'stop'
         }
       } catch {
         // Incomplete JSON line — skip, will be completed in next chunk
@@ -89,7 +114,7 @@ export function extractContentFromChunk(raw: string, processedLength: number): C
     }
   }
 
-  return { content, thinking, finishReason, newProcessedLength: raw.length }
+  return { content, thinking, finishReason, newProcessedLength: lastNewlineIndex + 1 }
 }
 
 /**

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useConfirmStore } from '../store/useConfirmStore' // Ensure path is correct based on alias config
 
 /**
@@ -10,6 +11,7 @@ export interface ConfirmOptions {
   confirmText?: string
   cancelText?: string
   variant?: 'default' | 'destructive'
+  icon?: ReactNode
 }
 
 export function confirmAction(
@@ -22,5 +24,6 @@ export function confirmAction(
     confirmText: options.confirmText,
     cancelText: options.cancelText,
     variant: options.variant,
+    icon: options.icon,
   })
 }

@@ -30,15 +30,33 @@ import SlideSkeleton from './SlideSkeleton'
 import SkeletonLoader from './SkeletonLoader'
 import ThinkingIndicator from './ThinkingIndicator'
 import { confirmAction } from '../utils/confirmAction'
-import { Layers, Clock, Trash2, Download, FileDown, ClipboardCopy, FileJson, ChevronDown, Plus, CheckSquare, X, Undo2, Redo2, LayoutGrid, ScrollText, FileText } from 'lucide-react'
+import { Layers, Clock, Trash2, Download, FileDown, ClipboardCopy, FileJson, ChevronDown, Plus, CheckSquare, X, Undo2, Redo2, LayoutGrid, ScrollText, FileText, Wand2 } from 'lucide-react'
 import type { Slide } from '../api/prompt'
 
+import { useSettingsStore } from '../store/useSettingsStore'
 import { createDefaultSlide } from '../config/defaults'
+import { enhanceSlide } from '../api/enhance'
 
 export default function ScriptWorkspace() {
   const { t } = useTranslation()
   const { items, getActiveProcessForProject } = useQueueStore()
-  const { getCurrentSession, reorderSlides, deleteSlides, updateSlide, getSelectedSlideIndices, toggleSlideSelection, clearSlideSelection, selectAllSlides, setSessionSlides } = useSessionStore()
+  const { 
+    getCurrentSession, 
+    reorderSlides, 
+    deleteSlide,
+    deleteSlides, 
+    updateSlide, 
+    getSelectedSlideIndices, 
+    toggleSlideSelection, 
+    clearSlideSelection, 
+    selectAllSlides, 
+    setSessionSlides,
+    addMessage,
+    updateMessage,
+    processingSlideNumbers,
+    addProcessingSlide,
+    removeProcessingSlide
+  } = useSessionStore()
   const { viewMode, setViewMode } = useUIStore()
   const { undo, redo, pastStates, futureStates } = useSessionStore.temporal.getState()
   const [showExportMenu, setShowExportMenu] = useState(false)
@@ -198,6 +216,106 @@ export default function ScriptWorkspace() {
     reorderSlides(fromIndex, toIndex)
     clearSlideSelection()
   }, [reorderSlides, clearSlideSelection])
+
+  const store = useSettingsStore()
+
+  // Centralized Enhance Handler (Matches SlideCard logic)
+  const handleEnhanceSlide = useCallback((index: number) => {
+    const slide = displaySlides[index]
+    if (!slide) return
+
+    // Prevent double-click
+    if (processingSlideNumbers?.includes(slide.slide_number)) return
+
+    confirmAction(
+      t('workspace.enhanceConfirm'),
+      () => {
+        addProcessingSlide(slide.slide_number)
+
+        addMessage({
+          role: 'user',
+          content: t('workspace.enhanceAction'),
+          timestamp: Date.now(),
+          isScriptGeneration: false,
+          relatedSlideNumber: slide.slide_number,
+          relatedSlideReferences: [{
+            id: `slide-card-${slide.slide_number}`,
+            number: slide.slide_number,
+            label: t('chat.slideLabel', { number: slide.slide_number })
+          }]
+        })
+
+        const thinkingMsgId = addMessage({
+          role: 'assistant',
+          content: '',
+          timestamp: Date.now(),
+          isScriptGeneration: false,
+          isThinking: true,
+        })
+
+        enhanceSlide(
+          store.getApiUrl(),
+          store.getApiKey(),
+          store.getModel(),
+          store.getApiType(),
+          slide,
+          (enhanced: Slide) => {
+            updateSlide(index, enhanced)
+            removeProcessingSlide(slide.slide_number)
+
+            const session = getCurrentSession()
+            const slideSnapshot = session?.slides
+              ? JSON.parse(JSON.stringify(session.slides))
+              : undefined
+
+            updateMessage(thinkingMsgId, {
+              content: t('workspace.enhancedSlide', { number: slide.slide_number }),
+              isThinking: false,
+              relatedSlideNumber: slide.slide_number,
+              slideSnapshot,
+              relatedSlideReferences: [{
+                id: `slide-card-${slide.slide_number}`,
+                number: slide.slide_number,
+                label: t('chat.slideLabel', { number: slide.slide_number })
+              }]
+            })
+            toast.success(t('workspace.enhanced'))
+          },
+          (error: string) => {
+            removeProcessingSlide(slide.slide_number)
+            updateMessage(thinkingMsgId, {
+              content: t('workspace.enhanceFailed'),
+              isThinking: false,
+            })
+            toast.error(t('workspace.enhanceFailed'), { description: error })
+          }
+        )
+      },
+      {
+        confirmText: t('workspace.enhance'),
+        cancelText: t('chat.cancel'),
+        title: t('common.confirm'),
+        icon: <Wand2 className="w-6 h-6 text-indigo-500" />,
+        variant: 'default',
+      }
+    )
+  }, [displaySlides, processingSlideNumbers, addProcessingSlide, addMessage, updateMessage, updateSlide, removeProcessingSlide, getCurrentSession, store, t])
+
+  const handleDeleteSlide = useCallback((index: number) => {
+    const slide = displaySlides[index]
+    if (!slide) return
+
+    confirmAction(
+      t('workspace.deleteSlideConfirm', { number: slide.slide_number }),
+      () => deleteSlide(index),
+      {
+        confirmText: t('workspace.delete'),
+        cancelText: t('chat.cancel'),
+        variant: 'destructive',
+        title: t('workspace.delete')
+      },
+    )
+  }, [displaySlides, deleteSlide, t])
 
   const handleBulkDelete = () => {
     confirmAction(
@@ -373,7 +491,14 @@ export default function ScriptWorkspace() {
           <SkeletonLoader />
         ) : displaySlides.length > 0 ? (
           viewMode === 'script' ? (
-            <ScriptView slides={displaySlides} readonly={isReadonly} onEdit={(idx) => setEditingSlideIndex(idx)} />
+            <ScriptView
+              slides={displaySlides}
+              readonly={isReadonly}
+              onEdit={(idx) => setEditingSlideIndex(idx)}
+              onEnhance={(idx) => handleEnhanceSlide(idx)}
+              onDelete={handleDeleteSlide}
+              processingSlideNumbers={processingSlideNumbers || []}
+            />
           ) : (
           <DndContext
             sensors={sensors}

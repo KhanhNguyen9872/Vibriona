@@ -119,7 +119,7 @@ const vi = {
       restoreAction: 'Khôi phục',
       snapshotRestored: 'Đã khôi phục kịch bản từ {{time}}',
       snapshotSlides: '{{count}} slide',
-      quickLinks: 'Liên kết nhanh',
+      quickLinks: 'Liên kết',
       alreadyAtCheckpoint: 'Bạn đã ở tại điểm khôi phục này',
       scriptGenerated: 'Đã tạo kịch bản thành công. Bạn có thể xem các slide bên phải.',
       deletedSlides: 'Đã xóa {{count}} slide ({{slides}}).',

@@ -209,8 +209,8 @@ export default function SlideCard({
       {
         confirmText: t('workspace.enhance'),
         cancelText: t('chat.cancel'),
-        description: t('workspace.enhanceDescription'),
-        title: t('workspace.enhanceConfirm'),
+        title: t('common.confirm'),
+        icon: <Wand2 className="w-6 h-6 text-indigo-500" />,
         variant: 'default',
       }
     )
@@ -374,13 +374,6 @@ export default function SlideCard({
           {!readonly && (
             <>
               <button
-                onClick={() => onEdit?.(index)}
-                title={t('workspace.editSlide')}
-                className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
-              >
-                <Pencil className="w-3.5 h-3.5 text-neutral-400 hover:text-black dark:hover:text-white" />
-              </button>
-              <button
                 onClick={handleEnhance}
                 disabled={isProcessing}
                 title={t('workspace.enhance')}
@@ -388,13 +381,13 @@ export default function SlideCard({
               >
                 <Wand2 className={`w-3.5 h-3.5 ${isProcessing ? 'text-indigo-400 animate-pulse' : 'text-neutral-400 hover:text-indigo-500 dark:hover:text-indigo-400'}`} />
               </button>
-              {/* <button
-                onClick={handleDelete}
-                title={t('workspace.delete')}
-                className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+              <button
+                onClick={() => onEdit?.(index)}
+                title={t('workspace.editSlide')}
+                className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
               >
-                <Trash2 className="w-3.5 h-3.5 text-neutral-400 hover:text-red-500" />
-              </button> */}
+                <Pencil className="w-3.5 h-3.5 text-neutral-400 hover:text-black dark:hover:text-white" />
+              </button>
               <button
                 onClick={() => setActiveMenuSlideNumber(showMenu ? null : slide.slide_number)}
                 className={`p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer ${showMenu ? 'bg-neutral-100 dark:bg-neutral-800' : ''}`}

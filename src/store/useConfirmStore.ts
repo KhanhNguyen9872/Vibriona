@@ -1,10 +1,12 @@
 import { create } from 'zustand'
+import type { ReactNode } from 'react'
 
 interface ConfirmOptions {
   title?: string
   confirmText?: string
   cancelText?: string
   variant?: 'default' | 'destructive'
+  icon?: ReactNode
   onCancel?: () => void
 }
 
@@ -15,6 +17,7 @@ interface ConfirmState {
   confirmText: string
   cancelText: string
   variant: 'default' | 'destructive'
+  icon?: ReactNode
   onConfirm: () => void
   onCancel: () => void
   openConfirm: (
@@ -32,6 +35,7 @@ export const useConfirmStore = create<ConfirmState>((set) => ({
   confirmText: 'Confirm',
   cancelText: 'Cancel',
   variant: 'default',
+  icon: undefined,
   onConfirm: () => {},
   onCancel: () => {},
   openConfirm: (message, onConfirm, options = {}) => {
@@ -43,6 +47,7 @@ export const useConfirmStore = create<ConfirmState>((set) => ({
       confirmText: options.confirmText || 'Confirm',
       cancelText: options.cancelText || 'Cancel',
       variant: options.variant || 'default',
+      icon: options.icon,
       onCancel: options.onCancel || (() => {}),
     });
   },

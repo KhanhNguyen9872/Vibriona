@@ -3,16 +3,26 @@ import { motion } from 'motion/react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
-import { FileText, Image, Mic, Timer, Layout, Pencil } from 'lucide-react'
+import { FileText, Image, Mic, Timer, Layout, Pencil, Wand2, Trash2 } from 'lucide-react'
 import type { Slide } from '../api/prompt'
 
 interface ScriptViewProps {
   slides: Slide[]
   readonly?: boolean
   onEdit?: (index: number) => void
+  onEnhance?: (index: number) => void
+  onDelete?: (index: number) => void
+  processingSlideNumbers?: number[]
 }
 
-export default function ScriptView({ slides, readonly = false, onEdit }: ScriptViewProps) {
+export default function ScriptView({ 
+  slides, 
+  readonly = false, 
+  onEdit, 
+  onEnhance, 
+  onDelete,
+  processingSlideNumbers = [] 
+}: ScriptViewProps) {
   const { t } = useTranslation()
 
   const layoutLabels: Record<string, string> = {
@@ -32,7 +42,9 @@ export default function ScriptView({ slides, readonly = false, onEdit }: ScriptV
 
   return (
     <div className="pb-20">
-      {slides.map((slide, index) => (
+      {slides.map((slide, index) => {
+        const isEnhancing = slide.isEnhancing || processingSlideNumbers.includes(slide.slide_number)
+        return (
         <motion.article
           key={slide.id || `slide-${slide.slide_number}`}
           initial={{ opacity: 0, y: 8 }}
@@ -50,20 +62,45 @@ export default function ScriptView({ slides, readonly = false, onEdit }: ScriptV
           </div>
 
           {/* Slide content block */}
-          <div className="pl-2 border-l-2 border-neutral-100 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-600 transition-colors">
+          <div className={`pl-2 border-l-2 transition-all duration-300 ${
+            isEnhancing 
+              ? 'border-amber-500 ring-2 ring-amber-500/50 bg-amber-50/50 dark:bg-amber-900/10 rounded-r-lg py-2' 
+              : 'border-neutral-100 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-600'
+          }`}>
             {/* Title + Edit button */}
             <div className="flex items-center justify-between pl-3 mb-2">
               <h2 className="text-lg font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
                 {slide.title}
               </h2>
               {!readonly && onEdit && (
-                <button
-                  onClick={() => onEdit(index)}
-                  className="shrink-0 p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
-                  title={t('workspace.editSlide')}
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  {onEnhance && (
+                    <button
+                      onClick={() => onEnhance(index)}
+                      disabled={isEnhancing}
+                      title={t('workspace.enhance')}
+                      className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <Wand2 className={`w-3.5 h-3.5 ${isEnhancing ? 'text-indigo-400 animate-pulse' : 'text-neutral-400 hover:text-indigo-500 dark:hover:text-indigo-400'}`} />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => onEdit(index)}
+                    className="shrink-0 p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                    title={t('workspace.editSlide')}
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  {onDelete && (
+                    <button
+                      onClick={() => onDelete(index)}
+                      className="shrink-0 p-1.5 rounded-lg text-neutral-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors cursor-pointer"
+                      title={t('workspace.delete')}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 
@@ -114,7 +151,7 @@ export default function ScriptView({ slides, readonly = false, onEdit }: ScriptV
             )}
           </div>
         </motion.article>
-      ))}
+      )})}
     </div>
   )
 }
