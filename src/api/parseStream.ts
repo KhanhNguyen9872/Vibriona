@@ -7,6 +7,7 @@ import type { Slide } from './prompt'
 export interface ChunkResult {
   content: string
   thinking: string
+  finishReason?: string
   newProcessedLength: number
 }
 
@@ -22,6 +23,7 @@ export function extractContentFromChunk(raw: string, processedLength: number): C
 
   let content = ''
   let thinking = ''
+  let finishReason: string | undefined
 
   for (const line of lines) {
     const trimmed = line.trim()
@@ -34,7 +36,8 @@ export function extractContentFromChunk(raw: string, processedLength: number): C
 
       try {
         const parsed = JSON.parse(payload)
-        const delta = parsed.choices?.[0]?.delta
+        const choice = parsed.choices?.[0]
+        const delta = choice?.delta
 
         // Check for reasoning_content field (DeepSeek-R1, o1-style)
         if (delta?.reasoning_content) {
@@ -42,6 +45,10 @@ export function extractContentFromChunk(raw: string, processedLength: number): C
         }
         if (delta?.content) {
           content += delta.content
+        }
+        // OpenAI finish_reason
+        if (choice?.finish_reason && !['stop', 'null', null].includes(choice.finish_reason)) {
+          finishReason = choice.finish_reason
         }
       } catch {
         // Incomplete JSON line — skip, will be completed in next chunk
@@ -64,9 +71,14 @@ export function extractContentFromChunk(raw: string, processedLength: number): C
       const parsed = JSON.parse(cleanLine)
       
       // Handle Gemini (candidates[0].content.parts[0].text)
-      if (parsed.candidates?.[0]?.content?.parts?.[0]?.text) {
-        content += parsed.candidates[0].content.parts[0].text
-        continue
+      const candidate = parsed.candidates?.[0]
+      if (candidate?.content?.parts?.[0]?.text) {
+        content += candidate.content.parts[0].text
+      }
+
+      // Gemini finishReason
+      if (candidate?.finishReason && !['STOP', 'null', null].includes(candidate.finishReason)) {
+        finishReason = candidate.finishReason
       }
 
       // Handle Ollama format: {"message":{"content":"..."}} per line
@@ -77,7 +89,7 @@ export function extractContentFromChunk(raw: string, processedLength: number): C
     }
   }
 
-  return { content, thinking, newProcessedLength: raw.length }
+  return { content, thinking, finishReason, newProcessedLength: raw.length }
 }
 
 /**

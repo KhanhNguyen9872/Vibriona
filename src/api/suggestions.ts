@@ -16,7 +16,8 @@ export interface SuggestionsCallbacks {
 export async function generateDynamicSuggestions(
     language: 'en' | 'vi',
     apiType: 'ollama' | 'gemini' | 'openai',
-    callbacks?: SuggestionsCallbacks
+    callbacks?: SuggestionsCallbacks,
+    signal?: AbortSignal
 ): Promise<string[]> {
     const languagePrompt = language === 'vi'
         ? 'Tạo 4 mẫu chủ đề thuyết trình ngắn gọn bằng tiếng Việt. Mỗi mẫu tối đa 4-6 từ. Chỉ trả về JSON thuần: {"suggestions": ["...", "...", "...", "..."]}. Không thêm text giải thích.'
@@ -29,12 +30,12 @@ export async function generateDynamicSuggestions(
     let url = config.endpoint
     let body: any = {
         model: config.model,
-        stream: true,
         temperature: API_CONFIG.DEFAULT_TEMPERATURE,
     }
 
     if (apiType === 'gemini') {
-        url = `${url}:streamGenerateContent`
+        // Use non-streaming generateContent for Gemini to avoid parsing issues
+        url = `${url}:generateContent`
         body = {
             contents: [
                 {
@@ -47,10 +48,11 @@ export async function generateDynamicSuggestions(
             ],
             generationConfig: {
                 temperature: API_CONFIG.DEFAULT_TEMPERATURE,
-                maxOutputTokens: 800,
+                maxOutputTokens: API_CONFIG.MAX_TOKENS,
             }
         }
     } else {
+        body.stream = true
         body.messages = [
             {
                 role: 'system',
@@ -70,6 +72,7 @@ export async function generateDynamicSuggestions(
         method: 'POST',
         headers: config.headers,
         body: JSON.stringify(body),
+        signal,
     })
 
     if (!response.ok) {
@@ -77,6 +80,13 @@ export async function generateDynamicSuggestions(
         try {
             errorData = await response.text()
         } catch (e) {}
+
+        // Handle 503 specifically
+        if (response.status === 503) {
+             const busyError = 'Service busy. Please try again later.'
+             callbacks?.onError(busyError)
+             throw new Error(busyError)
+        }
         
         const error = new Error(`Failed to generate suggestions (${response.status})`) as any
         error.status = response.status
@@ -86,7 +96,48 @@ export async function generateDynamicSuggestions(
         throw error
     }
 
-    // Stream the response
+    // Handle Gemini non-streaming response directly
+    if (apiType === 'gemini') {
+        const data = await response.json()
+        const candidate = data.candidates?.[0]
+        
+        // Check for safety/finish reasons
+        const finishReason = candidate?.finishReason
+        if (finishReason && !['STOP', 'stop', 'null', null].includes(finishReason)) {
+             let errorMsg = ''
+             if (finishReason === 'MAX_TOKENS' || finishReason === 'LENGTH' || finishReason === 'length') {
+                 errorMsg = 'Suggestion limit reached.'
+             } else if (finishReason === 'SAFETY' || finishReason === 'content_filter' || finishReason === 'PROHIBITED_CONTENT') {
+                 errorMsg = 'Suggestions blocked by safety filters.'
+             } else if (finishReason === 'RECITATION') {
+                 errorMsg = 'Suggestions blocked (Recitation).'
+             } else {
+                 errorMsg = `Suggestion generation stopped: ${finishReason}`
+             }
+             
+             if (errorMsg) {
+                 callbacks?.onError(errorMsg)
+                 // Don't throw, try to parse what we have if any
+             }
+        }
+
+        const content = candidate?.content?.parts?.[0]?.text || ''
+        if (!content) {
+             throw new Error('No content in Gemini response')
+        }
+
+        const finalSuggestions = extractSuggestionsFromText(content)
+        if (finalSuggestions.length === 0) {
+            throw new Error('No suggestions found in Gemini response')
+        }
+
+        // Emit all at once since it's not streaming
+        finalSuggestions.forEach((s, i) => callbacks?.onSuggestion(s, i))
+        callbacks?.onComplete(finalSuggestions)
+        return finalSuggestions
+    }
+
+    // Stream the response for others (Ollama/OpenAI)
     const reader = response.body?.getReader()
     if (!reader) {
         const error = 'No response body'
@@ -110,23 +161,32 @@ export async function generateDynamicSuggestions(
             for (const line of lines) {
                 if (!line.trim() || line.trim() === 'data: [DONE]') continue
 
-                // Remove "data: " prefix if present
-                const jsonStr = line.replace(/^data: /, '').trim()
-                if (!jsonStr) continue
-
                 try {
-                    // 🛡️ Gemini-specific: Support stream format that wraps objects in array [{},{},...]
-                    // Strip leading/trailing brackets and commas that cause JSON.parse to fail
-                    const cleanJsonStr = jsonStr
-                        .replace(/^\[/, '')
-                        .replace(/^,/, '')
-                        .replace(/\]$/, '')
-                        .trim()
-
-                    if (!cleanJsonStr) continue
-
-                    const parsed = JSON.parse(cleanJsonStr)
+                    let parsed
+                    const jsonStr = line.replace(/^data: /, '').trim()
+                    if (!jsonStr) continue
+                    
+                    parsed = JSON.parse(jsonStr)
                     const content = parseStreamingContent(parsed)
+
+                    // 🚨 Check for finishReason
+                    const choice = parsed.choices?.[0]
+                    const finishReason = choice?.finish_reason
+
+                    if (finishReason && !['stop', 'null', null].includes(finishReason)) {
+                        let errorMsg = ''
+                        if (finishReason === 'length') {
+                            errorMsg = 'Suggestion limit reached.'
+                        } else if (finishReason === 'content_filter') {
+                            errorMsg = 'Suggestions blocked by safety filters.'
+                        } else {
+                            errorMsg = `Suggestion generation stopped: ${finishReason}`
+                        }
+                        
+                        if (errorMsg) {
+                            callbacks?.onError(errorMsg)
+                        }
+                    }
 
                     if (content) {
                         fullContent += content

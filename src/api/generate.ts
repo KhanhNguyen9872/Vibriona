@@ -99,6 +99,10 @@ export function streamGenerate(
       ...history,
       { role: 'user', content: userPrompt },
     ]
+    body.temperature = API_CONFIG.DEFAULT_TEMPERATURE
+    if (apiType !== 'ollama') {
+      body.max_tokens = API_CONFIG.MAX_TOKENS
+    }
   }
 
   axios({
@@ -112,7 +116,7 @@ export function streamGenerate(
       const raw = (event.event?.target as XMLHttpRequest)?.responseText
       if (!raw) return
 
-      const { content, thinking, newProcessedLength } = extractContentFromChunk(raw, processedLength)
+      const { content, thinking, finishReason, newProcessedLength } = extractContentFromChunk(raw, processedLength)
       processedLength = newProcessedLength
 
       // Accumulate API-level thinking (reasoning_content field)
@@ -141,6 +145,26 @@ export function streamGenerate(
 
         if (parsedResponse.slides.length > 0 || parsedResponse.action) {
           callbacks.onResponseUpdate(parsedResponse)
+        }
+      }
+
+      // 🚨 Handle finishing errors (MAX_TOKENS, SAFETY, etc.)
+      if (finishReason) {
+        let errorMsg = ''
+        if (finishReason === 'MAX_TOKENS' || finishReason === 'length' || finishReason === 'LENGTH') {
+          errorMsg = 'Generation limit reached (Max Tokens). Response may be truncated.'
+        } else if (finishReason === 'SAFETY' || finishReason === 'content_filter') {
+          errorMsg = 'Content blocked by safety filters.'
+        } else if (finishReason === 'RECITATION') {
+          errorMsg = 'Generation stopped: Content matches existing data too closely (Recitation).'
+        } else if (finishReason === 'OTHER') {
+          errorMsg = 'Generation stopped due to an unknown miscellaneous reason.'
+        } else {
+          errorMsg = `Generation stopped early: ${finishReason}`
+        }
+        
+        if (errorMsg) {
+          callbacks.onError(errorMsg)
         }
       }
     },

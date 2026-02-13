@@ -325,9 +325,7 @@ ${JSON.stringify(requestedSlides, null, 2)}
               },
               onError: (err) => {
                 get().failActive(next.id, err)
-                if (err.includes('CORS Error')) {
-                  toast.error(err)
-                }
+                toast.error(err)
               }
             }, newHistory)
 
@@ -349,9 +347,7 @@ ${JSON.stringify(requestedSlides, null, 2)}
       },
       onError: (error) => {
         get().failActive(next.id, error)
-        if (error.includes('CORS Error')) {
-          toast.error(error)
-        }
+        toast.error(error)
       },
     }, history)
 

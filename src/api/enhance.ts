@@ -53,6 +53,10 @@ export function enhanceSlide(
       { role: 'system', content: ENHANCE_PROMPT },
       { role: 'user', content: userMessage },
     ]
+    body.temperature = API_CONFIG.DEFAULT_TEMPERATURE
+    if (apiType !== 'ollama') {
+      body.max_tokens = API_CONFIG.MAX_TOKENS
+    }
   }
 
   axios({
@@ -65,9 +69,26 @@ export function enhanceSlide(
     onDownloadProgress: (event) => {
       const raw = (event.event?.target as XMLHttpRequest)?.responseText
       if (!raw) return
-      const { content, newProcessedLength } = extractContentFromChunk(raw, processedLength)
+      const { content, finishReason, newProcessedLength } = extractContentFromChunk(raw, processedLength)
       processedLength = newProcessedLength
       if (content) fullContent += content
+      
+      if (finishReason) {
+        let errorMsg = ''
+        if (finishReason === 'MAX_TOKENS' || finishReason === 'length' || finishReason === 'LENGTH') {
+          errorMsg = 'Enhancement truncated: Max output tokens reached.'
+        } else if (finishReason === 'SAFETY' || finishReason === 'content_filter') {
+          errorMsg = 'Enhancement blocked by safety filters.'
+        } else if (finishReason === 'RECITATION') {
+          errorMsg = 'Enhancement stopped: Copyright protection (Recitation).'
+        } else if (finishReason !== 'STOP') {
+          errorMsg = `Generation stopped: ${finishReason}`
+        }
+        
+        if (errorMsg) {
+          onError(errorMsg)
+        }
+      }
     },
   })
     .then(() => {

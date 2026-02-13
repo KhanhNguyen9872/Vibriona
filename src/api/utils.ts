@@ -24,7 +24,11 @@ export function getAPIConfig(overrides?: { apiUrl?: string, apiKey?: string, mod
     const selectedModel = overrides?.model || settings.getModel()
     const apiType = overrides?.apiType || settings.getApiType()
 
-    const model = selectedModel || (apiType === 'ollama' ? API_CONFIG.DEFAULT_MODEL_OLLAMA : API_CONFIG.DEFAULT_MODEL_OPENAI)
+    const model = selectedModel || (
+        apiType === 'ollama' ? API_CONFIG.DEFAULT_MODEL_OLLAMA : 
+        apiType === 'gemini' ? API_CONFIG.DEFAULT_MODEL_GEMINI : 
+        API_CONFIG.DEFAULT_MODEL_OPENAI
+    )
     let endpoint = apiUrl.replace(/\/+$/, '')
 
     // Security: Only allow http and https protocols

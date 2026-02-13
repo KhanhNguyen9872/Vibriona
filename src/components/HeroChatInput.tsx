@@ -59,9 +59,19 @@ export default function HeroChatInput() {
     adjustTextareaHeight()
   }, [prompt])
 
+  const abortControllerRef = useRef<AbortController | null>(null)
+
   // Load dynamic suggestions with sessionStorage caching
   useEffect(() => {
     const loadSuggestions = async (forceRefresh = false) => {
+      // Cancel previous request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+      
+      const controller = new AbortController()
+      abortControllerRef.current = controller
+
       if (disableSuggestions) {
         setSuggestions([])
         setLoadedSuggestionsCount(0)
@@ -69,12 +79,8 @@ export default function HeroChatInput() {
         return
       }
 
-      const fallbackSuggestions = [
-        t('hero.suggestion1'),
-        t('hero.suggestion2'),
-        t('hero.suggestion3'),
-        t('hero.suggestion4'),
-      ]
+      const allFallbacks = Array.from({ length: 100 }, (_, i) => t(`hero.suggestion${i + 1}`))
+      const fallbackSuggestions = [...allFallbacks].sort(() => 0.5 - Math.random()).slice(0, 4)
 
       if (!isConfigured()) {
           setSuggestions(fallbackSuggestions)
@@ -101,6 +107,7 @@ export default function HeroChatInput() {
           }
         } catch (error) {
           console.warn('Failed to load cached suggestions:', error)
+          // Don't return, fall through to fetch
         }
       }
 
@@ -109,38 +116,44 @@ export default function HeroChatInput() {
         setIsLoadingSuggestions(true)
         setSuggestions([])
         setLoadedSuggestionsCount(0)
-
+        
         const streamingSuggestions: string[] = []
         const apiType = useSettingsStore.getState().getApiType()
 
         await generateDynamicSuggestions(language, apiType, {
           onSuggestion: (suggestion, index) => {
+            if (controller.signal.aborted) return
             streamingSuggestions[index] = suggestion
             setSuggestions([...streamingSuggestions])
             setLoadedSuggestionsCount(index + 1)
           },
           onComplete: (finalSuggestions) => {
+            if (controller.signal.aborted) return
             if (finalSuggestions.length === 4) {
               setSuggestions(finalSuggestions)
               setLoadedSuggestionsCount(4)
+              // Only cache successful API suggestions
               sessionStorage.setItem(storageKey, JSON.stringify(finalSuggestions))
             } else {
               setSuggestions(fallbackSuggestions)
               setLoadedSuggestionsCount(4)
+              // Do NOT cache fallback suggestions so we retry next time
             }
             setIsLoadingSuggestions(false)
           },
           onError: (error) => {
+            if (controller.signal.aborted) return
             console.warn('Streaming error:', error)
-            if (error.includes('CORS Error')) {
-              toast.error(error)
-            }
+            // toast.error(error) - Suppress toast for suggestions to avoid noise
             setSuggestions(fallbackSuggestions)
             setLoadedSuggestionsCount(4)
             setIsLoadingSuggestions(false)
           }
-        })
-      } catch (error) {
+        }, controller.signal)
+      } catch (error: any) {
+        if (error.name === 'AbortError' || controller.signal.aborted) {
+           return // Ignore aborts
+        }
         console.warn('Failed to load dynamic suggestions, using defaults:', error)
         setSuggestions(fallbackSuggestions)
         setLoadedSuggestionsCount(4)
@@ -149,6 +162,12 @@ export default function HeroChatInput() {
     }
 
     loadSuggestions()
+    
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
   }, [i18n.language, t, isConfigured, disableSuggestions])
 
   // Refresh suggestions handler
@@ -188,16 +207,18 @@ export default function HeroChatInput() {
           if (finalSuggestions.length === 4) {
             setSuggestions(finalSuggestions)
             setLoadedSuggestionsCount(4)
+            // Only cache successful API suggestions
             sessionStorage.setItem(storageKey, JSON.stringify(finalSuggestions))
           } else {
             setSuggestions(fallbackSuggestions)
             setLoadedSuggestionsCount(4)
+            // Do NOT cache fallback suggestions
           }
           setIsLoadingSuggestions(false)
         },
         onError: (error) => {
           console.warn('Refresh error:', error)
-          if (error.includes('CORS Error')) {
+          if (error.includes('CORS Error') || error.includes('Service busy')) {
             toast.error(error)
           }
           setSuggestions(fallbackSuggestions)

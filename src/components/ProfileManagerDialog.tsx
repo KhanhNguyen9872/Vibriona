@@ -570,9 +570,18 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                                         key={type}
                                         onClick={() => {
                                             updateDraft('apiType', type);
+                                            // Handle URL
                                             if (!draft.customApiUrl) {
                                                 const defaultUrl = (API_CONFIG as any).DEFAULT_ENDPOINTS[type];
                                                 updateDraft('apiUrl', defaultUrl);
+                                            }
+                                            // 🛡️ Handle Model: Auto-fill if empty
+                                            const currentModel = draft.selectedModel.trim();
+                                            if (!currentModel) {
+                                              const defaultModel = type === 'ollama' ? API_CONFIG.DEFAULT_MODEL_OLLAMA : 
+                                                                  type === 'gemini' ? API_CONFIG.DEFAULT_MODEL_GEMINI : 
+                                                                  API_CONFIG.DEFAULT_MODEL_OPENAI;
+                                              updateDraft('selectedModel', defaultModel);
                                             }
                                         }}
                                         className={`flex-1 py-2 text-xs font-medium rounded-lg transition-all ${
