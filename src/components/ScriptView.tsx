@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { motion } from 'motion/react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkBreaks from 'remark-breaks'
 import { FileText, Image, Mic, Timer, Layout, Pencil } from 'lucide-react'
 import type { Slide } from '../api/prompt'
 
@@ -85,8 +86,8 @@ export default function ScriptView({ slides, readonly = false, onEdit }: ScriptV
             {/* Content — rendered as Markdown */}
             <div className="flex gap-2 pl-3 mb-2">
               <FileText className="w-3.5 h-3.5 text-neutral-400 shrink-0 mt-1.5" />
-              <div className="flex-1 prose prose-sm dark:prose-invert prose-neutral max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-headings:my-2">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              <div className="flex-1 prose prose-sm dark:prose-invert prose-neutral max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-headings:my-2 prose-pre:my-2 prose-blockquote:my-2">
+                <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
                   {slide.content || '—'}
                 </ReactMarkdown>
               </div>

@@ -1,5 +1,6 @@
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkBreaks from 'remark-breaks'
 import { cn } from '../utils/cn'
 
 interface MarkdownRendererProps {
@@ -20,7 +21,7 @@ export default function MarkdownRenderer({ content, className }: MarkdownRendere
   return (
     <div className={cn("text-sm leading-relaxed break-words space-y-2", className)}>
       <Markdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkBreaks]}
         components={{
           // FORCE style specific elements
           h1: ({ node, ...props }) => <h1 className="text-xl font-bold mt-4 mb-2 text-neutral-900 dark:text-white" {...props} />,

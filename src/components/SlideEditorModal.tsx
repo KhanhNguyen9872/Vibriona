@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { motion } from 'motion/react'
 import TextareaAutosize from 'react-textarea-autosize'
 import MDEditor from '@uiw/react-md-editor'
+import remarkBreaks from 'remark-breaks'
 import { X, FileText, Image, Mic, Type } from 'lucide-react'
 import { useSettingsStore } from '../store/useSettingsStore'
 import type { Slide } from '../api/prompt'
@@ -136,6 +137,7 @@ export default function SlideEditorModal({ slide, onSave, onClose, mode = 'edit'
                 onChange={(val) => setContent(val || '')}
                 height={280}
                 preview="live"
+                previewOptions={{ remarkPlugins: [remarkBreaks] }}
                 className="!rounded-xl !border-neutral-200 dark:!border-neutral-700 !shadow-none"
               />
             </div>
