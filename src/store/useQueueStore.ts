@@ -58,10 +58,16 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
   activeAborts: {},
 
   addToQueue: (prompt, projectId, contextSlides) => {
+    // Security: Sanitize prompt input
+    const sanitizedPrompt = prompt
+      .replace(/\0/g, '')                         // Remove null bytes
+      .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // Remove control chars (keep \n \r \t)
+      .slice(0, 50000)                            // Max 50k chars
+
     const item: QueueItem = {
       id: crypto.randomUUID(),
       projectId,
-      prompt,
+      prompt: sanitizedPrompt,
       status: 'queued',
       contextSlides,
       contextSlideNumbers: contextSlides?.map((s) => s.slide_number),

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MessageSquarePlus, Edit3 } from 'lucide-react'
+import MarkdownRenderer from './MarkdownRenderer'
 
 interface ClarificationRequestProps {
   question: string
@@ -59,9 +60,10 @@ export default function ClarificationRequest({
       </div>
 
       {/* The Question */}
-      <p className="text-sm text-neutral-800 dark:text-neutral-200 font-medium">
-        {question}
-      </p>
+      <MarkdownRenderer
+        content={question}
+        className="text-sm text-neutral-800 dark:text-neutral-200 font-medium"
+      />
 
       {/* Options Grid */}
       <div className="flex flex-wrap gap-2">

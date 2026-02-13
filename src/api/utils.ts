@@ -26,6 +26,19 @@ export function getAPIConfig(overrides?: { apiUrl?: string, apiKey?: string, mod
 
     const model = selectedModel || (apiType === 'ollama' ? API_CONFIG.DEFAULT_MODEL_OLLAMA : API_CONFIG.DEFAULT_MODEL_OPENAI)
     let endpoint = apiUrl.replace(/\/+$/, '')
+
+    // Security: Only allow http and https protocols
+    try {
+      const parsed = new URL(endpoint)
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        throw new Error(`Unsupported protocol: ${parsed.protocol}`)
+      }
+    } catch (e) {
+      if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
+        endpoint = `https://${endpoint}`
+      }
+    }
+
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
     }

@@ -1,10 +1,11 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useSettingsStore } from '../store/useSettingsStore';
+import type { UserProfile } from '../store/useSettingsStore';
 import { useTranslation } from 'react-i18next';
 import { fetchModels } from '../api/models';
 import type { ModelInfo } from '../api/models';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Trash2, User, X, Check, Pencil, RefreshCw, ChevronDown, Box, Eye, EyeOff, Brain, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, User, X, Check, Pencil, RefreshCw, ChevronDown, Box, Eye, EyeOff, Brain, ArrowLeft, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { API_CONFIG } from '../config/api';
 import { confirmAction } from '../utils/confirmAction';
@@ -12,6 +13,27 @@ import { confirmAction } from '../utils/confirmAction';
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+// Editable fields we track for dirty-checking
+interface DraftFields {
+  apiType: UserProfile['apiType'];
+  apiUrl: string;
+  apiKey: string;
+  noAuth: boolean;
+  customApiUrl: boolean;
+  selectedModel: string;
+}
+
+function getDraftFromProfile(profile: UserProfile): DraftFields {
+  return {
+    apiType: profile.apiType,
+    apiUrl: profile.apiUrl,
+    apiKey: profile.apiKey,
+    noAuth: !!profile.noAuth,
+    customApiUrl: !!profile.customApiUrl,
+    selectedModel: profile.selectedModel,
+  };
 }
 
 export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
@@ -31,11 +53,12 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
 
-  // SEPARATION OF CONCERNS:
-  // activeProfileId (Record<STORE>): The profile used for API calls.
-  // selectedProfileId (Local UI): The profile currently being viewed/edited in the right panel.
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(activeProfileId);
   const [showMobileDetail, setShowMobileDetail] = useState(false);
+
+  // Draft state for buffered editing
+  const [draft, setDraft] = useState<DraftFields | null>(null);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   // Model selection state
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -46,10 +69,103 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
 
   // Sync selection when dialog opens or active changes (if nothing selected)
   if (selectedProfileId === null && activeProfileId) {
-      setSelectedProfileId(activeProfileId);
+    setSelectedProfileId(activeProfileId);
   }
 
   const selectedProfile = profiles.find(p => p.id === selectedProfileId);
+
+  // Initialize draft when selected profile changes
+  useEffect(() => {
+    if (selectedProfile) {
+      setDraft(getDraftFromProfile(selectedProfile));
+      setValidationErrors({});
+    } else {
+      setDraft(null);
+      setValidationErrors({});
+    }
+  }, [selectedProfileId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Check if draft has changes compared to stored profile
+  const isDirty = useMemo(() => {
+    if (!selectedProfile || !draft) return false;
+    const stored = getDraftFromProfile(selectedProfile);
+    return (
+      stored.apiType !== draft.apiType ||
+      stored.apiUrl !== draft.apiUrl ||
+      stored.apiKey !== draft.apiKey ||
+      stored.noAuth !== draft.noAuth ||
+      stored.customApiUrl !== draft.customApiUrl ||
+      stored.selectedModel !== draft.selectedModel
+    );
+  }, [selectedProfile, draft]);
+
+  // Update draft field
+  const updateDraft = useCallback((field: keyof DraftFields, value: any) => {
+    setDraft(prev => prev ? { ...prev, [field]: value } : prev);
+    // Clear validation error for this field when user starts typing
+    setValidationErrors(prev => {
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  }, []);
+
+  // Validate all fields
+  const validate = useCallback((): boolean => {
+    if (!draft) return false;
+    const errors: Record<string, string> = {};
+
+    // API URL validation
+    const trimmedUrl = draft.apiUrl.trim();
+    if (!trimmedUrl) {
+      errors.apiUrl = t('profiles.validationUrlRequired');
+    } else {
+      try {
+        const parsed = new URL(trimmedUrl);
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          errors.apiUrl = t('profiles.validationUrlProtocol');
+        }
+      } catch {
+        if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+          errors.apiUrl = t('profiles.validationUrlInvalid');
+        }
+      }
+    }
+
+    // API Key validation (only if noAuth is not checked)
+    if (!draft.noAuth && !draft.apiKey.trim()) {
+      errors.apiKey = t('profiles.validationKeyRequired');
+    }
+
+    // Model validation
+    if (!draft.selectedModel.trim()) {
+      errors.selectedModel = t('profiles.validationModelRequired');
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  }, [draft, t]);
+
+  // Save handler
+  const handleSave = useCallback(() => {
+    if (!selectedProfileId || !draft) return;
+    if (!validate()) {
+      toast.error(t('profiles.validationFailed'));
+      return;
+    }
+
+    // Update the store
+    updateProfile(selectedProfileId, {
+      apiType: draft.apiType,
+      apiUrl: draft.apiUrl.trim(),
+      apiKey: draft.apiKey.trim(),
+      noAuth: draft.noAuth,
+      customApiUrl: draft.customApiUrl,
+      selectedModel: draft.selectedModel.trim(),
+    });
+
+    toast.success(t('profiles.saved'));
+  }, [selectedProfileId, draft, validate, updateProfile, t]);
 
   // Close dropdown on outside click or profile switch
   useEffect(() => {
@@ -68,14 +184,15 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
   }, [selectedProfileId]);
 
   const handleFetchModels = async () => {
-    const isAuthValid = selectedProfile?.noAuth || selectedProfile?.apiKey;
-    if (!selectedProfile?.apiUrl || !isAuthValid) {
+    if (!draft) return;
+    const isAuthValid = draft.noAuth || draft.apiKey;
+    if (!draft.apiUrl || !isAuthValid) {
         toast.error(t('settings.requiredFields'));
         return;
     }
     setFetching(true);
     try {
-      const fetched = await fetchModels(selectedProfile.apiUrl.trim(), selectedProfile.apiKey.trim(), selectedProfile.apiType);
+      const fetched = await fetchModels(draft.apiUrl.trim(), draft.apiKey.trim(), draft.apiType);
       setModels(fetched);
       if (fetched.length > 0) {
         setDropdownOpen(true);
@@ -91,23 +208,19 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
   };
 
   const handleSelectModel = (m: string) => {
-    if (selectedProfileId) {
-        updateProfile(selectedProfileId, { selectedModel: m });
-        setDropdownOpen(false);
-    }
+    updateDraft('selectedModel', m);
+    setDropdownOpen(false);
   };
 
   const clearModel = () => {
-    if (selectedProfileId) {
-        updateProfile(selectedProfileId, { selectedModel: '' });
-    }
+    updateDraft('selectedModel', '');
   };
 
-  const filteredModels = models.length > 0 && selectedProfile?.selectedModel
-    ? models.filter(m => m.id.toLowerCase().includes(selectedProfile.selectedModel.toLowerCase()))
+  const filteredModels = models.length > 0 && draft?.selectedModel
+    ? models.filter(m => m.id.toLowerCase().includes(draft.selectedModel.toLowerCase()))
     : models;
 
-  const selectedModelInfo = models.find(m => m.id === selectedProfile?.selectedModel);
+  const selectedModelInfo = models.find(m => m.id === draft?.selectedModel);
 
   // --- Creation Handlers ---
   const startCreate = () => {
@@ -131,10 +244,6 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
       selectedModel: 'llama3.2'
     });
     
-    // Auto-select for editing, but DO NOT auto-activate (per user request implied logic)
-    // Actually, user said "prevent activating incomplete".
-    // A new profile has empty key, so it IS incomplete.
-    // So we should NOT set active. Just set selected.
     setSelectedProfileId(newId);
     setShowMobileDetail(true);
     
@@ -182,7 +291,6 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
       t('profiles.deleteConfirmQuestion', { name: profileToDelete.name }),
       () => {
         deleteProfile(id);
-        // If we deleted the selected one, select the next available or null
         if (id === selectedProfileId) {
             const remaining = profiles.filter(p => p.id !== id);
             setSelectedProfileId(activeProfileId === id ? (remaining[0]?.id || null) : activeProfileId);
@@ -196,6 +304,16 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
         variant: 'destructive',
         title: t('profiles.delete')
       }
+    );
+  };
+
+  // Helper to render validation error
+  const renderError = (field: string) => {
+    if (!validationErrors[field]) return null;
+    return (
+      <p className="text-[10px] text-red-500 dark:text-red-400 mt-1">
+        {validationErrors[field]}
+      </p>
     );
   };
 
@@ -322,11 +440,9 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                                         e.stopPropagation();
                                         if (isValid) {
                                             setActiveProfile(profile.id);
-                                            // Optional: Also select it for editing? Maybe not needed if they just want to switch.
                                             toast.success(t('profiles.activeSet', { name: profile.name }));
                                         } else {
                                             toast.error(t('profiles.incomplete'));
-                                            // Select it so they can fix it
                                             setSelectedProfileId(profile.id);
                                         }
                                     }}
@@ -364,7 +480,7 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                                       <Pencil className="w-3.5 h-3.5" />
                                   </button>
                                   
-                                  {/* Delete button (now works for last profile too) */}
+                                  {/* Delete button */}
                                    <button 
                                       onClick={(e) => handleDelete(profile.id, e)}
                                       className="p-1.5 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 rounded-md transition-all"
@@ -376,7 +492,7 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                            </>
                         )}
                     </div>
-                )})}
+                );})}
                 
                 {profiles.length === 0 && !isCreating && (
                     <div className="py-8 px-4 text-center">
@@ -413,11 +529,11 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-8">
-                {selectedProfile ? (
+                {selectedProfile && draft ? (
                     <div className="max-w-xl space-y-8">
                         {/* Status Banner */}
                         {(() => {
-                            const isAuthValid = selectedProfile.noAuth || selectedProfile.apiKey?.trim();
+                            const isAuthValid = draft.noAuth || draft.apiKey?.trim();
                             if (!isAuthValid) {
                                 return (
                                     <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
@@ -439,14 +555,14 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                                     <button
                                         key={type}
                                         onClick={() => {
-                                            updateProfile(selectedProfile.id, { apiType: type });
-                                            if (!selectedProfile.customApiUrl) {
+                                            updateDraft('apiType', type);
+                                            if (!draft.customApiUrl) {
                                                 const defaultUrl = (API_CONFIG as any).DEFAULT_ENDPOINTS[type];
-                                                updateProfile(selectedProfile.id, { apiUrl: defaultUrl });
+                                                updateDraft('apiUrl', defaultUrl);
                                             }
                                         }}
                                         className={`flex-1 py-2 text-xs font-medium rounded-lg transition-all ${
-                                            selectedProfile.apiType === type
+                                            draft.apiType === type
                                                 ? 'bg-white dark:bg-zinc-800 text-neutral-900 dark:text-white shadow-sm ring-1 ring-neutral-200 dark:ring-zinc-700'
                                                 : 'text-neutral-500 dark:text-zinc-500 hover:text-neutral-700 dark:hover:text-zinc-300'
                                         }`}
@@ -464,13 +580,13 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                                      <span className="text-[10px] text-neutral-400 dark:text-zinc-500 group-hover:text-neutral-600 dark:group-hover:text-zinc-300 transition-colors">{t('settings.customApiUrl')}</span>
                                      <input 
                                          type="checkbox"
-                                         checked={!!selectedProfile.customApiUrl}
+                                         checked={draft.customApiUrl}
                                          onChange={(e) => {
                                              const isCustom = e.target.checked;
-                                             updateProfile(selectedProfile.id, { customApiUrl: isCustom });
+                                             updateDraft('customApiUrl', isCustom);
                                              if (!isCustom) {
-                                                 const defaultUrl = (API_CONFIG as any).DEFAULT_ENDPOINTS[selectedProfile.apiType];
-                                                 updateProfile(selectedProfile.id, { apiUrl: defaultUrl });
+                                                 const defaultUrl = (API_CONFIG as any).DEFAULT_ENDPOINTS[draft.apiType];
+                                                 updateDraft('apiUrl', defaultUrl);
                                              }
                                          }}
                                          className="w-3 h-3 rounded border-neutral-400 dark:border-zinc-700 text-neutral-900 dark:text-white focus:ring-neutral-900 dark:focus:ring-white bg-transparent"
@@ -478,11 +594,15 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                                  </label>
                               </div>
                               <input 
-                                 value={selectedProfile.apiUrl}
-                                 onChange={(e) => updateProfile(selectedProfile.id, { apiUrl: e.target.value })}
-                                 disabled={!selectedProfile.customApiUrl}
-                                 className={`w-full bg-white dark:bg-zinc-900 border border-neutral-200 dark:border-zinc-800 rounded-lg px-4 py-2.5 text-sm font-mono text-neutral-700 dark:text-zinc-300 focus:outline-none focus:border-neutral-900 dark:focus:border-white transition-colors ${!selectedProfile.customApiUrl ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                 value={draft.apiUrl}
+                                 onChange={(e) => updateDraft('apiUrl', e.target.value)}
+                                 disabled={!draft.customApiUrl}
+                                 className={`w-full bg-white dark:bg-zinc-900 border rounded-lg px-4 py-2.5 text-sm font-mono text-neutral-700 dark:text-zinc-300 focus:outline-none transition-colors ${
+                                   !draft.customApiUrl ? 'opacity-40 cursor-not-allowed border-neutral-200 dark:border-zinc-800' : 
+                                   validationErrors.apiUrl ? 'border-red-400 dark:border-red-500 focus:border-red-500' : 'border-neutral-200 dark:border-zinc-800 focus:border-neutral-900 dark:focus:border-white'
+                                 }`}
                              />
+                             {renderError('apiUrl')}
                          </div>
 
                          <div className="space-y-2">
@@ -492,8 +612,8 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                                      <span className="text-[10px] text-neutral-400 dark:text-zinc-500 group-hover:text-neutral-600 dark:group-hover:text-zinc-300 transition-colors">{t('settings.noAuth')}</span>
                                      <input 
                                          type="checkbox"
-                                         checked={!!selectedProfile.noAuth}
-                                         onChange={(e) => updateProfile(selectedProfile.id, { noAuth: e.target.checked })}
+                                         checked={draft.noAuth}
+                                         onChange={(e) => updateDraft('noAuth', e.target.checked)}
                                          className="w-3 h-3 rounded border-neutral-400 dark:border-zinc-700 text-neutral-900 dark:text-white focus:ring-neutral-900 dark:focus:ring-white bg-transparent"
                                      />
                                  </label>
@@ -501,13 +621,16 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                               <div className="relative">
                                   <input 
                                      type={showApiKey ? "text" : "password"}
-                                     value={selectedProfile.apiKey}
-                                     onChange={(e) => updateProfile(selectedProfile.id, { apiKey: e.target.value })}
-                                     placeholder={selectedProfile.noAuth ? "Authorization not required" : "sk-..."}
-                                     disabled={selectedProfile.noAuth}
-                                     className={`w-full bg-white dark:bg-zinc-900 border border-neutral-200 dark:border-zinc-800 rounded-lg px-4 py-2.5 pr-10 text-sm font-mono text-neutral-700 dark:text-zinc-300 focus:outline-none focus:border-neutral-900 dark:focus:border-white transition-colors ${selectedProfile.noAuth ? 'opacity-40 cursor-not-allowed mb-0' : ''}`}
+                                     value={draft.apiKey}
+                                     onChange={(e) => updateDraft('apiKey', e.target.value)}
+                                     placeholder={draft.noAuth ? "Authorization not required" : "sk-..."}
+                                     disabled={draft.noAuth}
+                                     className={`w-full bg-white dark:bg-zinc-900 border rounded-lg px-4 py-2.5 pr-10 text-sm font-mono text-neutral-700 dark:text-zinc-300 focus:outline-none transition-colors ${
+                                       draft.noAuth ? 'opacity-40 cursor-not-allowed border-neutral-200 dark:border-zinc-800' :
+                                       validationErrors.apiKey ? 'border-red-400 dark:border-red-500 focus:border-red-500' : 'border-neutral-200 dark:border-zinc-800 focus:border-neutral-900 dark:focus:border-white'
+                                     }`}
                                  />
-                                 {!selectedProfile.noAuth && (
+                                 {!draft.noAuth && (
                                      <button
                                          type="button"
                                          onClick={() => setShowApiKey(!showApiKey)}
@@ -517,6 +640,7 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                                      </button>
                                  )}
                               </div>
+                              {renderError('apiKey')}
                          </div>
                         
                          <div className="space-y-2">
@@ -524,20 +648,22 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                              <div className="relative" ref={dropdownRef}>
                                 <Box className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 dark:text-zinc-500 z-10" />
                                 <input 
-                                    value={selectedProfile.selectedModel}
+                                    value={draft.selectedModel}
                                     onChange={(e) => {
-                                        updateProfile(selectedProfile.id, { selectedModel: e.target.value });
+                                        updateDraft('selectedModel', e.target.value);
                                         if (models.length > 0) setDropdownOpen(true);
                                     }}
                                     onFocus={() => {
                                         if (models.length > 0) setDropdownOpen(true);
                                     }}
                                     placeholder={t('profiles.modelIdPlaceholder')}
-                                    className={`w-full bg-white dark:bg-zinc-900 border border-neutral-200 dark:border-zinc-800 rounded-lg ${selectedModelInfo?.thinking ? 'pl-11' : 'pl-10'} pr-24 py-2.5 text-sm font-mono text-neutral-700 dark:text-zinc-300 focus:outline-none focus:border-neutral-900 dark:focus:border-white transition-colors`}
+                                    className={`w-full bg-white dark:bg-zinc-900 border rounded-lg ${selectedModelInfo?.thinking ? 'pl-11' : 'pl-10'} pr-24 py-2.5 text-sm font-mono text-neutral-700 dark:text-zinc-300 focus:outline-none transition-colors ${
+                                      validationErrors.selectedModel ? 'border-red-400 dark:border-red-500 focus:border-red-500' : 'border-neutral-200 dark:border-zinc-800 focus:border-neutral-900 dark:focus:border-white'
+                                    }`}
                                 />
                                 
                                 <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                                    {selectedProfile.selectedModel && (
+                                    {draft.selectedModel && (
                                         <button
                                             onClick={clearModel}
                                             className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-500 hover:text-white transition-colors"
@@ -559,7 +685,7 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
 
                                     <button
                                         onClick={handleFetchModels}
-                                        disabled={fetching || !selectedProfile.apiUrl?.trim() || (!selectedProfile.noAuth && !selectedProfile.apiKey?.trim())}
+                                        disabled={fetching || !draft.apiUrl?.trim() || (!draft.noAuth && !draft.apiKey?.trim())}
                                         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-neutral-200 dark:bg-zinc-800 text-[11px] font-medium text-neutral-600 dark:text-zinc-300 hover:bg-neutral-300 dark:hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                                     >
                                         <RefreshCw className={`w-3 h-3 ${fetching ? 'animate-spin' : ''}`} />
@@ -582,13 +708,13 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                                             key={m.id}
                                             type="button"
                                             onClick={() => handleSelectModel(m.id)}
-                                            className={`w-full flex items-center justify-between px-3.5 py-2 text-left text-xs font-mono transition-colors cursor-pointer hover:bg-neutral-100 dark:hover:bg-zinc-800 ${m.id === selectedProfile.selectedModel
+                                            className={`w-full flex items-center justify-between px-3.5 py-2 text-left text-xs font-mono transition-colors cursor-pointer hover:bg-neutral-100 dark:hover:bg-zinc-800 ${m.id === draft.selectedModel
                                                 ? 'text-neutral-900 dark:text-white bg-neutral-100 dark:bg-zinc-800/50'
                                                 : 'text-neutral-500 dark:text-zinc-400'
                                             }`}
                                         >
                                             <div className="flex items-center gap-2.5 overflow-hidden">
-                                                {m.id === selectedProfile.selectedModel ? (
+                                                {m.id === draft.selectedModel ? (
                                                     <Check className="w-3 h-3 shrink-0 text-neutral-900 dark:text-white" />
                                                 ) : (
                                                     <div className="w-3" />
@@ -609,6 +735,7 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                                     )}
                                 </AnimatePresence>
                              </div>
+                             {renderError('selectedModel')}
                             <p className="text-xs text-zinc-600">{t('profiles.modelHint')}</p>
                         </div>
                     </div>
@@ -620,11 +747,23 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                 )}
             </div>
             
-            <div className="p-4 border-t border-neutral-200 dark:border-zinc-800 bg-neutral-50 dark:bg-zinc-900/30">
-                <p className="text-xs text-center text-neutral-400 dark:text-zinc-600">
-                    {t('profiles.autoSaveHint')}
-                </p>
-            </div>
+            {/* Footer: Save button */}
+            {selectedProfile && draft && (
+              <div className="p-4 border-t border-neutral-200 dark:border-zinc-800 bg-neutral-50 dark:bg-zinc-900/30">
+                <button
+                  onClick={handleSave}
+                  disabled={!isDirty}
+                  className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
+                    isDirty
+                      ? 'bg-neutral-900 dark:bg-white text-white dark:text-black hover:bg-neutral-800 dark:hover:bg-neutral-200 shadow-sm'
+                      : 'bg-neutral-200 dark:bg-zinc-800 text-neutral-400 dark:text-zinc-600 cursor-not-allowed'
+                  }`}
+                >
+                  <Save className="w-4 h-4" />
+                  {t('profiles.save')}
+                </button>
+              </div>
+            )}
         </div>
       </motion.div>
     </motion.div>
