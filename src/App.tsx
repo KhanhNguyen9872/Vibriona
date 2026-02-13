@@ -20,6 +20,7 @@ import { useUIStore } from './store/useUIStore'
 import GlobalSearch from './components/GlobalSearch'
 import LoadingScreen from './components/LoadingScreen'
 import HeroSection from './components/HeroSection'
+import { usePWAInstall } from './hooks/usePWAInstall'
 
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(window.innerWidth < breakpoint)
@@ -45,6 +46,7 @@ function App() {
   const isMobile = useIsMobile()
   const { mobileActiveTab, setMobileActiveTab, heroHold, splitPaneWidth, setSplitPaneWidth, isInitialLoad, setInitialLoad } = useUIStore()
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
+  const { isInstallable, installApp } = usePWAInstall()
 
   useEffect(() => {
     if (isInitialLoad) {
@@ -195,9 +197,18 @@ function App() {
     savedItemIds.current.add(item.id)
   }
 
-  // Sync dark class
+  // Sync dark class & theme color
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
+    
+    // Update theme-color meta tag for mobile browser and PWA chrome
+    let metaThemeColor = document.querySelector('meta[name="theme-color"]')
+    if (!metaThemeColor) {
+      metaThemeColor = document.createElement('meta')
+      metaThemeColor.setAttribute('name', 'theme-color')
+      document.getElementsByTagName('head')[0].appendChild(metaThemeColor)
+    }
+    metaThemeColor.setAttribute('content', theme === 'dark' ? '#0a0a0a' : '#ffffff')
   }, [theme])
 
   // Deep linking: restore session from URL on mount
@@ -389,6 +400,16 @@ function App() {
 
             {/* Right side actions */}
             <div className={`flex items-center gap-2 ${isMobile && isMobileSearchOpen ? 'hidden' : 'flex'}`}>
+              {isInstallable && (
+                <button
+                  onClick={installApp}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black dark:bg-white text-white dark:text-black text-[11px] font-bold hover:opacity-90 transition-all cursor-pointer shadow-sm active:scale-95"
+                  title={t('app.install')}
+                >
+                  <img src={`${import.meta.env.BASE_URL}assets/logo.png`} alt="" className="w-3.5 h-3.5 invert dark:invert-0" />
+                  <span>{t('app.install')}</span>
+                </button>
+              )}
               <MobileNavToggle />
 
               {isMobile && (

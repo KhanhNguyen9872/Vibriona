@@ -137,6 +137,9 @@ const vi = {
       heroSub: 'Mô tả chủ đề và chúng tôi sẽ tạo bài thuyết trình với nội dung và ý tưởng hình ảnh cho từng slide.',
       scriptsCount: 'kịch bản đã lưu',
       newChat: 'Dự án mới',
+      installPrompt: 'Cài đặt Vibriona',
+      installPromptDesc: 'Trải nghiệm tốt hơn bằng cách cài đặt Vibriona vào màn hình chính của bạn.',
+      install: 'Cài đặt',
     },
     hero: {
       suggestion1: 'Giới thiệu về Học máy',

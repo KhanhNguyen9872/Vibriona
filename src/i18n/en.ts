@@ -137,6 +137,9 @@ const en = {
       heroSub: 'Describe your topic and we\'ll generate a structured slide deck with talking points and visual ideas.',
       scriptsCount: 'scripts saved',
       newChat: 'New Project',
+      installPrompt: 'Install Vibriona',
+      installPromptDesc: 'Get a better experience by installing Vibriona on your home screen.',
+      install: 'Install',
     },
     hero: {
       suggestion1: 'Introduction to Machine Learning',
