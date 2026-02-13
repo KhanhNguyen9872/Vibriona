@@ -28,11 +28,11 @@ export function enhanceSlide(
   let url = config.endpoint
   let body: any = {
     model: config.model,
-    stream: true,
   }
 
   if (apiType === 'gemini') {
-    url = `${url}:streamGenerateContent`
+    url = `${url}:generateContent`
+
     body = {
       contents: [
         {
@@ -54,19 +54,24 @@ export function enhanceSlide(
       { role: 'user', content: userMessage },
     ]
     body.temperature = API_CONFIG.DEFAULT_TEMPERATURE
+    body.stream = true
     if (apiType !== 'ollama') {
       body.max_tokens = API_CONFIG.MAX_TOKENS
     }
   }
 
-  axios({
-    method: 'post',
-    url,
-    data: body,
-    headers: config.headers,
-    responseType: 'text',
-    signal: controller.signal,
-    onDownloadProgress: (event) => {
+  // Choose request config based on API type
+  const requestConfig: any = {
+      method: 'post',
+      url,
+      data: body,
+      headers: config.headers,
+      signal: controller.signal,
+  }
+
+  if (apiType !== 'gemini') {
+    requestConfig.responseType = 'text'
+    requestConfig.onDownloadProgress = (event: any) => {
       const raw = (event.event?.target as XMLHttpRequest)?.responseText
       if (!raw) return
       const { content, finishReason, newProcessedLength } = extractContentFromChunk(raw, processedLength)
@@ -89,9 +94,31 @@ export function enhanceSlide(
           onError(errorMsg)
         }
       }
-    },
-  })
-    .then(() => {
+    }
+  }
+
+  axios(requestConfig)
+    .then((response) => {
+        // Handle Gemini non-streaming
+        if (apiType === 'gemini') {
+            const candidate = response.data?.candidates?.[0]
+             const finishReason = candidate?.finishReason
+          
+            if (finishReason && !['STOP', 'stop', 'null', null].includes(finishReason)) {
+               let errorMsg = ''
+               if (finishReason === 'MAX_TOKENS' || finishReason === 'LENGTH') {
+                    errorMsg = 'Enhancement truncated.'
+               } else if (finishReason === 'SAFETY') {
+                    errorMsg = 'Enhancement blocked by safety filters.'
+               } else {
+                    errorMsg = `Stopped: ${finishReason}`
+               }
+               if (errorMsg) onError(errorMsg)
+            }
+
+            const content = candidate?.content?.parts?.[0]?.text || ''
+            fullContent = content
+        }
       // Try to parse the single object
       const trimmed = fullContent.trim()
       try {

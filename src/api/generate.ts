@@ -45,8 +45,8 @@ export function streamGenerate(
   }
 
   if (apiType === 'gemini') {
-    url = `${url}:streamGenerateContent`
-    
+    url = `${url}:generateContent`
+
     const contents: any[] = []
     const systemPart = { text: `"""\nSYSTEM PROMPT: ${SYSTEM_PROMPT}\n"""` }
 
@@ -100,76 +100,113 @@ export function streamGenerate(
       { role: 'user', content: userPrompt },
     ]
     body.temperature = API_CONFIG.DEFAULT_TEMPERATURE
+    body.stream = true
     if (apiType !== 'ollama') {
       body.max_tokens = API_CONFIG.MAX_TOKENS
     }
   }
 
-  axios({
-    method: 'post',
-    url,
-    data: body,
-    headers: config.headers,
-    responseType: 'text',
-    signal: controller.signal,
-    onDownloadProgress: (event) => {
-      const raw = (event.event?.target as XMLHttpRequest)?.responseText
-      if (!raw) return
+  // Choose request config based on API type
+  const requestConfig: any = {
+      method: 'post',
+      url,
+      data: body,
+      headers: config.headers,
+      signal: controller.signal,
+  }
 
-      const { content, thinking, finishReason, newProcessedLength } = extractContentFromChunk(raw, processedLength)
-      processedLength = newProcessedLength
+  if (apiType !== 'gemini') {
+      requestConfig.responseType = 'text'
+      requestConfig.onDownloadProgress = (event: any) => {
+          const raw = (event.event?.target as XMLHttpRequest)?.responseText
+          if (!raw) return
+    
+          const { content, thinking, finishReason, newProcessedLength } = extractContentFromChunk(raw, processedLength)
+          processedLength = newProcessedLength
+    
+          // Accumulate API-level thinking (reasoning_content field)
+          if (thinking) {
+            apiThinking += thinking
+            callbacks.onThinking(apiThinking)
+          }
+    
+          if (content) {
+            fullContent += content
+    
+            // Separate <think> tags from content for display
+            const separated = separateThinkingFromContent(fullContent)
+    
+            // Combine API thinking + tag thinking
+            const allThinking = [apiThinking, separated.thinking].filter(Boolean).join('\n')
+            if (allThinking) {
+              callbacks.onThinking(allThinking)
+            }
+    
+            callbacks.onToken(fullContent)
+    
+            // Parse slides from clean content (without think tags)
+            // Now using Delta Protocol: { action, slides, content, question, options, allowCustom }
+            const parsedResponse = parsePartialResponse(separated.content)
+    
+            if (parsedResponse.slides.length > 0 || parsedResponse.action) {
+              callbacks.onResponseUpdate(parsedResponse)
+            }
+          }
+    
+          // 🚨 Handle finishing errors (MAX_TOKENS, SAFETY, etc.)
+          if (finishReason) {
+            let errorMsg = ''
+            if (finishReason === 'MAX_TOKENS' || finishReason === 'length' || finishReason === 'LENGTH') {
+              errorMsg = 'Generation limit reached (Max Tokens). Response may be truncated.'
+            } else if (finishReason === 'SAFETY' || finishReason === 'content_filter') {
+              errorMsg = 'Content blocked by safety filters.'
+            } else if (finishReason === 'RECITATION') {
+              errorMsg = 'Generation stopped: Content matches existing data too closely (Recitation).'
+            } else if (finishReason === 'OTHER') {
+              errorMsg = 'Generation stopped due to an unknown miscellaneous reason.'
+            } else {
+              errorMsg = `Generation stopped early: ${finishReason}`
+            }
+            
+            if (errorMsg) {
+              callbacks.onError(errorMsg)
+            }
+          }
+        }
+  }
 
-      // Accumulate API-level thinking (reasoning_content field)
-      if (thinking) {
-        apiThinking += thinking
-        callbacks.onThinking(apiThinking)
+  axios(requestConfig)
+    .then((response) => {
+      // Handle non-streaming response (Gemini)
+      if (apiType === 'gemini') {
+          const candidate = response.data?.candidates?.[0]
+          const finishReason = candidate?.finishReason
+          
+          if (finishReason && !['STOP', 'stop', 'null', null].includes(finishReason)) {
+               let errorMsg = ''
+               if (finishReason === 'MAX_TOKENS' || finishReason === 'LENGTH') {
+                    errorMsg = 'Generation limit reached.'
+               } else if (finishReason === 'SAFETY') {
+                    errorMsg = 'Blocked by safety filters.'
+               } else {
+                    errorMsg = `Stopped: ${finishReason}`
+               }
+               if (errorMsg) callbacks.onError(errorMsg)
+          }
+
+          const content = candidate?.content?.parts?.[0]?.text || ''
+          fullContent = content
+          callbacks.onToken(fullContent)
+
+          // IMPORTANT: Trigger response update for the full content so UI renders action/slides
+          const separated = separateThinkingFromContent(fullContent)
+          const parsedResponse = parsePartialResponse(separated.content)
+            
+          if (parsedResponse.slides.length > 0 || parsedResponse.action) {
+              callbacks.onResponseUpdate(parsedResponse)
+          }
       }
 
-      if (content) {
-        fullContent += content
-
-        // Separate <think> tags from content for display
-        const separated = separateThinkingFromContent(fullContent)
-
-        // Combine API thinking + tag thinking
-        const allThinking = [apiThinking, separated.thinking].filter(Boolean).join('\n')
-        if (allThinking) {
-          callbacks.onThinking(allThinking)
-        }
-
-        callbacks.onToken(fullContent)
-
-        // Parse slides from clean content (without think tags)
-        // Now using Delta Protocol: { action, slides, content, question, options, allowCustom }
-        const parsedResponse = parsePartialResponse(separated.content)
-
-        if (parsedResponse.slides.length > 0 || parsedResponse.action) {
-          callbacks.onResponseUpdate(parsedResponse)
-        }
-      }
-
-      // 🚨 Handle finishing errors (MAX_TOKENS, SAFETY, etc.)
-      if (finishReason) {
-        let errorMsg = ''
-        if (finishReason === 'MAX_TOKENS' || finishReason === 'length' || finishReason === 'LENGTH') {
-          errorMsg = 'Generation limit reached (Max Tokens). Response may be truncated.'
-        } else if (finishReason === 'SAFETY' || finishReason === 'content_filter') {
-          errorMsg = 'Content blocked by safety filters.'
-        } else if (finishReason === 'RECITATION') {
-          errorMsg = 'Generation stopped: Content matches existing data too closely (Recitation).'
-        } else if (finishReason === 'OTHER') {
-          errorMsg = 'Generation stopped due to an unknown miscellaneous reason.'
-        } else {
-          errorMsg = `Generation stopped early: ${finishReason}`
-        }
-        
-        if (errorMsg) {
-          callbacks.onError(errorMsg)
-        }
-      }
-    },
-  })
-    .then(() => {
       const separated = separateThinkingFromContent(fullContent)
       const allThinking = [apiThinking, separated.thinking].filter(Boolean).join('\n')
 

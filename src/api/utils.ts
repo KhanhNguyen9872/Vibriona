@@ -64,7 +64,7 @@ export function getAPIConfig(overrides?: { apiUrl?: string, apiKey?: string, mod
         }
         
         // Append model and action
-        // Note: Caller might need to append :streamGenerateContent or :generateContent
+        // Note: Caller might need to append :generateContent
         if (!endpoint.includes('/models/')) {
             endpoint = `${endpoint}/models/${model}`
         }
