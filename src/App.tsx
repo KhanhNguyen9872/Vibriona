@@ -15,6 +15,7 @@ import ScriptWorkspace from './components/ScriptWorkspace'
 import MobileNavToggle from './components/MobileNavToggle'
 import ResizableDivider from './components/ResizableDivider'
 import SEO from './components/SEO'
+import ConfirmDialog from './components/ConfirmDialog'
 import { useUIStore } from './store/useUIStore'
 import GlobalSearch from './components/GlobalSearch'
 import LoadingScreen from './components/LoadingScreen'
@@ -310,6 +311,7 @@ function App() {
         richColors
         closeButton
         theme={theme === 'dark' ? 'dark' : 'light'}
+        offset="64px"
         toastOptions={{
           className: 'dark:bg-neutral-900 dark:text-white dark:border-neutral-800 bg-white text-neutral-900 border-neutral-200 shadow-lg',
           descriptionClassName: 'text-neutral-500 dark:text-neutral-400',
@@ -324,6 +326,7 @@ function App() {
           },
         }}
       />
+      <ConfirmDialog />
 
 
       <AnimatePresence>

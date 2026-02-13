@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
-import { useSettingsStore } from '../../store/useSettingsStore';
+import { useSettingsStore } from '../store/useSettingsStore';
 import { useTranslation } from 'react-i18next';
-import { fetchModels } from '../../api/models';
-import type { ModelInfo } from '../../api/models';
+import { fetchModels } from '../api/models';
+import type { ModelInfo } from '../api/models';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Trash2, User, X, Check, Pencil, RefreshCw, ChevronDown, Box, Eye, EyeOff, Brain } from 'lucide-react';
+import { Plus, Trash2, User, X, Check, Pencil, RefreshCw, ChevronDown, Box, Eye, EyeOff, Brain, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
-import { API_CONFIG } from '../../config/api';
+import { API_CONFIG } from '../config/api';
+import { confirmAction } from '../utils/confirmAction';
 
 interface Props {
   open: boolean;
@@ -34,6 +35,7 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
   // activeProfileId (Record<STORE>): The profile used for API calls.
   // selectedProfileId (Local UI): The profile currently being viewed/edited in the right panel.
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(activeProfileId);
+  const [showMobileDetail, setShowMobileDetail] = useState(false);
 
   // Model selection state
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -134,6 +136,7 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
     // A new profile has empty key, so it IS incomplete.
     // So we should NOT set active. Just set selected.
     setSelectedProfileId(newId);
+    setShowMobileDetail(true);
     
     setIsCreating(false);
     setNewProfileName('');
@@ -175,24 +178,25 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
     const profileToDelete = profiles.find(p => p.id === id);
     if (!profileToDelete) return;
 
-    toast(t('profiles.deleteConfirmQuestion', { name: profileToDelete.name }), {
-      action: {
-        label: t('profiles.confirm'),
-        onClick: () => {
-          deleteProfile(id);
-          // If we deleted the selected one, select the next available or null
-          if (id === selectedProfileId) {
-              const remaining = profiles.filter(p => p.id !== id);
-              setSelectedProfileId(activeProfileId === id ? (remaining[0]?.id || null) : activeProfileId);
-          }
-          toast.success(t('profiles.deleteConfirm'));
+    confirmAction(
+      t('profiles.deleteConfirmQuestion', { name: profileToDelete.name }),
+      () => {
+        deleteProfile(id);
+        // If we deleted the selected one, select the next available or null
+        if (id === selectedProfileId) {
+            const remaining = profiles.filter(p => p.id !== id);
+            setSelectedProfileId(activeProfileId === id ? (remaining[0]?.id || null) : activeProfileId);
+            setShowMobileDetail(false);
         }
+        toast.success(t('profiles.deleteConfirm'));
       },
-      cancel: {
-        label: t('profiles.cancel'),
-        onClick: () => {}
+      {
+        confirmText: t('profiles.delete'),
+        cancelText: t('chat.cancel'),
+        variant: 'destructive',
+        title: t('profiles.delete')
       }
-    });
+    );
   };
 
   if (!open) return null;
@@ -209,20 +213,29 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        className="w-full max-w-4xl h-[600px] mx-4 border border-neutral-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 rounded-2xl flex overflow-hidden shadow-2xl"
+        className="w-full h-full md:max-w-4xl md:h-[600px] md:mx-4 border border-neutral-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 md:rounded-2xl flex overflow-hidden shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
         {/* Left Sidebar: Profile List */}
-        <div className="w-1/3 border-r border-neutral-200 dark:border-zinc-800 bg-neutral-50 dark:bg-zinc-900/50 flex flex-col">
+        <div className={`w-full md:w-1/3 border-r border-neutral-200 dark:border-zinc-800 bg-neutral-50 dark:bg-zinc-900/50 flex-col ${showMobileDetail ? 'hidden md:flex' : 'flex'}`}>
             <div className="p-4 border-b border-neutral-200 dark:border-zinc-800 flex items-center justify-between">
                 <h2 className="font-semibold text-neutral-900 dark:text-white">{t('profiles.title')}</h2>
-                <button 
-                  onClick={startCreate} 
-                  disabled={isCreating}
-                  className="p-1.5 hover:bg-neutral-200 dark:hover:bg-zinc-800 rounded-md text-neutral-500 dark:text-zinc-400 hover:text-neutral-900 dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    <Plus className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button 
+                    onClick={startCreate} 
+                    disabled={isCreating}
+                    className="p-1.5 hover:bg-neutral-200 dark:hover:bg-zinc-800 rounded-md text-neutral-500 dark:text-zinc-400 hover:text-neutral-900 dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={t('profiles.create')}
+                  >
+                      <Plus className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={() => onOpenChange(false)}
+                    className="md:hidden p-1.5 hover:bg-neutral-200 dark:hover:bg-zinc-800 rounded-md text-neutral-500 dark:text-zinc-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
+                  >
+                      <X className="w-5 h-5" />
+                  </button>
+                </div>
             </div>
             
             <div className="flex-1 overflow-y-auto p-2 space-y-1">
@@ -267,7 +280,12 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                     return (
                     <div
                         key={profile.id}
-                        onClick={() => !editingId && setSelectedProfileId(profile.id)}
+                        onClick={() => {
+                            if (!editingId) {
+                                setSelectedProfileId(profile.id);
+                                setShowMobileDetail(true);
+                            }
+                        }}
                         className={`group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${
                             isSelected && !editingId
                             ? 'bg-neutral-200 dark:bg-zinc-800 border-neutral-300 dark:border-zinc-700' 
@@ -336,7 +354,7 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                                   </div>
                               </div>
                               
-                              <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                   {/* Rename button */}
                                   <button 
                                       onClick={(e) => startEdit(profile.id, profile.name, e)}
@@ -378,9 +396,17 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
         </div>
 
         {/* Right Content: Stats & Settings */}
-        <div className="flex-1 flex flex-col bg-neutral-100/30 dark:bg-zinc-950">
+        <div className={`flex-1 flex-col bg-neutral-100/30 dark:bg-zinc-950 ${showMobileDetail ? 'flex w-full' : 'hidden md:flex'}`}>
              <div className="p-4 border-b border-neutral-200 dark:border-zinc-800 flex items-center justify-between">
-                <h2 className="font-semibold text-neutral-900 dark:text-white">{t('profiles.settings')}</h2>
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={() => setShowMobileDetail(false)}
+                        className="md:hidden p-1 -ml-2 text-neutral-500 hover:text-neutral-900 dark:text-zinc-400 dark:hover:text-white"
+                    >
+                        <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <h2 className="font-semibold text-neutral-900 dark:text-white">{t('profiles.settings')}</h2>
+                </div>
                 <button onClick={() => onOpenChange(false)} className="text-neutral-400 dark:text-zinc-500 hover:text-neutral-900 dark:hover:text-white transition-colors">
                     <X className="w-5 h-5" />
                 </button>

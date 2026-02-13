@@ -176,9 +176,11 @@ export default function ScriptWorkspace() {
         clearSlideSelection()
       },
       {
-        confirm: t('common.yes'),
-        cancel: t('common.no'),
-        description: t('workspace.deleteSelectedDescription')
+        confirmText: t('common.yes'),
+        cancelText: t('common.no'),
+        description: t('workspace.deleteSelectedDescription'),
+        variant: 'destructive',
+        title: t('workspace.deleteSelected')
       }
     )
   }

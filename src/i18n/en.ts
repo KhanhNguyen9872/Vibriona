@@ -5,6 +5,7 @@ const en = {
       cancel: 'Cancel',
       yes: 'Yes',
       no: 'No',
+      confirm: 'Confirm',
     },
     config: {
       title: 'Configuration Required',

@@ -5,6 +5,7 @@ const vi = {
       cancel: 'Hủy',
       yes: 'Có',
       no: 'Không',
+      confirm: 'Xác nhận',
     },
     config: {
       title: 'Cấu hình bắt buộc',

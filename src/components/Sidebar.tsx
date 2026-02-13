@@ -7,7 +7,7 @@ import { MAX_PROJECTS } from '../config/limits'
 import { useSessionStore, type Session } from '../store/useSessionStore'
 import { useQueueStore } from '../store/useQueueStore'
 import { useSettingsStore } from '../store/useSettingsStore'
-import { ProfileManagerDialog } from './profile/ProfileManagerDialog'
+import { ProfileManagerDialog } from './ProfileManagerDialog'
 import {
   MessageSquare,
   Plus,
@@ -75,7 +75,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
     confirmAction(
       t('sessions.deleteConfirm'),
       () => deleteSession(id),
-      { confirm: t('sessions.deleteSession'), cancel: t('chat.cancel') },
+      { confirmText: t('sessions.deleteSession'), cancelText: t('chat.cancel'), variant: 'destructive', title: t('sessions.deleteSession') },
     )
   }
 
@@ -445,7 +445,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                                         confirmAction(
                                             t('sessions.deleteAllConfirm'),
                                             clearSessions,
-                                            { confirm: t('sessions.deleteAll'), cancel: t('chat.cancel') }
+                                            { confirmText: t('sessions.deleteAll'), cancelText: t('chat.cancel'), variant: 'destructive', title: t('sessions.deleteAll') }
                                         );
                                     }}
                                     className="w-full flex items-center gap-2 px-3 py-2 text-[11px] font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"

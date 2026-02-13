@@ -207,9 +207,11 @@ export default function SlideCard({
         )
       },
       {
-        confirm: t('workspace.enhance'),
-        cancel: t('chat.cancel'),
+        confirmText: t('workspace.enhance'),
+        cancelText: t('chat.cancel'),
         description: t('workspace.enhanceDescription'),
+        title: t('workspace.enhanceConfirm'),
+        variant: 'default',
       }
     )
   }
@@ -240,7 +242,7 @@ export default function SlideCard({
     confirmAction(
       t('workspace.deleteSlideConfirm', { number: slide.slide_number }),
       () => deleteSlide(index),
-      { confirm: t('workspace.delete'), cancel: t('chat.cancel') },
+      { confirmText: t('workspace.delete'), cancelText: t('chat.cancel'), variant: 'destructive', title: t('workspace.delete') },
     )
   }
 

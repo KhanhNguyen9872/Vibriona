@@ -57,7 +57,7 @@ export default function MessageList({ messages, isStreaming, streamingThinking }
         clearCurrentMessages()
         toast.success(t('chat.chatCleared'))
       },
-      { confirm: t('chat.clearChat'), cancel: t('chat.cancel') },
+      { confirmText: t('chat.clearChat'), cancelText: t('chat.cancel'), variant: 'destructive', title: t('chat.clearChat') },
     )
   }
 
