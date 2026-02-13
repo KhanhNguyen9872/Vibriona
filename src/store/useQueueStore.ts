@@ -4,6 +4,7 @@ import { useSettingsStore } from './useSettingsStore'
 import { useSessionStore } from './useSessionStore'
 import { extractCompletionMessage } from '../api/parseStream'
 import type { Slide } from '../api/prompt'
+import { toast } from 'sonner'
 
 export interface QueueItem {
   id: string
@@ -322,7 +323,12 @@ ${JSON.stringify(requestedSlides, null, 2)}
                 // Finally complete the item
                 get().completeActive(next.id, ft, s, th, cm)
               },
-              onError: (err) => get().failActive(next.id, err)
+              onError: (err) => {
+                get().failActive(next.id, err)
+                if (err.includes('CORS Error')) {
+                  toast.error(err)
+                }
+              }
             }, newHistory)
 
             // Update active controller
@@ -343,6 +349,9 @@ ${JSON.stringify(requestedSlides, null, 2)}
       },
       onError: (error) => {
         get().failActive(next.id, error)
+        if (error.includes('CORS Error')) {
+          toast.error(error)
+        }
       },
     }, history)
 

@@ -277,7 +277,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                         }`}
                     >
                       <div className="relative shrink-0">
-                        <MessageSquare className="w-3.5 h-3.5 text-neutral-400" />
+                        <MessageSquare className={`w-3.5 h-3.5 ${isProjectProcessing(session.id) ? 'text-neutral-400' : 'text-neutral-400'}`} />
                         {session.pinned && (
                           <Pin className="w-2 h-2 text-amber-500 absolute -top-1 -right-1" />
                         )}
@@ -304,7 +304,9 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                           </p>
                           <div className="flex items-center gap-2">
                             {isProjectProcessing(session.id) && (
-                              <span className="dot-typing-mini scale-75 origin-right" />
+                              <div className="dot-typing-mini text-neutral-400">
+                                <span /><span /><span />
+                              </div>
                             )}
                             {session.slides && session.slides.length > 0 && (
                               <span className="text-[10px] font-medium text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-1.5 rounded-full">
@@ -380,11 +382,33 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                     <div className="flex flex-col items-center gap-2">
                         <button
                             onClick={handleNewChatClick}
-                            className="p-2 rounded-lg text-neutral-400 hover:bg-neutral-200/60 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                            className="p-2 rounded-lg text-neutral-400 hover:bg-neutral-200/60 dark:hover:bg-neutral-800 transition-colors cursor-pointer mb-1"
                             title={t('sessions.newChat')}
                         >
                             <Plus className="w-4 h-4" />
                         </button>
+                        {sortedSessions.map((session) => (
+                          <button
+                            key={session.id}
+                            onClick={() => handleSelect(session.id)}
+                            className={`p-2 rounded-lg transition-all duration-200 cursor-pointer relative group ${session.id === currentSessionId
+                                ? 'bg-neutral-200/70 dark:bg-neutral-800 text-neutral-900 dark:text-white'
+                                : 'text-neutral-400 hover:bg-neutral-200/40 dark:hover:bg-neutral-800/40'
+                              }`}
+                            title={session.title}
+                          >
+                            {isProjectProcessing(session.id) ? (
+                              <div className="dot-typing-mini text-neutral-500 py-1.5 px-0.5">
+                                <span /><span /><span />
+                              </div>
+                            ) : (
+                              <MessageSquare className="w-4 h-4" />
+                            )}
+                            {session.pinned && (
+                              <Pin className="w-2 h-2 text-amber-500 absolute -top-0.5 -right-0.5" />
+                            )}
+                          </button>
+                        ))}
                     </div>
                 )}
                </AnimatePresence>

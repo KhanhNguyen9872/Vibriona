@@ -6,22 +6,28 @@ import { useSessionStore } from '../store/useSessionStore'
 import { useQueueStore } from '../store/useQueueStore'
 
 export default function MobileNavToggle({ className = '' }: { className?: string }) {
-  const { mobileActiveTab, setMobileActiveTab } = useUIStore()
+  const { mobileActiveTab, setMobileActiveTab, heroHold } = useUIStore()
   const { t } = useTranslation()
   const { getCurrentSession, currentSessionId } = useSessionStore()
-  const { items, isProjectProcessing } = useQueueStore()
+  const { items, getActiveProcessForProject } = useQueueStore()
 
   const currentSession = getCurrentSession()
   const projectId = currentSessionId || ''
-  const isCurrentProjectProcessing = isProjectProcessing(projectId)
+  const activeItem = getActiveProcessForProject(projectId)
+  
+  // Intent-Aware: Only consider it "slide data" if action is slide-related
+  const isSlideAction = activeItem?.responseAction === 'create' || 
+                        activeItem?.responseAction === 'append' || 
+                        activeItem?.responseAction === 'update'
+  const hasReceivedSlideAction = activeItem?.hasReceivedAction && isSlideAction
 
   const hasSlideData =
-    isCurrentProjectProcessing ||
+    hasReceivedSlideAction ||
     items.some((i) => i.status === 'done' && i.slides && i.slides.length > 0 && i.projectId === projectId) ||
     (currentSession?.slides && currentSession.slides.length > 0)
 
-  // Only show toggle if there is content to toggle between
-  if (!hasSlideData) return null
+  // Only show toggle if there is content to toggle between AND not in hero hold state
+  if (!hasSlideData || heroHold) return null
 
   return (
     <div className={`md:hidden flex items-center bg-neutral-100 dark:bg-neutral-800 p-1 rounded-full border border-neutral-200 dark:border-neutral-700 ${className}`}>

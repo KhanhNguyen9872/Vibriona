@@ -132,6 +132,9 @@ export default function HeroChatInput() {
           },
           onError: (error) => {
             console.warn('Streaming error:', error)
+            if (error.includes('CORS Error')) {
+              toast.error(error)
+            }
             setSuggestions(fallbackSuggestions)
             setLoadedSuggestionsCount(4)
             setIsLoadingSuggestions(false)
@@ -194,6 +197,9 @@ export default function HeroChatInput() {
         },
         onError: (error) => {
           console.warn('Refresh error:', error)
+          if (error.includes('CORS Error')) {
+            toast.error(error)
+          }
           setSuggestions(fallbackSuggestions)
           setLoadedSuggestionsCount(4)
           setIsLoadingSuggestions(false)

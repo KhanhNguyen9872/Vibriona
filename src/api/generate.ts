@@ -158,9 +158,9 @@ export function streamGenerate(
       if (axios.isCancel(err)) return
 
       const status = err.response?.status
-      let message = parseAPIError(err) || 'Connection failed'
+      let message = parseAPIError(err)
 
-      if (message === 'Connection failed') {
+      if (!message || message === 'Connection failed') {
         if (status === 401) {
           message = 'Invalid API key (401 Unauthorized)'
         } else if (status === 403) {
@@ -173,9 +173,11 @@ export function streamGenerate(
           message = `Server error (${status})`
         } else if (err.code === 'ERR_NETWORK') {
           message = 'Network error. Is the API server running?'
-        } else if (err.message) {
-          message = err.message
+        } else {
+          message = err.message || 'Connection failed'
         }
+      } else {
+        message = message || err.message || 'Connection failed'
       }
 
       callbacks.onError(message, status)

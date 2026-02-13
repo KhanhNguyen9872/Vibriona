@@ -11,7 +11,7 @@ export interface ModelInfo {
  */
 export async function fetchModels(apiUrl: string, apiKey: string, apiType: ApiType = 'openai'): Promise<ModelInfo[]> {
   if (apiType === 'ollama') {
-    const base = apiUrl.replace(/\/+$/, '').replace(/\/api$/, '')
+    const base = apiUrl.replace(/\/+$/, '').replace(/\/api\/chat$/, '').replace(/\/api$/, '')
     const { data } = await axios.get(`${base}/api/tags`, {
       headers: { 'Content-Type': 'application/json' },
       timeout: 10000,
@@ -25,7 +25,7 @@ export async function fetchModels(apiUrl: string, apiKey: string, apiType: ApiTy
   }
 
   if (apiType === 'gemini') {
-    const base = apiUrl.replace(/\/+$/, '').replace(/\/v1$/, '').replace(/\/v1beta$/, '')
+    const base = apiUrl.replace(/\/+$/, '').replace(/\/v\d+$/, '').replace(/\/v\d+beta$/, '')
     const { data } = await axios.get(`${base}/v1beta/models`, {
       headers: {
         'Content-Type': 'application/json',
@@ -42,7 +42,7 @@ export async function fetchModels(apiUrl: string, apiKey: string, apiType: ApiTy
   }
 
   // OpenAI-compatible / Gemini Proxy
-  const base = apiUrl.replace(/\/+$/, '').replace(/\/chat\/completions$/, '').replace(/\/v1$/, '')
+  const base = apiUrl.replace(/\/+$/, '').replace(/\/chat\/completions$/, '').replace(/\/v\d+$/, '')
   const { data } = await axios.get(`${base}/v1/models`, {
     headers: {
       'Content-Type': 'application/json',

@@ -41,6 +41,20 @@ body {
 .dot-typing span:nth-child(2) { animation-delay: 0.15s; }
 .dot-typing span:nth-child(3) { animation-delay: 0.3s; }
 
+.dot-typing-mini {
+  display: flex;
+  gap: 2px;
+}
+.dot-typing-mini span {
+  width: 3px;
+  height: 3px;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: dot-bounce 1.2s ease-in-out infinite;
+}
+.dot-typing-mini span:nth-child(2) { animation-delay: 0.15s; }
+.dot-typing-mini span:nth-child(3) { animation-delay: 0.3s; }
+
 /* Skeleton shimmer sweep */
 @keyframes shimmer {
   0%   { transform: translateX(-100%); }

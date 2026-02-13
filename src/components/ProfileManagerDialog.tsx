@@ -66,6 +66,7 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const modelInputRef = useRef<HTMLInputElement>(null);
 
   // Sync selection when dialog opens or active changes (if nothing selected)
   if (selectedProfileId === null && activeProfileId) {
@@ -197,11 +198,24 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
       if (fetched.length > 0) {
         setDropdownOpen(true);
         toast.success(t('settings.modelsFetched', { count: fetched.length }));
+        
+        // Auto-clear if current is not in fetched
+        const currentModel = draft.selectedModel.trim();
+        if (currentModel && !fetched.some(m => m.id === currentModel)) {
+          updateDraft('selectedModel', '');
+          setTimeout(() => modelInputRef.current?.focus(), 100);
+        }
       } else {
         toast.info(t('profiles.fetchModelsNone'));
       }
-    } catch {
-      toast.error(t('profiles.fetchModelsError'));
+    } catch (err: any) {
+      if (err.code === 'ERR_NETWORK' && !err.response) {
+          toast.error("CORS Error: The server rejected the request. Ensure the API server allows requests from this domain.", {
+              description: "Common for local LLMs like Ollama (OLLAMA_ORIGINS) or custom proxies."
+          });
+      } else {
+          toast.error(t('profiles.fetchModelsError'));
+      }
     } finally {
       setFetching(false);
     }
@@ -648,6 +662,7 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                              <div className="relative" ref={dropdownRef}>
                                 <Box className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 dark:text-zinc-500 z-10" />
                                 <input 
+                                    ref={modelInputRef}
                                     value={draft.selectedModel}
                                     onChange={(e) => {
                                         updateDraft('selectedModel', e.target.value);

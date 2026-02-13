@@ -353,11 +353,6 @@ function App() {
               >
                 <img src={`${import.meta.env.BASE_URL}assets/logo.png`} alt="Logo" className="w-7 h-7 object-contain" />
                 <span className="text-sm font-bold tracking-tight max-[480px]:hidden">{t('app.title')}</span>
-                {isStreaming && (
-                  <span className="dot-typing text-neutral-400 ml-0.5">
-                    <span /><span /><span />
-                  </span>
-                )}
               </div>
             </div>
 
@@ -394,6 +389,8 @@ function App() {
 
             {/* Right side actions */}
             <div className={`flex items-center gap-2 ${isMobile && isMobileSearchOpen ? 'hidden' : 'flex'}`}>
+              <MobileNavToggle />
+
               {isMobile && (
                 <button
                   onClick={() => setIsMobileSearchOpen(true)}
@@ -402,8 +399,6 @@ function App() {
                   <Search className="w-[18px] h-[18px] text-neutral-500" />
                 </button>
               )}
-
-              <MobileNavToggle />
 
               <button
                 onClick={() => setShowSettings(true)}

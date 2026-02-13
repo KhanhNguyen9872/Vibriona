@@ -45,7 +45,13 @@ export function getAPIConfig(overrides?: { apiUrl?: string, apiKey?: string, mod
 
     // Specialize based on apiType
     if (apiType === 'ollama') {
-        endpoint = `${endpoint}/chat`
+        if (!endpoint.endsWith('/api/chat')) {
+            if (endpoint.endsWith('/api')) {
+                endpoint = `${endpoint}/chat`
+            } else if (!endpoint.includes('/api/')) {
+                endpoint = `${endpoint}/api/chat`
+            }
+        }
     } else if (apiType === 'gemini') {
         // Native Gemini (Google AI API)
         // Ensure version is present (v1beta or v1)
@@ -62,11 +68,14 @@ export function getAPIConfig(overrides?: { apiUrl?: string, apiKey?: string, mod
         if (apiKey) headers['x-goog-api-key'] = apiKey
     } else {
         // Default to OpenAI compatible
-        if (!endpoint.split('/').pop()?.includes('v1') && !endpoint.includes('openai.com')) {
-            // endpoint = `${endpoint}/v1`
-        }
-        if (!endpoint.endsWith('/chat/completions')) {
-            endpoint = `${endpoint}/chat/completions`
+        if (!endpoint.includes('/chat/completions')) {
+            if (!endpoint.includes('/v') || !/\/\s*v\d+/.test(endpoint)) {
+                // No version (v1, v2, etc) found, usually OpenAI compatible needs /v1
+                if (!endpoint.endsWith('/v1')) {
+                    endpoint = endpoint.endsWith('/') ? `${endpoint}v1` : `${endpoint}/v1`
+                }
+            }
+            endpoint = endpoint.endsWith('/') ? `${endpoint}chat/completions` : `${endpoint}/chat/completions`
         }
         if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
     }
@@ -127,10 +136,21 @@ export function parseAPIError(error: any): string {
         }
     }
 
+    if ((error.code === 'ERR_NETWORK' && !error.response) || error.message === 'Failed to fetch') {
+        return 'CORS Error or Network Error. Check if your API server allows requests from this domain.'
+    }
+
     if (error.message === 'No response body') return error.message
     if (error.message?.includes('No suggestions found')) return error.message
 
     return '' // Fallback to existing logic in callers if empty
+}
+
+/**
+ * Check if an error is likely due to CORS restrictions
+ */
+export function isLikelyCorsError(error: any): boolean {
+    return error.code === 'ERR_NETWORK' && !error.response
 }
 
 export function parseStreamingContent(parsed: any): string {
