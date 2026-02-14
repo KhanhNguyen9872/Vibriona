@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import { streamGenerate, type HistoryMessage } from '../api/generate'
+import { compactConversation } from '../api/compact'
+import { API_CONFIG } from '../config/api'
 import { useSettingsStore } from './useSettingsStore'
 import { useSessionStore } from './useSessionStore'
 import { extractCompletionMessage } from '../api/parseStream'
@@ -81,7 +83,7 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
     }
   },
 
-  processNext: () => {
+  processNext: async () => {
     const { items, activeProcesses } = get()
 
     // Find next queued item whose project is not already processing
@@ -94,24 +96,130 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
     const apiType = settings.getApiType()
     const selectedModel = settings.getModel()
 
-    // Build conversation history from the project's session (sliding window of 10)
-    const sessions = useSessionStore.getState().sessions
+    const sessionStore = useSessionStore.getState()
+    const sessions = sessionStore.sessions
     const projectSession = sessions.find(s => s.id === next.projectId)
-    const history: HistoryMessage[] = (projectSession?.messages ?? [])
-      .slice(-10)
-      .map((msg) => {
-        let content = msg.content
-        // For assistant script-generation messages, provide a compact summary
-        // instead of raw JSON to save tokens
-        if (msg.role === 'assistant' && msg.isScriptGeneration && msg.slides && msg.slides.length > 0) {
-          const afterJson = extractCompletionMessage(msg.content)
-          const slideList = msg.slides.map((s) => `${s.slide_number}. ${s.title}`).join(', ')
-          content = afterJson
-            ? `${afterJson}\n[Slides: ${slideList}]`
-            : `Generated ${msg.slides.length} slides: ${slideList}`
-        }
-        return { role: msg.role, content }
+    
+    // Check if compaction is needed
+    const messages = projectSession?.messages ?? []
+    const uncompactedMessages = projectSession?.lastCompactedIndex 
+      ? messages.slice(projectSession.lastCompactedIndex)
+      : messages
+    
+    // Trigger compaction if uncompacted messages >= threshold
+    const shouldCompact = uncompactedMessages.length >= API_CONFIG.COMPACTION_THRESHOLD
+    
+    if (shouldCompact && projectSession) {
+      // Show compaction indicator
+      const compactingMsgId = sessionStore.addMessage({
+        role: 'assistant',
+        content: 'Compacting conversation...',
+        timestamp: Date.now(),
+        isScriptGeneration: false,
+        isThinking: true,
       })
+
+      try {
+        // Messages to compact: all 10 uncompacted messages (no safety buffer)
+        const messagesToCompact = uncompactedMessages.slice(0, API_CONFIG.COMPACTION_THRESHOLD)
+        
+        // If we have existing compacted context, prepend it
+        const messagesToSummarize = projectSession.compactedContext
+          ? [
+              {
+                id: 'compact-previous',
+                role: 'assistant' as const,
+                content: `[Previous summary: ${projectSession.compactedContext}]`,
+                timestamp: 0,
+                isScriptGeneration: false,
+              },
+              ...messagesToCompact
+            ]
+          : messagesToCompact
+        
+        await new Promise<void>((resolve, reject) => {
+          compactConversation(
+            messagesToSummarize,
+            apiUrl,
+            apiKey,
+            selectedModel,
+            apiType,
+            {
+              onComplete: (summary) => {
+                // Save new compacted summary (includes old compact + new messages)
+                const newCompactedIndex = projectSession.lastCompactedIndex 
+                  ? projectSession.lastCompactedIndex + messagesToCompact.length
+                  : messagesToCompact.length
+                
+                sessionStore.compactConversation(next.projectId, summary, newCompactedIndex)
+                
+                // Remove compaction indicator message
+                sessionStore.updateMessage(compactingMsgId, {
+                  content: '',
+                  isThinking: false,
+                })
+                resolve()
+              },
+              onError: (error) => {
+                // Remove compaction indicator on error, but continue with normal processing
+                sessionStore.updateMessage(compactingMsgId, {
+                  content: '',
+                  isThinking: false,
+                })
+                reject(error)
+              }
+            }
+          )
+        })
+
+        // Refresh session after compaction
+        const updatedSession = useSessionStore.getState().sessions.find(s => s.id === next.projectId)
+        if (updatedSession) {
+          Object.assign(projectSession, updatedSession)
+        }
+      } catch (error) {
+        console.warn('Compaction failed, continuing with normal processing:', error)
+      }
+    }
+
+    // Build conversation history - use compacted context if available
+    let history: HistoryMessage[] = []
+    
+    if (projectSession?.compactedContext) {
+      // Use compacted summary + all recent messages after compaction
+      const lastCompactedIndex = projectSession.lastCompactedIndex || 0
+      const recentMessages = messages.slice(lastCompactedIndex)
+      
+      history = [
+        { role: 'assistant', content: `[Previous conversation summary: ${projectSession.compactedContext}]` },
+        ...recentMessages.map((msg) => {
+          let content = msg.content
+          if (msg.role === 'assistant' && msg.isScriptGeneration && msg.slides && msg.slides.length > 0) {
+            const afterJson = extractCompletionMessage(msg.content)
+            const slideList = msg.slides.map((s) => `${s.slide_number}. ${s.title}`).join(', ')
+            content = afterJson
+              ? `${afterJson}\n[Slides: ${slideList}]`
+              : `Generated ${msg.slides.length} slides: ${slideList}`
+          }
+          return { role: msg.role, content }
+        })
+      ]
+    } else {
+      // Normal sliding window (last 10 messages)
+      history = messages
+        .slice(-10)
+        .map((msg) => {
+          let content = msg.content
+          if (msg.role === 'assistant' && msg.isScriptGeneration && msg.slides && msg.slides.length > 0) {
+            const afterJson = extractCompletionMessage(msg.content)
+            const slideList = msg.slides.map((s) => `${s.slide_number}. ${s.title}`).join(', ')
+            content = afterJson
+              ? `${afterJson}\n[Slides: ${slideList}]`
+              : `Generated ${msg.slides.length} slides: ${slideList}`
+          }
+          return { role: msg.role, content }
+        })
+    }
 
     // Mark item as processing and add to activeProcesses
     const processingItem = { ...next, status: 'processing' as const, streamingText: '', thinkingText: '' }

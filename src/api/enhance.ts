@@ -55,9 +55,7 @@ export function enhanceSlide(
     ]
     body.temperature = API_CONFIG.DEFAULT_TEMPERATURE
     body.stream = true
-    if (apiType !== 'ollama') {
-      body.max_tokens = API_CONFIG.MAX_TOKENS
-    }
+    body.max_tokens = API_CONFIG.MAX_TOKENS
   }
 
   // Choose request config based on API type

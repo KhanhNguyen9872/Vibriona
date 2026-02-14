@@ -63,9 +63,7 @@ export async function generateDynamicSuggestions(
                 content: languagePrompt,
             },
         ]
-        if (config.apiType !== 'ollama') {
-            body.max_tokens = API_CONFIG.MAX_TOKENS
-        }
+        body.max_tokens = API_CONFIG.MAX_TOKENS
     }
 
     const response = await fetch(url, {

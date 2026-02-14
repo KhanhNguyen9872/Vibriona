@@ -30,6 +30,7 @@ export interface ChatMessage {
     allowCustom?: boolean
   }
   selectedOption?: string // Persisted selection
+  isCompacted?: boolean // Mark messages included in a compaction
 }
 
 export interface Session {
@@ -40,6 +41,9 @@ export interface Session {
   timestamp: number
   selectedSlideIndices?: number[]
   pinned?: boolean
+  compactedContext?: string // AI-generated summary of old messages
+  compactedAt?: number // Timestamp when compaction occurred
+  lastCompactedIndex?: number // Index of last message included in compaction
 }
 
 interface SessionState {
@@ -84,6 +88,10 @@ interface SessionState {
   removeProcessingSlide: (slideNumber: number) => void
   clearProcessingSlides: () => void
   clearSessions: () => void
+  // Conversation compaction
+  compactConversation: (sessionId: string, summary: string, upToIndex: number) => void
+  getUncompactedMessages: () => ChatMessage[]
+  clearCompaction: (sessionId: string) => void
 }
 
 export const useSessionStore = create<SessionState>()(
@@ -465,6 +473,47 @@ export const useSessionStore = create<SessionState>()(
       })),
 
       clearProcessingSlides: () => set({ processingSlideNumbers: [] }),
+
+      // Conversation compaction
+      compactConversation: (sessionId, summary, upToIndex) =>
+        set((state) => ({
+          sessions: state.sessions.map((s) =>
+            s.id === sessionId
+              ? {
+                  ...s,
+                  compactedContext: summary,
+                  compactedAt: Date.now(),
+                  lastCompactedIndex: upToIndex,
+                  messages: s.messages.map((msg, idx) =>
+                    idx < upToIndex ? { ...msg, isCompacted: true } : msg
+                  ),
+                }
+              : s
+          ),
+        })),
+
+      getUncompactedMessages: () => {
+        const { sessions, currentSessionId } = get()
+        const session = sessions.find((s) => s.id === currentSessionId)
+        if (!session) return []
+        const lastCompactedIndex = session.lastCompactedIndex || 0
+        return session.messages.slice(lastCompactedIndex)
+      },
+
+      clearCompaction: (sessionId) =>
+        set((state) => ({
+          sessions: state.sessions.map((s) =>
+            s.id === sessionId
+              ? {
+                  ...s,
+                  compactedContext: undefined,
+                  compactedAt: undefined,
+                  lastCompactedIndex: undefined,
+                  messages: s.messages.map((msg) => ({ ...msg, isCompacted: false })),
+                }
+              : s
+          ),
+        })),
     }),
     {
       name: STORAGE_KEYS.SESSIONS,

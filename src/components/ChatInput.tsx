@@ -4,10 +4,58 @@ import { motion, AnimatePresence } from 'motion/react'
 import { useQueueStore } from '../store/useQueueStore'
 import { useSessionStore } from '../store/useSessionStore'
 import { useSettingsStore } from '../store/useSettingsStore'
+import { API_CONFIG } from '../config/api'
+import { STORAGE_KEYS } from '../config/defaults'
+import { SYSTEM_PROMPT } from '../api/prompt'
 import { toast } from 'sonner'
-import { Sparkles, Loader2, Square, AlertCircle, X, Layers, Pencil } from 'lucide-react'
+import { Sparkles, Loader2, Square, AlertCircle, X, Layers, Pencil, AlertTriangle } from 'lucide-react'
 
 const MAX_CHARS = 4096
+
+/** Circular progress icon: current/max (e.g. uncompacted messages before next compact). */
+function ContextProgressIcon({ current, max }: { current: number; max: number }) {
+  const progress = max > 0 ? Math.min(current / max, 1) : 0
+  const size = 16
+  const stroke = 2
+  const r = (size - stroke) / 2 - 1
+  const circumference = 2 * Math.PI * r
+  const offset = circumference * (1 - progress)
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      className="shrink-0"
+      aria-hidden
+    >
+      {/* Background ring */}
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        opacity={0.2}
+      />
+      {/* Progress ring */}
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        className="transition-[stroke-dashoffset] duration-300"
+      />
+    </svg>
+  )
+}
 
 interface ChatInputProps {
   className?: string
@@ -17,8 +65,10 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
   const { t } = useTranslation()
   const [prompt, setPrompt] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [contextTooltipOpen, setContextTooltipOpen] = useState(false)
+  const contextTooltipRef = useRef<HTMLDivElement>(null)
   const { addToQueue, cancelProjectProcess, isProjectProcessing, items } = useQueueStore()
-  const { addMessage, createSession, currentSessionId, clearSlideSelection, getSelectedSlideIndices, getCurrentSession, setProcessingSlides } = useSessionStore()
+  const { addMessage, createSession, currentSessionId, clearSlideSelection, getSelectedSlideIndices, getCurrentSession, setProcessingSlides, clearCompaction } = useSessionStore()
   const { isConfigured } = useSettingsStore()
 
   const currentSession = getCurrentSession()
@@ -44,6 +94,68 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
     return trimmed.split(/\s+/).length
   }, [prompt])
   const isOverLimit = charCount > MAX_CHARS
+  
+  // Check for long conversation warning (total message count only, show once per project)
+  const messageCount = currentSession?.messages.length || 0
+  const warningStorageKey = currentSessionId ? `${STORAGE_KEYS.CONTEXT_WARNING_SHOWN}-${currentSessionId}` : ''
+  const warningAlreadyShown = warningStorageKey ? sessionStorage.getItem(warningStorageKey) === '1' : false
+  const shouldShowWarning =
+    messageCount >= API_CONFIG.CONTEXT_WARNING_THRESHOLD && !warningAlreadyShown
+
+  // Context = exactly what we send to the bot: system prompt + chat (compacted + messages)
+  const contextStats = useMemo(() => {
+    const messages = currentSession?.messages ?? []
+    const lastCompactedIndex = currentSession?.lastCompactedIndex ?? 0
+    const uncompactedCount = lastCompactedIndex > 0 ? messages.length - lastCompactedIndex : messages.length
+    const compactedChars = currentSession?.compactedContext?.length ?? 0
+    const recentMessages = lastCompactedIndex > 0 ? messages.slice(lastCompactedIndex) : messages
+    const messagesChars = recentMessages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0)
+    const systemChars = SYSTEM_PROMPT.length
+    const chatChars = compactedChars + messagesChars
+    const totalContextChars = systemChars + chatChars
+    const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n))
+    return {
+      uncompactedCount,
+      maxBeforeCompact: API_CONFIG.COMPACTION_THRESHOLD,
+      systemChars,
+      chatChars,
+      totalContextChars,
+      totalContextLabel: fmt(totalContextChars),
+      systemLabel: fmt(systemChars),
+      chatLabel: fmt(chatChars),
+    }
+  }, [currentSession?.messages, currentSession?.lastCompactedIndex, currentSession?.compactedContext])
+
+  const handleResetContext = () => {
+    if (currentSessionId) {
+      clearCompaction(currentSessionId)
+      sessionStorage.removeItem(`${STORAGE_KEYS.CONTEXT_WARNING_SHOWN}-${currentSessionId}`)
+      toast.success(t('chat.contextReset'))
+    }
+  }
+
+  // Mark warning as shown once displayed (so we only show once per project)
+  useEffect(() => {
+    if (shouldShowWarning && warningStorageKey) {
+      sessionStorage.setItem(warningStorageKey, '1')
+    }
+  }, [shouldShowWarning, warningStorageKey])
+
+  // Mobile: close context tooltip when tapping outside
+  useEffect(() => {
+    if (!contextTooltipOpen) return
+    const close = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node
+      if (contextTooltipRef.current?.contains(target)) return
+      setContextTooltipOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    document.addEventListener('touchstart', close, { passive: true })
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('touchstart', close)
+    }
+  }, [contextTooltipOpen])
 
   // Auto-resize textarea
   useEffect(() => {
@@ -178,6 +290,39 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
         </div>
       )}
 
+      {/* Long conversation warning */}
+      <AnimatePresence>
+        {shouldShowWarning && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+            animate={{ opacity: 1, height: 'auto', marginBottom: 8 }}
+            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+            transition={{ duration: 0.2 }}
+            className="max-w-full mx-auto overflow-hidden"
+          >
+            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-amber-900 dark:text-amber-200">
+                    {t('chat.longContextWarning')}
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                    {t('chat.longContextDescription')}
+                  </p>
+                </div>
+                <button
+                  onClick={handleResetContext}
+                  className="text-xs font-medium text-amber-600 dark:text-amber-500 hover:text-amber-700 dark:hover:text-amber-400 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  {t('chat.resetContext')}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="max-w-full mx-auto">
         <div className={`relative border rounded-2xl transition-all ${isProcessing
             ? 'bg-neutral-100 dark:bg-zinc-800/50 border-neutral-200 dark:border-zinc-600/50'
@@ -223,6 +368,41 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
                   {t('chat.cancel')}
                 </button>
               )}
+              {/* Context usage: progress indicator (current/max) + tooltip (hover on desktop, tap to toggle on mobile) */}
+              <div ref={contextTooltipRef} className="relative group">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-label={t('chat.contextUsedLabel')}
+                  onClick={() => setContextTooltipOpen((prev) => !prev)}
+                  onKeyDown={(e) => e.key === 'Enter' && setContextTooltipOpen((prev) => !prev)}
+                  className="p-1.5 rounded-lg text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-400 transition-colors cursor-pointer flex items-center justify-center touch-manipulation"
+                >
+                  <ContextProgressIcon
+                    current={contextStats.uncompactedCount}
+                    max={contextStats.maxBeforeCompact}
+                  />
+                </div>
+                <div
+                  className={`absolute bottom-full right-0 mb-1.5 px-2.5 py-1.5 rounded-lg w-max max-w-[min(90vw,320px)] border border-neutral-600 dark:border-neutral-400 bg-neutral-800 text-white dark:bg-neutral-100 dark:text-neutral-900 text-[11px] font-medium shadow-xl z-50 space-y-0.5 transition-opacity ${
+                    contextTooltipOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none group-hover:opacity-100'
+                  }`}
+                >
+                  <div className="whitespace-nowrap">
+                    <span>{contextStats.uncompactedCount}/{contextStats.maxBeforeCompact}</span>
+                    <span className="text-neutral-300 dark:text-neutral-500 mx-1">·</span>
+                    <span>{contextStats.totalContextLabel}</span>
+                    <span className="text-neutral-400 dark:text-neutral-600 ml-1">{t('chat.contextUsedLabel')}</span>
+                  </div>
+                  <div className="text-neutral-300 dark:text-neutral-600 whitespace-nowrap">
+                    {t('chat.contextSystem')}: {contextStats.systemLabel}
+                  </div>
+                  <div className="text-neutral-300 dark:text-neutral-600 whitespace-nowrap">
+                    {t('chat.contextChat')}: {contextStats.chatLabel}
+                  </div>
+                  <div className="absolute -bottom-1 right-4 w-2 h-2 bg-neutral-800 dark:bg-neutral-100 rotate-45" />
+                </div>
+              </div>
               <button
                 onClick={handleSubmit}
                 disabled={!prompt.trim() || isOverLimit || isProcessing}

@@ -236,6 +236,14 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
 
   const selectedModelInfo = models.find(m => m.id === draft?.selectedModel);
 
+  // Config MAX_TOKENS exceeds this model's limit → show row in red
+  const modelExceedsLimit = (m: ModelInfo) => {
+    const maxTokens = API_CONFIG.MAX_TOKENS
+    if (m.contextWindow != null && maxTokens > m.contextWindow) return true
+    if (m.outputTokenLimit != null && maxTokens > m.outputTokenLimit) return true
+    return false
+  }
+
   // --- Creation Handlers ---
   const startCreate = () => {
     setIsCreating(true);
@@ -727,15 +735,18 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                                         style={{ transformOrigin: 'top' }}
                                         className="absolute top-full left-0 right-0 z-50 mt-1.5 max-h-80 overflow-y-auto rounded-lg border border-neutral-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl"
                                     >
-                                        {filteredModels.map((m) => (
+                                        {filteredModels.map((m) => {
+                                            const overLimit = modelExceedsLimit(m)
+                                            return (
                                         <button
                                             key={m.id}
                                             type="button"
                                             onClick={() => handleSelectModel(m.id)}
+                                            title={overLimit ? t('profiles.modelOverTokenLimit') : undefined}
                                             className={`w-full flex items-center justify-between px-3.5 py-2 text-left text-xs font-mono transition-colors cursor-pointer hover:bg-neutral-100 dark:hover:bg-zinc-800 ${m.id === draft.selectedModel
                                                 ? 'text-neutral-900 dark:text-white bg-neutral-100 dark:bg-zinc-800/50'
                                                 : 'text-neutral-500 dark:text-zinc-400'
-                                            }`}
+                                            } ${overLimit ? '!text-red-600 dark:!text-red-400' : ''}`}
                                         >
                                             <div className="flex items-center gap-2.5 overflow-hidden">
                                                 {m.id === draft.selectedModel ? (
@@ -751,7 +762,8 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                                                 </div>
                                             )}
                                         </button>
-                                        ))}
+                                            )
+                                        })}
                                         {filteredModels.length === 0 && (
                                             <div className="px-3.5 py-2 text-xs text-zinc-500">{t('profiles.noModels')}</div>
                                         )}
