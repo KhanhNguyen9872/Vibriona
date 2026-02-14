@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useSettingsStore } from '../store/useSettingsStore';
-import type { UserProfile } from '../store/useSettingsStore';
+import type { UserProfile, SystemPromptType } from '../store/useSettingsStore';
 import { useTranslation } from 'react-i18next';
 import { fetchModels } from '../api/models';
 import type { ModelInfo } from '../api/models';
@@ -9,6 +9,14 @@ import { Plus, Trash2, User, X, Check, Pencil, RefreshCw, ChevronDown, Box, Eye,
 import { toast } from 'sonner';
 import { API_CONFIG } from '../config/api';
 import { confirmAction } from '../utils/confirmAction';
+import { getSystemPromptLength } from '../api/prompt';
+import Select, { type StylesConfig } from 'react-select';
+
+function formatPromptSize(len: number): string {
+  return len >= 1000 ? `${(len / 1000).toFixed(1)}K` : String(len);
+}
+
+const SYSTEM_PROMPT_OPTION_VALUES: SystemPromptType[] = ['ultra', 'short', 'medium', 'full', 'advanced'];
 
 interface Props {
   open: boolean;
@@ -23,6 +31,7 @@ interface DraftFields {
   noAuth: boolean;
   customApiUrl: boolean;
   selectedModel: string;
+  systemPromptType: SystemPromptType;
 }
 
 function getDraftFromProfile(profile: UserProfile): DraftFields {
@@ -33,12 +42,14 @@ function getDraftFromProfile(profile: UserProfile): DraftFields {
     noAuth: !!profile.noAuth,
     customApiUrl: !!profile.customApiUrl,
     selectedModel: profile.selectedModel,
+    systemPromptType: profile.systemPromptType ?? 'medium',
   };
 }
 
 export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
   const { t, i18n } = useTranslation();
-  const { profiles, activeProfileId, addProfile, updateProfile, deleteProfile, setActiveProfile } = useSettingsStore();
+  const { profiles, activeProfileId, addProfile, updateProfile, deleteProfile, setActiveProfile, theme } = useSettingsStore();
+  const isDark = theme === 'dark';
 
   const formatTime = (ts: number) => {
     const d = new Date(ts);
@@ -96,7 +107,8 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
       stored.apiKey !== draft.apiKey ||
       stored.noAuth !== draft.noAuth ||
       stored.customApiUrl !== draft.customApiUrl ||
-      stored.selectedModel !== draft.selectedModel
+      stored.selectedModel !== draft.selectedModel ||
+      stored.systemPromptType !== draft.systemPromptType
     );
   }, [selectedProfile, draft]);
 
@@ -163,6 +175,7 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
       noAuth: draft.noAuth,
       customApiUrl: draft.customApiUrl,
       selectedModel: draft.selectedModel.trim(),
+      systemPromptType: draft.systemPromptType,
     });
 
     toast.success(t('profiles.saved'));
@@ -244,6 +257,72 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
     return false
   }
 
+  type SystemPromptOption = { value: SystemPromptType; label: string };
+  const systemPromptOptions: SystemPromptOption[] = useMemo(() => (
+    SYSTEM_PROMPT_OPTION_VALUES.map((value) => ({
+      value,
+      label: `${t(`profiles.systemPrompt${value.charAt(0).toUpperCase() + value.slice(1)}`)} · ${formatPromptSize(getSystemPromptLength(value))} ${t('profiles.chars')}`,
+    }))
+  ), [t]);
+
+  const systemPromptSelectStyles: StylesConfig<SystemPromptOption, false> = useMemo(() => ({
+    control: (base, state) => ({
+      ...base,
+      minHeight: 42,
+      borderRadius: 8,
+      backgroundColor: isDark ? 'rgb(39 39 42)' : 'white',
+      borderColor: state.isFocused
+        ? (isDark ? 'rgb(255 255 255)' : 'rgb(23 23 23)')
+        : (isDark ? 'rgb(63 63 70)' : 'rgb(229 229 229)'),
+      boxShadow: state.isFocused ? `0 0 0 1px ${isDark ? 'white' : 'rgb(23 23 23)'}` : 'none',
+      '&:hover': {
+        borderColor: state.isFocused ? (isDark ? 'white' : 'rgb(23 23 23)') : (isDark ? 'rgb(82 82 91)' : 'rgb(212 212 216)'),
+      },
+    }),
+    singleValue: (base) => ({
+      ...base,
+      color: isDark ? 'rgb(212 212 216)' : 'rgb(64 64 64)',
+    }),
+    input: (base) => ({
+      ...base,
+      color: isDark ? 'rgb(212 212 216)' : 'rgb(64 64 64)',
+    }),
+    menuPortal: (base) => ({
+      ...base,
+      zIndex: 9999,
+    }),
+    menu: (base) => ({
+      ...base,
+      borderRadius: 8,
+      backgroundColor: isDark ? 'rgb(39 39 42)' : 'white',
+      border: `1px solid ${isDark ? 'rgb(63 63 70)' : 'rgb(229 229 229)'}`,
+      boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+    }),
+    menuList: (base) => ({
+      ...base,
+      padding: 4,
+      maxHeight: 320,
+      overflowY: 'auto' as const,
+    }),
+    option: (base, { isFocused, isSelected }) => ({
+      ...base,
+      backgroundColor: isSelected
+        ? (isDark ? 'rgb(63 63 70)' : 'rgb(229 229 229)')
+        : isFocused
+          ? (isDark ? 'rgb(63 63 70)' : 'rgb(244 244 245)')
+          : 'transparent',
+      color: isDark ? 'rgb(212 212 216)' : 'rgb(38 38 38)',
+      cursor: 'pointer',
+      padding: '10px 12px',
+      fontSize: 14,
+    }),
+    dropdownIndicator: (base) => ({
+      ...base,
+      color: isDark ? 'rgb(113 113 122)' : 'rgb(163 163 163)',
+    }),
+    indicatorSeparator: () => ({ display: 'none' }),
+  }), [isDark]);
+
   // --- Creation Handlers ---
   const startCreate = () => {
     setIsCreating(true);
@@ -263,7 +342,8 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
       apiUrl: 'https://127.0.0.1:11434',
       apiKey: '',
       noAuth: true,
-      selectedModel: 'llama3.2'
+      selectedModel: 'llama3.2',
+      systemPromptType: 'medium',
     });
     
     setSelectedProfileId(newId);
@@ -353,7 +433,7 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        className="w-full h-full md:max-w-4xl md:h-[700px] md:mx-4 border border-neutral-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 md:rounded-2xl flex overflow-hidden shadow-2xl"
+        className="w-full h-full md:max-w-4xl md:h-[75vh] md:max-h-[900px] md:mx-4 border border-neutral-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 md:rounded-2xl flex overflow-hidden shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
         {/* Left Sidebar: Profile List */}
@@ -773,6 +853,24 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                              </div>
                              {renderError('selectedModel')}
                             <p className="text-xs text-zinc-600">{t('profiles.modelHint')}</p>
+                        </div>
+
+                        {/* System Prompt Type */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-medium text-neutral-500 dark:text-zinc-500 uppercase tracking-wider">{t('profiles.systemPromptType')}</label>
+                            <Select<SystemPromptOption, false>
+                                value={systemPromptOptions.find((o) => o.value === draft.systemPromptType) ?? null}
+                                options={systemPromptOptions}
+                                onChange={(opt) => opt && updateDraft('systemPromptType', opt.value)}
+                                styles={systemPromptSelectStyles}
+                                isSearchable={false}
+                                classNamePrefix="react-select-prompt"
+                                placeholder=""
+                                menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                                menuPosition="fixed"
+                                menuPlacement="auto"
+                            />
+                            <p className="text-xs text-zinc-600 dark:text-zinc-500">{t('profiles.systemPromptHint')}</p>
                         </div>
                     </div>
                 ) : (

@@ -3,6 +3,8 @@ import { persist } from 'zustand/middleware';
 
 export type ApiType = 'ollama' | 'gemini' | 'openai';
 
+export type SystemPromptType = 'ultra' | 'short' | 'medium' | 'full' | 'advanced';
+
 export interface UserProfile {
   id: string;
   name: string; // e.g., "Personal", "Work", "Testing"
@@ -12,6 +14,8 @@ export interface UserProfile {
   noAuth?: boolean;
   customApiUrl?: boolean;
   selectedModel: string;
+  /** Loại system prompt: ngắn/tối giản, trung bình, hoặc đầy đủ. */
+  systemPromptType?: SystemPromptType;
   updatedAt?: number;
 }
 
@@ -50,6 +54,7 @@ interface SettingsState {
   getApiType: () => ApiType;
   getNoAuth: () => boolean;
   getModel: () => string;
+  getSystemPromptType: () => SystemPromptType;
   isConfigured: () => boolean;
 
   // --- Legacy Setters (Proxies to update active profile) ---
@@ -123,6 +128,11 @@ export const useSettingsStore = create<SettingsState>()(
         const { profiles, activeProfileId } = get();
         const active = profiles.find(p => p.id === activeProfileId);
         return active?.selectedModel || 'gemini-2.5-flash';
+      },
+      getSystemPromptType: () => {
+        const { profiles, activeProfileId } = get();
+        const active = profiles.find(p => p.id === activeProfileId);
+        return active?.systemPromptType ?? 'medium';
       },
       isConfigured: () => {
         const { profiles, activeProfileId } = get();

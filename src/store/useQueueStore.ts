@@ -6,6 +6,7 @@ import { useSettingsStore } from './useSettingsStore'
 import { useSessionStore } from './useSessionStore'
 import { extractCompletionMessage } from '../api/parseStream'
 import type { Slide } from '../api/prompt'
+import { getSystemPrompt } from '../api/prompt'
 import { toast } from 'sonner'
 
 export interface QueueItem {
@@ -95,6 +96,7 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
     const apiKey = settings.getApiKey()
     const apiType = settings.getApiType()
     const selectedModel = settings.getModel()
+    const systemPrompt = getSystemPrompt(settings.getSystemPromptType())
 
     const sessionStore = useSessionStore.getState()
     const sessions = sessionStore.sessions
@@ -435,7 +437,7 @@ ${JSON.stringify(requestedSlides, null, 2)}
                 get().failActive(next.id, err)
                 toast.error(err)
               }
-            }, newHistory)
+            }, newHistory, systemPrompt)
 
             // Update active controller
             set(state => ({ activeAborts: { ...state.activeAborts, [next.projectId]: newAbort } }))
@@ -457,7 +459,7 @@ ${JSON.stringify(requestedSlides, null, 2)}
         get().failActive(next.id, error)
         toast.error(error)
       },
-    }, history)
+    }, history, systemPrompt)
 
     set((state) => ({ activeAborts: { ...state.activeAborts, [next.projectId]: abort } }))
   },

@@ -6,7 +6,7 @@ import { useSessionStore } from '../store/useSessionStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { API_CONFIG } from '../config/api'
 import { STORAGE_KEYS } from '../config/defaults'
-import { SYSTEM_PROMPT } from '../api/prompt'
+import { getSystemPrompt } from '../api/prompt'
 import { toast } from 'sonner'
 import { Sparkles, Loader2, Square, AlertCircle, X, Layers, Pencil, AlertTriangle, Mic, MicOff } from 'lucide-react'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
@@ -68,7 +68,18 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [contextTooltipOpen, setContextTooltipOpen] = useState(false)
   const contextTooltipRef = useRef<HTMLDivElement>(null)
-  const { isConfigured, autoSubmitOnSpeech } = useSettingsStore()
+  const isConfigured = useSettingsStore((s) => {
+    const active = s.profiles.find((p) => p.id === s.activeProfileId)
+    if (!active) return false
+    const apiAuthValid = active.noAuth || active.apiKey?.trim()
+    return !!(apiAuthValid && active.apiUrl?.trim() && active.selectedModel?.trim())
+  })
+  const autoSubmitOnSpeech = useSettingsStore((s) => s.autoSubmitOnSpeech)
+  const systemPromptType = useSettingsStore((s) => {
+    const active = s.profiles.find((p) => p.id === s.activeProfileId)
+    return active?.systemPromptType ?? 'medium'
+  })
+  const getSystemPromptType = useCallback(() => systemPromptType, [systemPromptType])
   const submitRef = useRef<() => void>(() => {})
 
   const [interimTranscript, setInterimTranscript] = useState('')
@@ -125,7 +136,7 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
     const compactedChars = currentSession?.compactedContext?.length ?? 0
     const recentMessages = lastCompactedIndex > 0 ? messages.slice(lastCompactedIndex) : messages
     const messagesChars = recentMessages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0)
-    const systemChars = SYSTEM_PROMPT.length
+    const systemChars = getSystemPrompt(getSystemPromptType()).length
     const chatChars = compactedChars + messagesChars
     const totalContextChars = systemChars + chatChars
     const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n))
@@ -139,7 +150,7 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
       systemLabel: fmt(systemChars),
       chatLabel: fmt(chatChars),
     }
-  }, [currentSession?.messages, currentSession?.lastCompactedIndex, currentSession?.compactedContext])
+  }, [currentSession?.messages, currentSession?.lastCompactedIndex, currentSession?.compactedContext, getSystemPromptType])
 
   const handleResetContext = () => {
     if (currentSessionId) {
@@ -217,7 +228,7 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
         return;
     }
 
-    if (!isConfigured()) {
+    if (!isConfigured) {
         toast.error(t('config.validation'), {
             description: t('config.validationDesc')
         });

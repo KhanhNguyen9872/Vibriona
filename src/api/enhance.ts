@@ -1,13 +1,46 @@
 import axios from 'axios'
 import i18n from '../i18n'
 import type { Slide } from './prompt'
+import type { SystemPromptType } from './prompt'
 import { extractContentFromChunk, parsePartialSlides } from './parseStream'
 import { getAPIConfig, parseAPIError } from './utils'
 import { API_CONFIG } from '../config/api'
 
-const ENHANCE_PROMPT = `You are a presentation content enhancer. You will receive a single slide object. Rewrite and improve its content to be more engaging, professional, and detailed. Also improve the visual_description to be more specific and creative.
+const ENHANCE_ULTRA = `Enhance this slide. Output a single JSON object with: slide_number, title, content, visual_needs_image, visual_description, layout_suggestion, speaker_notes, estimated_duration. No markdown, no extra text.`
+
+const ENHANCE_SHORT = `You are a slide enhancer. Rewrite the given slide to be more engaging and professional. Improve content and visual_description. Output ONLY one JSON object with fields: slide_number, title, content, visual_needs_image, visual_description, layout_suggestion, speaker_notes, estimated_duration. No markdown.`
+
+const ENHANCE_MEDIUM = `You are a presentation content enhancer. You will receive a single slide object. Rewrite and improve its content to be more engaging, professional, and detailed. Also improve the visual_description to be more specific and creative.
 
 Output ONLY a single valid JSON object (not an array) with the same fields: slide_number, title, content, visual_needs_image, visual_description, layout_suggestion, speaker_notes, estimated_duration. Do not wrap in markdown code blocks. Do not include any text before or after the JSON.`
+
+const ENHANCE_FULL = `You are a presentation content enhancer. You will receive a single slide object.
+
+**Task:** Rewrite and improve the slide to be more engaging, professional, and detailed. Enrich the main content (40–60 words, Markdown allowed). Make the visual_description more specific and creative for image generation. Refine speaker_notes and estimated_duration if needed.
+
+**Output:** Exactly one valid JSON object. Same fields: slide_number, title, content, visual_needs_image, visual_description, layout_suggestion, speaker_notes, estimated_duration. No markdown code fences, no text before or after the JSON. Preserve slide_number.`
+
+const ENHANCE_ADVANCED = `You are an expert presentation content enhancer. You will receive a single slide object.
+
+**Task:** Rewrite and improve the slide so it is more engaging, professional, and detailed.
+- **content:** 40–60 words, clear and impactful; use Markdown (bold, lists) where it helps.
+- **visual_description:** Specific, creative, and suitable for image generation (e.g. "Professional speaker at podium, modern conference room, soft lighting").
+- **speaker_notes:** Concise talking points or script hints.
+- **estimated_duration:** Realistic (e.g. "1 min", "2 min").
+Keep title, layout_suggestion, visual_needs_image consistent with intent. Preserve slide_number.
+
+**Output:** Exactly one valid JSON object with fields: slide_number, title, content, visual_needs_image, visual_description, layout_suggestion, speaker_notes, estimated_duration. No markdown code blocks, no extra text.`
+
+export function getEnhancePrompt(type: SystemPromptType): string {
+  switch (type) {
+    case 'ultra': return ENHANCE_ULTRA
+    case 'short': return ENHANCE_SHORT
+    case 'medium': return ENHANCE_MEDIUM
+    case 'full': return ENHANCE_FULL
+    case 'advanced': return ENHANCE_ADVANCED
+    default: return ENHANCE_MEDIUM
+  }
+}
 
 export function enhanceSlide(
   apiUrl: string,
@@ -16,11 +49,13 @@ export function enhanceSlide(
   apiType: 'ollama' | 'gemini' | 'openai',
   slide: Slide,
   onDone: (enhanced: Slide) => void,
-  onError: (error: string) => void
+  onError: (error: string) => void,
+  systemPromptType: SystemPromptType = 'medium'
 ): AbortController {
   const controller = new AbortController()
   let processedLength = 0
   let fullContent = ''
+  const enhancePrompt = getEnhancePrompt(systemPromptType)
 
   const config = getAPIConfig({ apiUrl, apiKey, model, apiType })
   const userMessage = JSON.stringify(slide)
@@ -38,7 +73,7 @@ export function enhanceSlide(
         {
           role: 'user',
           parts: [
-            { text: `"""\nSYSTEM PROMPT: ${ENHANCE_PROMPT}\n"""` },
+            { text: `"""\nSYSTEM PROMPT: ${enhancePrompt}\n"""` },
             { text: userMessage }
           ]
         }
@@ -50,7 +85,7 @@ export function enhanceSlide(
     }
   } else {
     body.messages = [
-      { role: 'system', content: ENHANCE_PROMPT },
+      { role: 'system', content: enhancePrompt },
       { role: 'user', content: userMessage },
     ]
     body.temperature = API_CONFIG.DEFAULT_TEMPERATURE

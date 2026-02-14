@@ -205,7 +205,8 @@ export default function SlideCard({
               isThinking: false,
             })
             toast.error(t('workspace.enhanceFailed'), { description: error })
-          }
+          },
+          store.getSystemPromptType()
         )
       },
       {

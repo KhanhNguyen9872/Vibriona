@@ -29,7 +29,8 @@ export function streamGenerate(
   model: string,
   apiType: 'ollama' | 'gemini' | 'openai',
   callbacks: StreamCallbacks,
-  history: HistoryMessage[] = []
+  history: HistoryMessage[] = [],
+  systemPrompt: string = SYSTEM_PROMPT
 ): AbortController {
   const controller = new AbortController()
   let processedLength = 0
@@ -48,7 +49,7 @@ export function streamGenerate(
     url = `${url}:generateContent`
 
     const contents: any[] = []
-    const systemPart = { text: `"""\nSYSTEM PROMPT: ${SYSTEM_PROMPT}\n"""` }
+    const systemPart = { text: `"""\nSYSTEM PROMPT: ${systemPrompt}\n"""` }
 
     if (history.length > 0) {
       // Find the first user message in history or handle the start
@@ -95,7 +96,7 @@ export function streamGenerate(
     }
   } else {
     body.messages = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: systemPrompt },
       ...history,
       { role: 'user', content: userPrompt },
     ]
