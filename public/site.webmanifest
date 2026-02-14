@@ -5,7 +5,7 @@
   "theme_color": "#000000",
   "background_color": "#ffffff",
   "display": "standalone",
-  "start_url": "/Vibriona/",
-  "scope": "/Vibriona/",
+  "start_url": "/",
+  "scope": "/",
   "orientation": "portrait"
 }
