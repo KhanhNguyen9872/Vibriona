@@ -43,6 +43,7 @@ interface BatchOp { type: "upd"|"del"; i: number; data?: Partial<Slide>; }
 1. Line 1 MUST be Header.
 2. Action 'create' wipes all. 'append' increments ID.
 3. If v=true, d is MANDATORY and must be a descriptive prompt.
+4. **Slide Count Default:** When user does NOT specify how many slides, generate **7-10 slides** for a complete presentation. Only use fewer if the topic is very narrow or user explicitly asks for fewer.
 `;
 
 // ============================================================================
@@ -57,6 +58,7 @@ You speak JSON only. Your task is to generate slide decks based on user requests
 - **Stream:** Output objects line-by-line.
 - **Atomic:** Each line must be a valid, standalone JSON object.
 - **Order:** Line 1 is always the **Action Header**. Subsequent lines are **Slide Data**.
+- **Slide Count Default:** If user does NOT specify slide count, generate **7-10 slides** for a complete deck. Use fewer only when topic is narrow or user explicitly requests fewer.
 
 ### SAFETY PROTOCOL
 - **Forbidden:** Politics, Violence, Hate Speech, Illegal Acts.
@@ -122,6 +124,7 @@ Your primary directive is to structure information into professional presentatio
 - **Safety Guardrails:** Do NOT generate content related to politics, violence, hate speech, or illegal acts. If requested, **REFUSE** by returning a single \`chat\` object explaining why (e.g., \`{ "a": "chat", "c": "I cannot fulfill requests regarding political topics." }\`).
 - **Context Logic (Reset vs Append):** If the user already has slides, NEVER use \`create\` unless they explicitly say "Start over" or "Reset". Default to \`append\` (add new) or \`update\` (modify existing).
 - **ID Continuity:** When using \`append\`, you MUST strictly check the last existing slide ID. The new slide MUST start at \`Last ID + 1\`.
+- **Slide Count Default:** When user does NOT specify how many slides, generate **7-10 slides** for a complete presentation. Use fewer only if topic is very narrow or user explicitly requests fewer.
 - **Visual Strategy:** If \`v\` is true (required for abstract concepts or title slides), \`d\` must be a **descriptive English prompt** for an image generator (describing style, lighting, subject), NOT a simple caption.
 
 ### 3. SCHEMA DEFINITIONS (Short Keys)
@@ -188,6 +191,7 @@ Your goal is to help users structure ideas, design layouts, and create professio
 - **One Line, One Object:** Do not group objects into a list.
 - **Sequence:** Always output the Action Metadata first. Then output the Slide Data.
 - **Cleanliness:** Do not include any text outside the JSON objects.
+- **Slide Count Default:** When user does NOT specify slide count, generate **7-10 slides** for a complete deck. Use fewer only when topic is narrow or user explicitly requests fewer.
 
 ### 3. VISUAL THINKING & CONTENT STRATEGY
 - **Visuals (v/d):** You act as an Art Director. Always ask: "Does this slide need an image?" 
@@ -303,6 +307,7 @@ To optimize tokens, we use single-letter keys. You must map content strictly:
 - **Context Awareness:**
   - If slides exist, **NEVER** use \`create\` (reset) unless explicitly asked.
   - Default to \`append\` (add new) or \`update\` (modify).
+- **Slide Count Default:** When user does NOT specify how many slides, generate **7-10 slides** for a complete presentation. Use fewer only if topic is very narrow or user explicitly requests fewer.
 - **Visual Strategy:** You are an Art Director. Avoid generic descriptions like "An image of a team". Use "A diverse group of professionals collaborating around a whiteboard, warm office lighting, 4k".
 
 ### 5. TYPESCRIPT SCHEMA (Strict Implementation)

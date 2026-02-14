@@ -606,13 +606,13 @@ function App() {
             className={`
             flex flex-col min-w-0 shrink-0 bg-white dark:bg-neutral-950 overflow-hidden
             ${mobileActiveTab === 'chat' ? 'flex-1 w-full' : 'hidden'}
-            md:flex ${hasSlideData && !heroHold ? 'md:min-w-[320px]' : 'md:flex-1 w-full'}
+            md:flex ${hasSlideData && !heroHold ? 'md:min-w-[400px]' : 'md:flex-1 w-full'}
           `}
             animate={
               !isMobile && hasSlideData && !heroHold
                 ? {
                     width: chatPanelVisible ? (mobileScriptPanelVisible ? `${splitPaneWidth}%` : '100%') : 0,
-                    minWidth: chatPanelVisible ? 320 : 0,
+                    minWidth: chatPanelVisible ? 400 : 0,
                     opacity: chatPanelVisible ? 1 : 0,
                     flex: chatPanelVisible
                       ? (mobileScriptPanelVisible ? `0 0 ${splitPaneWidth}%` : '1 1 0%')
@@ -645,7 +645,7 @@ function App() {
           {hasSlideData && !heroHold && (isMobile || (mobileScriptPanelVisible && chatPanelVisible)) && (
             <ResizableDivider
               onResize={setSplitPaneWidth}
-              minWidth={320}
+              minWidth={400}
               maxPercentage={70}
             />
           )}

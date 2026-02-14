@@ -103,18 +103,18 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
 
   // Styling based on role
   const bubbleClass = message.role === 'user'
-    ? 'bg-neutral-200 dark:bg-zinc-700 text-neutral-900 dark:text-zinc-100 rounded-2xl rounded-br-md px-4 py-2.5 max-w-[80%]'
-    : 'bg-neutral-100 dark:bg-zinc-900 text-neutral-800 dark:text-zinc-300 rounded-2xl rounded-bl-md px-4 py-2.5 max-w-[80%]'
+    ? 'bg-neutral-200 dark:bg-zinc-700 text-neutral-900 dark:text-zinc-100 rounded-2xl rounded-br-md px-4 py-2.5 max-w-[90%]'
+    : 'bg-neutral-100 dark:bg-zinc-900 text-neutral-800 dark:text-zinc-300 rounded-2xl rounded-bl-md px-4 py-2.5 max-w-[90%]'
 
   return (
     <div className={bubbleClass}>
       {/* Script generation badge + Checkpoint + Time (Header) */}
       {message.role === 'assistant' && !message.isThinking && message.slideSnapshot && message.slideSnapshot.length > 0 && (
-        <div className="flex items-center justify-between mb-1.5 w-full">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-nowrap items-center justify-between gap-2 mb-1.5 w-full min-w-0">
+          <div className="flex flex-nowrap items-center gap-2 min-w-0 flex-1">
             {/* Slides count (only for script generation) */}
             {message.isScriptGeneration && (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 shrink-0">
                 {message.action === 'update' ? (
                    <Presentation className="w-3 h-3 text-neutral-400" />
                 ) : (
@@ -131,11 +131,12 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
             {message.slideSnapshot && message.slideSnapshot.length > 0 && (
               <button
                 onClick={handleRestore}
-                className="snapshot-restore flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold border border-neutral-200/80 dark:border-zinc-700/80 text-neutral-500 dark:text-zinc-400 hover:border-neutral-400 dark:hover:border-zinc-500 hover:text-neutral-700 dark:hover:text-zinc-200 transition-all active:scale-[0.97] cursor-pointer whitespace-nowrap"
+                title={t('chat.restoreSnapshot') + ` (${t('chat.snapshotSlides', { count: message.slideSnapshot.length })})`}
+                className="snapshot-restore flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold border border-neutral-200/80 dark:border-zinc-700/80 text-neutral-500 dark:text-zinc-400 hover:border-neutral-400 dark:hover:border-zinc-500 hover:text-neutral-700 dark:hover:text-zinc-200 transition-all active:scale-[0.97] cursor-pointer shrink-0"
               >
-                <RotateCcw className="w-2.5 h-2.5" />
-                {t('chat.restoreSnapshot')}
-                <span className="text-neutral-400 dark:text-zinc-600 font-normal">
+                <RotateCcw className="w-2.5 h-2.5 shrink-0" />
+                <span className="hidden min-[480px]:inline">{t('chat.restoreSnapshot')}</span>
+                <span className="text-neutral-400 dark:text-zinc-600 font-normal shrink-0">
                   ({t('chat.snapshotSlides', { count: message.slideSnapshot.length })})
                 </span>
               </button>
@@ -153,7 +154,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
           </div>
 
           {/* Time */}
-          <p className="text-[10px] text-neutral-400 dark:text-zinc-500 whitespace-nowrap ml-2 pr-4">
+          <p className="text-[10px] text-neutral-400 dark:text-zinc-500 whitespace-nowrap shrink-0 ml-1">
             {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
             {' '}
             {new Date(message.timestamp).toLocaleDateString([], { day: '2-digit', month: '2-digit' })}
