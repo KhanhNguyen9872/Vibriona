@@ -293,6 +293,10 @@ export default function HeroChatInput() {
     const trimmed = (typeof raw === 'string' ? raw : '').trim()
     if (!trimmed || isProcessing || isSubmitted) return
 
+    // Sync input to trimmed value so UI reflects what we send
+    setPrompt(trimmed)
+    promptRef.current = trimmed
+
     const activeProfileId = useSettingsStore.getState().activeProfileId;
     if (!activeProfileId) {
         toast.error(t('config.noProfile'), {

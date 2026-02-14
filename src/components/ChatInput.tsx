@@ -256,6 +256,7 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
     const trimmed = (typeof raw === 'string' ? raw : '').trim()
     if (!trimmed || isOverLimit || isProcessing) return
 
+    // Always send trimmed content; input will be cleared below
     const activeProfileId = useSettingsStore.getState().activeProfileId;
     if (!activeProfileId) {
         toast.error(t('config.noProfile'), {

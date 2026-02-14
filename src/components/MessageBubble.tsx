@@ -60,18 +60,25 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
       return message.content
     }
 
-    // Try extracting text after the JSON array
+    // Try extracting text after the JSON (works for both NDJSON and legacy format)
     const afterJson = extractCompletionMessage(message.content)
     if (afterJson) return afterJson
 
-    // Check if content contains a JSON array at all (fallback)
+    // Check if content contains structured data (NDJSON or JSON array)
     const trimmed = message.content.trim()
-    if (trimmed.startsWith('[') || trimmed.includes('[\n')) {
+    
+    // NDJSON format: starts with { and contains newlines with more {
+    const isNDJSON = trimmed.startsWith('{') && trimmed.includes('\n{')
+    
+    // Legacy JSON array format
+    const isJSONArray = trimmed.startsWith('[') || trimmed.includes('[\n')
+    
+    if (isNDJSON || isJSONArray) {
       return `✅ ${t('chat.scriptGenerated')}`
     }
 
     return message.content
-  }, [message.content, message.role, message.isScriptGeneration])
+  }, [message.content, message.role, message.isScriptGeneration, t])
 
   const handleRestore = () => {
     if (!message.slideSnapshot || message.slideSnapshot.length === 0) return

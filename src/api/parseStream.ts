@@ -157,46 +157,27 @@ export function isInsideThinkTag(fullText: string): boolean {
 }
 
 /**
- * Extract any text that appears after the JSON object's closing `}`.
+ * Extract any text that appears after the JSON data.
+ * Supports both NDJSON (multiple lines) and legacy single-object format.
  * This is the AI's conversational completion message.
  */
 export function extractCompletionMessage(content: string): string {
   const trimmed = content.trim()
-  const successJsonEnd = trimmed.lastIndexOf('}')
+  if (!trimmed) return ''
 
-  if (successJsonEnd === -1) return ''
+  // Find the last '}' in the content (end of last JSON object/line)
+  const lastJsonEnd = trimmed.lastIndexOf('}')
+  if (lastJsonEnd === -1) return ''
 
-  // Look for the end of the MAIN object, not just any object
-  // Heuristic: The main object starts typically at char 0 or near it.
-  // We can also try to parse what's before various '}' to see if it's the full JSON.
-
-  // Simple heuristic: If the text continues significantly after the last '}', it's likely the message.
-  // A robust way is to rely on the fact that the JSON is valid (or almost valid).
-
-  // For now, let's assume the JSON object is the first major block.
-  // finding the matching closing brace for the first opening brace.
-  const openIdx = trimmed.indexOf('{')
-  if (openIdx === -1) return ''
-
-  let depth = 0
-  let closeIdx = -1
-
-  for (let i = openIdx; i < trimmed.length; i++) {
-    if (trimmed[i] === '{') depth++
-    else if (trimmed[i] === '}') {
-      depth--
-      if (depth === 0) {
-        closeIdx = i
-        break
-      }
-    }
+  // Check if there's meaningful text after the last '}'
+  const afterJson = trimmed.slice(lastJsonEnd + 1).trim()
+  
+  // Filter out common artifacts (empty strings, markdown backticks, etc.)
+  if (!afterJson || afterJson === '```' || afterJson === '```json') {
+    return ''
   }
 
-  if (closeIdx !== -1 && closeIdx < trimmed.length - 1) {
-    return trimmed.slice(closeIdx + 1).trim()
-  }
-
-  return ''
+  return afterJson
 }
 
 export interface BatchOperation {
@@ -227,8 +208,115 @@ export interface DeltaResponse {
 }
 
 /**
+ * Map short layout keys to long layout keys.
+ * Short format: "intro", "left", "right", "center", "quote"
+ * Long format: "intro", "split-left", "split-right", "centered", "quote", "full-image"
+ */
+function mapLayoutShortToLong(shortLayout: string): string {
+  const layoutMap: Record<string, string> = {
+    'left': 'split-left',
+    'right': 'split-right',
+    'center': 'centered',
+    'intro': 'intro',
+    'quote': 'quote',
+    // Also handle if long keys are passed (backward compatibility)
+    'split-left': 'split-left',
+    'split-right': 'split-right',
+    'centered': 'centered',
+    'full-image': 'full-image'
+  }
+  return layoutMap[shortLayout] || shortLayout
+}
+
+/**
+ * Transform AI's short-key format to internal long-key format.
+ * Supports both new short keys (i, t, c, v, d, l, n) and old long keys (backward compatible).
+ * 
+ * Short Keys:
+ * - i: slide_number
+ * - t: title
+ * - c: content
+ * - v: visual_needs_image
+ * - d: visual_description
+ * - l: layout_suggestion
+ * - n: speaker_notes
+ */
+function mapShortKeysToLongKeys(obj: any): Slide {
+  // If object already has long keys, return as-is (backward compatibility)
+  if (obj.slide_number !== undefined || obj.title !== undefined) {
+    return obj as Slide
+  }
+
+  // Map short keys to long keys
+  const mapped: any = {}
+
+  // Required fields
+  if (obj.i !== undefined) mapped.slide_number = obj.i
+  if (obj.t !== undefined) mapped.title = obj.t
+  if (obj.c !== undefined) mapped.content = obj.c
+  if (obj.v !== undefined) mapped.visual_needs_image = obj.v
+
+  // Optional fields
+  if (obj.d !== undefined) mapped.visual_description = obj.d
+  if (obj.l !== undefined) mapped.layout_suggestion = mapLayoutShortToLong(obj.l)
+  if (obj.n !== undefined) mapped.speaker_notes = obj.n
+
+  // Preserve any other fields (like _actionMarker, isEnhancing, estimated_duration)
+  for (const key in obj) {
+    if (!['i', 't', 'c', 'v', 'd', 'l', 'n'].includes(key)) {
+      mapped[key] = obj[key]
+    }
+  }
+
+  return mapped as Slide
+}
+
+/**
+ * Transform short-key batch operation to long-key format.
+ * 
+ * Short format from Advanced prompt:
+ * { type: "upd"|"del", i: number, data?: Partial<Slide with short keys> }
+ * Example: { type: "upd", i: 5, data: { t: "New Title", c: "New content" } }
+ * 
+ * Long internal format:
+ * { type: "update"|"delete", slide_number: number, title?: string, content?: string, ... }
+ */
+function mapBatchOperationShortToLong(op: any): BatchOperation {
+  // If already in long format, return as-is
+  if (op.slide_number !== undefined) {
+    return op as BatchOperation
+  }
+
+  const mapped: any = {
+    type: op.type === 'upd' ? 'update' : op.type === 'del' ? 'delete' : op.type,
+    slide_number: op.i
+  }
+
+  // Map short keys in nested data object (Partial<Slide>)
+  // The data object uses the same short keys as Slide: i, t, c, v, d, l, n
+  if (op.data) {
+    // Note: 'i' in data is not used as we already have slide_number from op.i
+    if (op.data.t !== undefined) mapped.title = op.data.t
+    if (op.data.c !== undefined) mapped.content = op.data.c
+    if (op.data.v !== undefined) mapped.visual_needs_image = op.data.v
+    if (op.data.d !== undefined) mapped.visual_description = op.data.d
+    if (op.data.l !== undefined) mapped.layout_suggestion = mapLayoutShortToLong(op.data.l)
+    if (op.data.n !== undefined) mapped.speaker_notes = op.data.n
+  }
+
+  return mapped as BatchOperation
+}
+
+/**
  * Attempt to parse a partial JSON response following the Delta Protocol.
- * Expected format: { "action": "...", "slides": [ ... ] }
+ * Supports both NDJSON short-key format and legacy long-key format.
+ * 
+ * NDJSON format (line-by-line):
+ * Line 1: Header - { a: "create"|"append"|"update"|"del"|"ask"|"chat"|"info"|"batch", ... }
+ * Line 2+: Data - { i: 1, t: "...", c: "...", v: true, d: "...", l: "intro", n: "..." }
+ * 
+ * Legacy format (single object):
+ * { "action": "...", "slides": [ ... ] }
  */
 export function parsePartialResponse(text: string): DeltaResponse {
   let trimmed = text.trim()
@@ -239,32 +327,104 @@ export function parsePartialResponse(text: string): DeltaResponse {
   trimmed = trimmed.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/```\s*$/, '')
   trimmed = trimmed.trim()
 
+  // 🆕 NDJSON Support: Parse line-by-line format
+  // Check if this is NDJSON (multiple lines with separate JSON objects)
+  const lines = trimmed.split('\n').map(l => l.trim()).filter(Boolean)
+  
+  if (lines.length > 0) {
+    try {
+      const firstLine = JSON.parse(lines[0])
+      
+      // Check if first line is a header (has 'a' field for action or 'action' field)
+      const shortAction = firstLine.a // Short key: a
+      const longAction = firstLine.action // Long key: action
+      
+      if (shortAction || longAction) {
+        const result: DeltaResponse = { slides: [] }
+        
+        // Map short action keys to long action keys
+        const actionMap: Record<string, string> = {
+          'create': 'create',
+          'append': 'append',
+          'update': 'update',
+          'del': 'delete',
+          'ask': 'ask',
+          'chat': 'response',
+          'info': 'info',
+          'batch': 'batch'
+        }
+        
+        const action = shortAction ? actionMap[shortAction] || shortAction : longAction
+        result.action = action as any
+        
+        // Handle specific action fields
+        if (action === 'ask') {
+          // Short: { a: "ask", q: string, o: string[], cust: boolean }
+          // Long: { action: "ask", question: string, options: string[], allow_custom_input: boolean }
+          result.question = firstLine.q || firstLine.question
+          result.options = firstLine.o || firstLine.options
+          result.allowCustom = firstLine.cust !== undefined ? firstLine.cust : firstLine.allow_custom_input
+        } else if (action === 'response') {
+          // Short: { a: "chat", c: string }
+          // Long: { action: "response", content: string }
+          result.content = firstLine.c || firstLine.content
+        } else if (action === 'delete') {
+          // Short: { a: "del", ids: number[] }
+          // Long: { action: "delete", slide_numbers: number[] }
+          result.slide_numbers = firstLine.ids || firstLine.slide_numbers
+        } else if (action === 'info') {
+          // Short: { a: "info", ids: number[] }
+          // Long: { action: "info", slide_numbers: number[] }
+          result.slide_numbers = firstLine.ids || firstLine.slide_numbers
+        } else if (action === 'batch') {
+          // Short: { a: "batch", ops: BatchOp[] }
+          // Long: { action: "batch", operations: BatchOperation[] }
+          const ops = firstLine.ops || firstLine.operations || []
+          result.operations = ops.map(mapBatchOperationShortToLong)
+        }
+        
+        // Parse remaining lines as slide data
+        if (lines.length > 1) {
+          const slideLines = lines.slice(1)
+          const slides: Slide[] = []
+          
+          for (const line of slideLines) {
+            try {
+              const slideObj = JSON.parse(line)
+              // Transform short keys to long keys
+              slides.push(mapShortKeysToLongKeys(slideObj))
+            } catch {
+              // Skip malformed lines
+            }
+          }
+          
+          result.slides = slides
+        }
+        
+        return result
+      }
+    } catch {
+      // Not valid NDJSON, fall through to legacy parsing
+    }
+  }
+
+  // Legacy format parsing (single object with action and slides array)
   // Strategy: Try to find "action" and "slides" even in partial JSON
 
   // 1. Try full parse first
   try {
     const parsed = JSON.parse(trimmed)
     if (parsed && (Array.isArray(parsed.slides) || parsed.action === 'ask' || parsed.action === 'response' || parsed.action === 'batch')) {
-      const response = {
+      const response: DeltaResponse = {
         action: parsed.action,
-        slides: parsed.slides || [],
+        slides: (parsed.slides || []).map(mapShortKeysToLongKeys),
         question: parsed.question,
         options: parsed.options,
         allowCustom: parsed.allow_custom_input,
         content: parsed.content,
         slide_numbers: parsed.slide_numbers,
-        operations: parsed.operations
+        operations: parsed.operations ? parsed.operations.map(mapBatchOperationShortToLong) : undefined
       }
-
-      // 🐛 DEBUG: Log parsed response
-      // console.log('📦 [Parsed Bot Response]', {
-      //   action: response.action,
-      //   slidesCount: response.slides?.length ?? 0,
-      //   hasQuestion: !!response.question,
-      //   hasContent: !!response.content,
-      //   slide_ids: response.slide_ids,
-      //   rawParsed: parsed
-      // })
 
       return response
     }
@@ -274,10 +434,25 @@ export function parsePartialResponse(text: string): DeltaResponse {
 
   const result: DeltaResponse = { slides: [] }
 
-  // 2. Extract Action (Regex)
-  const actionMatch = /"action"\s*:\s*"([^"]+)"/.exec(trimmed)
-  if (actionMatch) {
-    result.action = actionMatch[1] as any
+  // 2. Extract Action (Regex) - support both short and long keys
+  const actionMatchShort = /"a"\s*:\s*"([^"]+)"/.exec(trimmed)
+  const actionMatchLong = /"action"\s*:\s*"([^"]+)"/.exec(trimmed)
+  
+  if (actionMatchShort || actionMatchLong) {
+    const actionValue = actionMatchShort ? actionMatchShort[1] : actionMatchLong ? actionMatchLong[1] : undefined
+    if (actionValue) {
+      const actionMap: Record<string, string> = {
+        'create': 'create',
+        'append': 'append',
+        'update': 'update',
+        'del': 'delete',
+        'ask': 'ask',
+        'chat': 'response',
+        'info': 'info',
+        'batch': 'batch'
+      }
+      result.action = (actionMap[actionValue] || actionValue) as any
+    }
   }
 
   // 3. Extract Slides Array
@@ -293,7 +468,8 @@ export function parsePartialResponse(text: string): DeltaResponse {
 }
 
 /**
- * Legacy/Helper: Parse just the array part (reused from before, but adapted)
+ * Parse slide array from streaming JSON.
+ * Supports both short-key format (i, t, c, v, d, l, n) and long-key format (backward compatible).
  */
 export function parsePartialSlides(text: string): Slide[] {
   const trimmed = text.trim()
@@ -321,12 +497,15 @@ export function parsePartialSlides(text: string): Slide[] {
     repaired += ']'
   }
 
-  // Fix trailing command if any: "[{...}, ]" -> "[{...}]"
+  // Fix trailing comma if any: "[{...}, ]" -> "[{...}]"
   repaired = repaired.replace(/,\s*\]$/, ']')
 
   try {
     const parsed = JSON.parse(repaired)
-    if (Array.isArray(parsed)) return parsed
+    if (Array.isArray(parsed)) {
+      // Transform all slides from short keys to long keys
+      return parsed.map(mapShortKeysToLongKeys)
+    }
   } catch {
     // Fallback: Regex extraction
     const objects: Slide[] = []
@@ -340,7 +519,10 @@ export function parsePartialSlides(text: string): Slide[] {
     while ((match = objectRegex.exec(json)) !== null) {
       try {
         const obj = JSON.parse(match[0])
-        if (obj.slide_number || obj.title) objects.push(obj)
+        // Check for both short keys (i, t) and long keys (slide_number, title)
+        if (obj.i !== undefined || obj.slide_number !== undefined || obj.t !== undefined || obj.title !== undefined) {
+          objects.push(mapShortKeysToLongKeys(obj))
+        }
       } catch { }
     }
     return objects

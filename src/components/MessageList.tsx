@@ -71,11 +71,19 @@ export default function MessageList({ messages, isStreaming, streamingThinking }
 
       let content = msg.content
       if (msg.role === 'assistant' && msg.isScriptGeneration) {
-        // Try extracting text after the JSON array
+        // Try extracting text after the JSON data
         const afterJson = extractCompletionMessage(msg.content)
-        if (afterJson) content = afterJson
-        else if (msg.content.trim().startsWith('[')) {
-          content = t('chat.scriptGenerated')
+        if (afterJson) {
+          content = afterJson
+        } else {
+          // Check if content is structured data (NDJSON or JSON array)
+          const trimmed = msg.content.trim()
+          const isNDJSON = trimmed.startsWith('{') && trimmed.includes('\n{')
+          const isJSONArray = trimmed.startsWith('[')
+          
+          if (isNDJSON || isJSONArray) {
+            content = t('chat.scriptGenerated')
+          }
         }
       }
 
