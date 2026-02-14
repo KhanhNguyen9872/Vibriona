@@ -23,6 +23,7 @@ export default function HeroChatInput() {
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [loadedSuggestionsCount, setLoadedSuggestionsCount] = useState(0)
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(true)
+  const [isUsingFallbackSuggestions, setIsUsingFallbackSuggestions] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { addToQueue, isProjectProcessing } = useQueueStore()
   const { addMessage, createSession, currentSessionId } = useSessionStore()
@@ -75,6 +76,7 @@ export default function HeroChatInput() {
       if (disableSuggestions) {
         setSuggestions([])
         setLoadedSuggestionsCount(0)
+        setIsUsingFallbackSuggestions(false)
         setIsLoadingSuggestions(false)
         return
       }
@@ -85,6 +87,7 @@ export default function HeroChatInput() {
       if (!isConfigured()) {
           setSuggestions(fallbackSuggestions)
           setLoadedSuggestionsCount(4)
+          setIsUsingFallbackSuggestions(true)
           setIsLoadingSuggestions(false)
           return
       }
@@ -101,6 +104,7 @@ export default function HeroChatInput() {
             if (Array.isArray(cachedSuggestions) && cachedSuggestions.length === API_CONFIG.SUGGESTION_COUNT) {
               setSuggestions(cachedSuggestions)
               setLoadedSuggestionsCount(API_CONFIG.SUGGESTION_COUNT)
+              setIsUsingFallbackSuggestions(false)
               setIsLoadingSuggestions(false)
               return
             }
@@ -132,11 +136,13 @@ export default function HeroChatInput() {
             if (finalSuggestions.length === 4) {
               setSuggestions(finalSuggestions)
               setLoadedSuggestionsCount(4)
+              setIsUsingFallbackSuggestions(false)
               // Only cache successful API suggestions
               sessionStorage.setItem(storageKey, JSON.stringify(finalSuggestions))
             } else {
               setSuggestions(fallbackSuggestions)
               setLoadedSuggestionsCount(4)
+              setIsUsingFallbackSuggestions(true)
               // Do NOT cache fallback suggestions so we retry next time
             }
             setIsLoadingSuggestions(false)
@@ -147,6 +153,7 @@ export default function HeroChatInput() {
             // toast.error(error) - Suppress toast for suggestions to avoid noise
             setSuggestions(fallbackSuggestions)
             setLoadedSuggestionsCount(4)
+            setIsUsingFallbackSuggestions(true)
             setIsLoadingSuggestions(false)
           }
         }, controller.signal)
@@ -157,6 +164,7 @@ export default function HeroChatInput() {
         console.warn('Failed to load dynamic suggestions, using defaults:', error)
         setSuggestions(fallbackSuggestions)
         setLoadedSuggestionsCount(4)
+        setIsUsingFallbackSuggestions(true)
         setIsLoadingSuggestions(false)
       }
     }
@@ -174,12 +182,10 @@ export default function HeroChatInput() {
   const handleRefreshSuggestions = async () => {
     if (disableSuggestions) return;
 
-    const fallbackSuggestions = [
-      t('hero.suggestion1'),
-      t('hero.suggestion2'),
-      t('hero.suggestion3'),
-      t('hero.suggestion4'),
-    ]
+    const getRandomFallbackSuggestions = () => {
+      const all = Array.from({ length: 100 }, (_, i) => t(`hero.suggestion${i + 1}`))
+      return [...all].sort(() => 0.5 - Math.random()).slice(0, 4)
+    }
 
     if (!isConfigured()) return; // Silent failure for suggestions
 
@@ -207,11 +213,13 @@ export default function HeroChatInput() {
           if (finalSuggestions.length === 4) {
             setSuggestions(finalSuggestions)
             setLoadedSuggestionsCount(4)
+            setIsUsingFallbackSuggestions(false)
             // Only cache successful API suggestions
             sessionStorage.setItem(storageKey, JSON.stringify(finalSuggestions))
           } else {
-            setSuggestions(fallbackSuggestions)
+            setSuggestions(getRandomFallbackSuggestions())
             setLoadedSuggestionsCount(4)
+            setIsUsingFallbackSuggestions(true)
             // Do NOT cache fallback suggestions
           }
           setIsLoadingSuggestions(false)
@@ -221,15 +229,17 @@ export default function HeroChatInput() {
           if (error.includes('CORS Error') || error.includes('Service busy')) {
             toast.error(error)
           }
-          setSuggestions(fallbackSuggestions)
+          setSuggestions(getRandomFallbackSuggestions())
           setLoadedSuggestionsCount(4)
+          setIsUsingFallbackSuggestions(true)
           setIsLoadingSuggestions(false)
         }
       })
     } catch (error) {
       console.warn('Failed to refresh suggestions:', error)
-      setSuggestions(fallbackSuggestions)
+      setSuggestions(getRandomFallbackSuggestions())
       setLoadedSuggestionsCount(4)
+      setIsUsingFallbackSuggestions(true)
       setIsLoadingSuggestions(false)
     }
   }
@@ -387,28 +397,28 @@ export default function HeroChatInput() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="flex items-center justify-between px-1 text-[10px] text-neutral-400 dark:text-zinc-500"
+          className="flex items-center justify-between gap-2 px-1 text-[10px] text-neutral-400 dark:text-zinc-500"
         >
-          <span>{t('chat.hint')}</span>
+          <span className="hidden md:inline">{t('chat.hint')}</span>
 
-          <div className="flex items-center gap-4">
-          {!disableSuggestions && (
-            <div className="flex items-center gap-2">
-              <span>{t('hero.suggestionsLabel')}</span>
-              <motion.button
-                onClick={handleRefreshSuggestions}
-                disabled={isLoadingSuggestions}
-                className="p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                title={t('hero.refreshSuggestions')}
-              >
-                <RefreshCw className={`w-3 h-3 text-neutral-400 dark:text-zinc-500 ${isLoadingSuggestions ? 'animate-spin' : ''}`} />
-              </motion.button>
-            </div>
-          )}
+          <div className="flex flex-1 md:flex-initial items-center justify-between md:justify-end gap-4">
+            {!disableSuggestions && (
+              <div className="flex items-center gap-2">
+                <span>{t('hero.suggestionsLabel')}</span>
+                <motion.button
+                  onClick={handleRefreshSuggestions}
+                  disabled={isLoadingSuggestions}
+                  className="p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  title={t('hero.refreshSuggestions')}
+                >
+                  <RefreshCw className={`w-3 h-3 text-neutral-400 dark:text-zinc-500 ${isLoadingSuggestions ? 'animate-spin' : ''}`} />
+                </motion.button>
+              </div>
+            )}
 
-            <div className="flex items-center gap-3 border-l border-neutral-200 dark:border-zinc-700 pl-4">
+            <div className="ml-auto md:ml-0 flex items-center gap-3 border-l border-neutral-200 dark:border-zinc-700 pl-4">
               <span>{charCount} {t('chat.charUnit')}</span>
               <span>•</span>
               <span>{wordCount} {t('chat.wordUnit')}</span>

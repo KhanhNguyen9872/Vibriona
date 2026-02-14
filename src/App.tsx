@@ -46,7 +46,20 @@ function App() {
   const isMobile = useIsMobile()
   const { mobileActiveTab, setMobileActiveTab, heroHold, splitPaneWidth, setSplitPaneWidth, isInitialLoad, setInitialLoad } = useUIStore()
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
+  const [githubDropdownOpen, setGithubDropdownOpen] = useState(false)
+  const githubDropdownRef = useRef<HTMLDivElement>(null)
   const { isInstallable, installApp } = usePWAInstall()
+
+  useEffect(() => {
+    if (!githubDropdownOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (githubDropdownRef.current && !githubDropdownRef.current.contains(e.target as Node)) {
+        setGithubDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [githubDropdownOpen])
 
   useEffect(() => {
     if (isInitialLoad) {
@@ -429,15 +442,48 @@ function App() {
                 <SettingsIcon className="w-[18px] h-[18px] text-neutral-500" />
               </button>
 
-              <a
-                href="https://github.com/KhanhNguyen9872"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer text-neutral-500 hover:text-black dark:hover:text-white"
-                title="GitHub"
-              >
-                <Github className="w-[18px] h-[18px]" />
-              </a>
+              <div className="relative" ref={githubDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setGithubDropdownOpen((v) => !v)}
+                  className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer text-neutral-500 hover:text-black dark:hover:text-white"
+                  title="GitHub"
+                >
+                  <Github className="w-[18px] h-[18px]" />
+                </button>
+                <AnimatePresence>
+                  {githubDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-lg overflow-hidden z-50"
+                    >
+                      <div className="p-4 flex flex-col items-center gap-3">
+                        <img
+                          src={`${import.meta.env.BASE_URL}assets/author.jpg`}
+                          alt="Author"
+                          className="w-16 h-16 rounded-full object-cover ring-2 ring-neutral-200 dark:ring-neutral-600"
+                        />
+                        <div className="text-center">
+                          <p className="font-semibold text-neutral-900 dark:text-white">Nguyễn Văn Khánh</p>
+                          <p className="text-sm text-neutral-500 dark:text-neutral-400">KhanhNguyen9872</p>
+                        </div>
+                        <a
+                          href="https://github.com/KhanhNguyen9872"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => setGithubDropdownOpen(false)}
+                          className="w-full py-2 px-3 rounded-lg bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-sm font-medium text-center transition-colors"
+                        >
+                          Đi tới Github
+                        </a>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
           </div>
         </header>
