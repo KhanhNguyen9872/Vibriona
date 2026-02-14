@@ -297,9 +297,7 @@ export default function SlideCard({
               ? 'border-green-500/80 bg-green-50/50 dark:bg-green-950/20'
               : slide._actionMarker === 'update'
                 ? 'border-yellow-500/80 bg-yellow-50/50 dark:bg-yellow-950/20'
-                : slide._actionMarker === 'sort' // <--- NEW STYLE FOR SORT
-                  ? 'border-blue-500/80 bg-blue-50/50 dark:bg-blue-950/20 z-10' // Blue + z-index bump
-                  : 'border-neutral-200 dark:border-neutral-700/50 bg-white dark:bg-neutral-900'
+                : 'border-neutral-200 dark:border-neutral-700/50 bg-white dark:bg-neutral-900'
         }
         ${isProcessing ? 'ring-1 ring-neutral-900/50 dark:ring-white/50' : ''}
         ${flashing ? 'slide-flash' : ''}

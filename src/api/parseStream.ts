@@ -200,7 +200,7 @@ export function extractCompletionMessage(content: string): string {
 }
 
 export interface DeltaResponse {
-  action?: 'create' | 'update' | 'append' | 'delete' | 'ask' | 'response' | 'info' | 'sort'
+  action?: 'create' | 'update' | 'append' | 'delete' | 'ask' | 'response' | 'info'
   slides: Slide[]
   // Fields for ask action
   question?: string
@@ -210,8 +210,6 @@ export interface DeltaResponse {
   content?: string
   // Fields for info action
   slide_ids?: string[]
-  // Fields for sort action
-  new_order?: string[]
 }
 
 /**
@@ -240,8 +238,7 @@ export function parsePartialResponse(text: string): DeltaResponse {
         options: parsed.options,
         allowCustom: parsed.allow_custom_input,
         content: parsed.content,
-        slide_ids: parsed.slide_ids,
-        new_order: parsed.new_order
+        slide_ids: parsed.slide_ids
       }
 
       // 🐛 DEBUG: Log parsed response
@@ -251,7 +248,6 @@ export function parsePartialResponse(text: string): DeltaResponse {
       //   hasQuestion: !!response.question,
       //   hasContent: !!response.content,
       //   slide_ids: response.slide_ids,
-      //   new_order: response.new_order,
       //   rawParsed: parsed
       // })
 

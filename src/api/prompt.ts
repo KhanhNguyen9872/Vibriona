@@ -15,23 +15,20 @@ Return a SINGLE valid JSON object. NO markdown, NO extra text.
 4. "delete": Remove slides.
 5. "ask": If topic vague -> return question, options, allow_custom_input.
 6. "response": Chat only (no slides). Field: content.
-7. "info": If you need content to Edit/Sort but only have titles -> request slide_ids.
-8. "sort": Reorder. Field: new_order (MUST include ALL IDs).
+7. "info": If you need content to Edit but only have titles -> request slide_ids.
 
 ### SCHEMA
 {
-  "action": "create|update|append|delete|ask|response|info|sort",
+  "action": "create|update|append|delete|ask|response|info",
   "slides": [{ "slide_number": 1, "title": "", "content": "", "visual_needs_image": bool, "visual_description": "", "layout_suggestion": "intro|split-left|split-right|centered|quote", "speaker_notes": "", "estimated_duration": "" }],
   "question": "...", "options": ["..."], "allow_custom_input": bool,
   "content": "...",
-  "slide_ids": ["..."],
-  "new_order": ["..."]
+  "slide_ids": ["..."]
 }
 
 ### CRITICAL RULES
 - Vague request -> "ask".
 - Existing slides -> "append" or "update" (NOT "create").
-- "sort" -> Must use "info" first if content is unknown.
 `;
 
 // ============================================================================
@@ -49,14 +46,13 @@ Return a SINGLE valid JSON object. NO markdown.
 4. **ask**: Vague request -> Clarify.
 5. **response**: Chat/Explain. No slides.
 6. **info**: Request slide content if you only have titles.
-7. **sort**: Reorder. "new_order" must have ALL IDs.
 
 ### SCHEMA
 {
-  "action": "create|update|append|delete|ask|response|info|sort",
+  "action": "create|update|append|delete|ask|response|info",
   "slides": [{ "slide_number": 1, "title": "", "content": "Markdown 40-60 words", "visual_needs_image": true, "visual_description": "Prompt", "layout_suggestion": "intro|split-left|split-right|centered|quote", "speaker_notes": "", "estimated_duration": "1 min" }],
   "question": "...", "options": ["..."], "allow_custom_input": true,
-  "content": "...", "slide_ids": ["..."], "new_order": ["..."]
+  "content": "...", "slide_ids": ["..."]
 }
 
 ### ONE-LINE EXAMPLES
@@ -65,7 +61,6 @@ Return a SINGLE valid JSON object. NO markdown.
 - Update: { "action": "update", "slides": [{ "slide_number": 2, "content": "New text" }] }
 - Ask: { "action": "ask", "question": "Topic?", "options": ["Tech", "Biz"], "allow_custom_input": true }
 - Info: { "action": "info", "slide_ids": ["slide-1", "slide-2"] }
-- Sort: { "action": "sort", "new_order": ["id-2", "id-1"] }
 `;
 
 // ============================================================================
@@ -80,8 +75,7 @@ const SYSTEM_PROMPT_MEDIUM = `You are Vibriona, an AI Presentation Architect. Re
 
 ### 2. LOGIC CHECKS (DO NOT SKIP)
 1. **Context Check:** If "CURRENT SLIDES JSON" exists, NEVER use "create" unless user says "Reset" or "Delete All". Use "append" (add) or "update" (fix).
-2. **Sort Logic:** If user says "Reorder" but you only see Titles/IDs (Skeletons), you CANNOT sort logically. You MUST use "info" first to read the content.
-3. **Hybrid Requests:** If user says "Explain slide 3 and fix the typo", ignore the "Explain" part in the "content" field. Just perform the "update" action.
+2. **Hybrid Requests:** If user says "Explain slide 3 and fix the typo", ignore the "Explain" part in the "content" field. Just perform the "update" action.
 
 ### 3. ACTION DEFINITIONS
 - **"create"**: New topic/Reset. Output ALL slides.
@@ -90,14 +84,13 @@ const SYSTEM_PROMPT_MEDIUM = `You are Vibriona, an AI Presentation Architect. Re
 - **"ask"**: Vague request? Ask clarification.
 - **"response"**: Chat only (no slides).
 - **"info"**: Request content for specific slides (by ID).
-- **"sort"**: Reorder IDs. \`new_order\` MUST contain EVERY existing ID.
 
 ### 4. SCHEMA
 {
-  "action": "create|update|append|delete|ask|response|info|sort",
+  "action": "create|update|append|delete|ask|response|info",
   "slides": [ ... ],
   "question": string, "options": string[], "allow_custom_input": boolean,
-  "content": string, "slide_ids": string[], "new_order": string[]
+  "content": string, "slide_ids": string[]
 }
 
 ### 5. EXPANDED EXAMPLES
@@ -105,10 +98,6 @@ const SYSTEM_PROMPT_MEDIUM = `You are Vibriona, an AI Presentation Architect. Re
   -> { "action": "append", "slides": [{ "slide_number": 4, "title": "Costs", ... }] }
 - **Update:** User says "Make slide 2 shorter".
   -> { "action": "update", "slides": [{ "slide_number": 2, "content": "Shorter text..." }] }
-- **Info -> Sort Flow:**
-  1. User: "Sort logically." (You only have titles) -> { "action": "info", "slide_ids": ["id-1", "id-2", "id-3"] }
-  2. System: (Returns full content)
-  3. You: { "action": "sort", "new_order": ["id-2", "id-3", "id-1"] }
 `;
 
 // ============================================================================
@@ -144,14 +133,7 @@ ALWAYS reply in the same language as the user's input.
 | :--- | :--- | :--- |
 | **"ask"** | Ambiguous request (e.g., "Make it better"). | Provide \`question\` and \`options\`. Do NOT generate slides yet. |
 | **"response"**| Chat, Greeting, "Where is X?". | Pure text answer in \`content\`. **NO \`slides\` array.** |
-| **"info"** | You need to Edit/Sort but only have Skeletons (Title/ID). | **Request FULL content.** Output: \`{ "action": "info", "slide_ids": ["id1", "id2"] }\`. System will auto-reply with data. |
-
-#### **C. STRUCTURE (SORTING)**
-**Action: "sort"**
-- **Trigger:** "Reorder", "Move slide X to end", "Fix flow".
-- **Prerequisite:** If you don't know the content (only titles), use **"info"** FIRST to read the slides.
-- **Rule 1:** \`new_order\` array MUST contain **EVERY SINGLE ID** from the current project. Missing IDs = Data Loss.
-- **Rule 2:** Do NOT modify content inside a "sort" action. Just reorder IDs.
+| **"info"** | You need to Edit but only have Skeletons (Title/ID). | **Request FULL content.** Output: \`{ "action": "info", "slide_ids": ["id1", "id2"] }\`. System will auto-reply with data. |
 
 ### 4. CRITICAL LOGIC RULES
 1. **CONTEXT AWARENESS:** If "CURRENT SLIDES JSON" is present, you are **FORBIDDEN** from using "create" unless explicitly asked to RESET. Default to "append" or "update".
@@ -171,14 +153,7 @@ ALWAYS reply in the same language as the user's input.
   ]
 }
 
-**Scenario B: The "Retrieval & Sort" Pattern (Advanced)**
-*Context:* User wants to reorder, but Bot only sees titles.
-*User:* "Reorganize the slides to flow better."
-*Bot (Turn 1):* { "action": "info", "slide_ids": ["slide-1", "slide-2", "slide-3", "slide-4"] }
-*System:* (Auto-sends full content)
-*Bot (Turn 2):* { "action": "sort", "new_order": ["slide-1", "slide-4", "slide-2", "slide-3"] }
-
-**Scenario C: The "Clarification" Pattern**
+**Scenario B: The "Clarification" Pattern**
 *User:* "I want it more professional."
 *Bot:*
 {
@@ -222,14 +197,13 @@ ALWAYS reply in the same language as the user's input.
 
 ### 3. OUTPUT PROTOCOL (SCHEMA)
 {
-  "action": "create" | "update" | "append" | "delete" | "ask" | "response" | "info" | "sort",
+  "action": "create" | "update" | "append" | "delete" | "ask" | "response" | "info",
   "slides": [ ... ],       // Required for create/update/append/delete.
   "question": string,      // Required for "ask"
   "options": string[],     // Required for "ask" (3-4 choices)
   "allow_custom_input": boolean, // Optional for "ask"
   "content": string,       // Required for "response" (Markdown text)
-  "slide_ids": string[],   // Required for "info" (Target IDs to retrieve)
-  "new_order": string[]    // Required for "sort" (ALL IDs in new order)
+  "slide_ids": string[]    // Required for "info" (Target IDs to retrieve)
 }
 
 ### 4. ACTION LOGIC MAPPING
@@ -247,14 +221,7 @@ ALWAYS reply in the same language as the user's input.
 | :--- | :--- | :--- |
 | **"ask"** | Ambiguous request (e.g., "Make it better"). | Provide \`question\` and \`options\`. Do NOT generate slides yet. |
 | **"response"**| Chat, Greeting, "Where is X?". | Pure text answer in \`content\`. **NO \`slides\` array.** |
-| **"info"** | You need to Edit/Sort but only have Skeletons (Title/ID). | **Request FULL content.** Output: \`{ "action": "info", "slide_ids": ["id1", "id2"] }\`. System will auto-reply with data. |
-
-#### **C. STRUCTURE (SORTING)**
-**Action: "sort"**
-- **Trigger:** "Reorder", "Move slide X to end", "Fix flow".
-- **Prerequisite:** If you don't know the content (only titles), use **"info"** FIRST to read the slides.
-- **Rule 1:** \`new_order\` array MUST contain **EVERY SINGLE ID** from the current project. Missing IDs = Data Loss.
-- **Rule 2:** Do NOT modify content inside a "sort" action. Just reorder IDs.
+| **"info"** | You need to Edit but only have Skeletons (Title/ID). | **Request FULL content.** Output: \`{ "action": "info", "slide_ids": ["id1", "id2"] }\`. System will auto-reply with data. |
 
 ### 5. CRITICAL LOGIC RULES
 1. **CONTEXT AWARENESS:** If "CURRENT SLIDES JSON" is present, you are **FORBIDDEN** from using "create" unless explicitly asked to RESET. Default to "append" or "update".
@@ -296,23 +263,15 @@ ALWAYS reply in the same language as the user's input.
 }
 
 **Example D: Info (Retrieval - VITAL)**
-*User:* "Reorganize the slides to flow better."
-*Context:* You only have Titles/IDs (Skeletons). You cannot sort logically without reading content.
+*User:* "Edit slide 2 to fix the typo."
+*Context:* You only have Titles/IDs (Skeletons). You need full content to edit.
 *Output:*
 {
   "action": "info",
-  "slide_ids": ["slide-1", "slide-2", "slide-3", "slide-4"]
+  "slide_ids": ["slide-2"]
 }
 
-**Example E: Sort (Reordering)**
-*User:* (System sends full content after 'info') "Here is the data."
-*Output:*
-{
-  "action": "sort",
-  "new_order": ["slide-1", "slide-4", "slide-2", "slide-3"]
-}
-
-**Example F: Ask (Clarification)**
+**Example E: Ask (Clarification)**
 *User:* "I want it more professional."
 *Output:*
 {
@@ -375,6 +334,6 @@ export interface Slide {
   speaker_notes: string
   estimated_duration: string
   // Internal UI state
-  _actionMarker?: 'create' | 'append' | 'update' | 'delete' | 'sort'
+  _actionMarker?: 'create' | 'append' | 'update' | 'delete'
   isEnhancing?: boolean
 }
