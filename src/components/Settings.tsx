@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { motion } from 'motion/react'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { toast } from 'sonner'
-import { X, Sun, Moon, Languages, Mic } from 'lucide-react'
+import { X, Sun, Moon, Languages } from 'lucide-react'
 import type { Theme, Language } from '../store/useSettingsStore'
 
 interface SettingsProps {

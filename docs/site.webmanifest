@@ -1,25 +1,11 @@
 {
-    "name": "Vibriona - AI Presentation Generator",
-    "short_name": "Vibriona",
-    "description": "Generate professional presentations in seconds with AI.",
-    "icons": [
-        {
-            "src": "android-chrome-192x192.png",
-            "sizes": "192x192",
-            "type": "image/png",
-            "purpose": "any"
-        },
-        {
-            "src": "android-chrome-512x512.png",
-            "sizes": "512x512",
-            "type": "image/png",
-            "purpose": "any"
-        }
-    ],
-    "theme_color": "#000000",
-    "background_color": "#ffffff",
-    "display": "standalone",
-    "start_url": "/Vibriona/",
-    "scope": "/Vibriona/",
-    "orientation": "portrait"
+  "name": "Vibriona - AI Presentation Generator",
+  "short_name": "Vibriona",
+  "description": "Generate professional presentations in seconds with AI.",
+  "theme_color": "#000000",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "start_url": "/Vibriona/",
+  "scope": "/Vibriona/",
+  "orientation": "portrait"
 }

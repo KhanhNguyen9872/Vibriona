@@ -24,7 +24,7 @@ export default function HeroChatInput() {
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [loadedSuggestionsCount, setLoadedSuggestionsCount] = useState(0)
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(true)
-  const [isUsingFallbackSuggestions, setIsUsingFallbackSuggestions] = useState(false)
+  const [, setIsUsingFallbackSuggestions] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { addToQueue, isProjectProcessing } = useQueueStore()
   const { addMessage, createSession, currentSessionId } = useSessionStore()
