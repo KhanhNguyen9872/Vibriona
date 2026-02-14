@@ -13,4 +13,6 @@ export const API_CONFIG = {
   // Conversation context management
   COMPACTION_THRESHOLD: 20, // Trigger compaction every 20 uncompacted messages
   CONTEXT_WARNING_THRESHOLD: 60, // Show warning when messages >= this count
+  // Voice: auto-stop after this many ms without speech
+  VOICE_SILENCE_AUTO_STOP_MS: 3000,
 }

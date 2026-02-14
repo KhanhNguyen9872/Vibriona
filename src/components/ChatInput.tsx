@@ -13,6 +13,17 @@ import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
 
 const MAX_CHARS = 4096
 
+/** If existing text doesn't end with sentence punctuation + space, append ". " before new text (so speech continues the sentence properly). */
+function appendAfterSentence(prev: string, next: string): string {
+  const trimmed = next.trim()
+  if (!trimmed) return prev
+  const t = prev.trim()
+  if (!t) return trimmed
+  const endsWithPunctuationAndSpace = /[.!?]\s*$/.test(prev)
+  const separator = endsWithPunctuationAndSpace ? ' ' : '. '
+  return prev + separator + trimmed
+}
+
 /** Circular progress icon: current/max (e.g. uncompacted messages before next compact). */
 function ContextProgressIcon({ current, max }: { current: number; max: number }) {
   const progress = max > 0 ? Math.min(current / max, 1) : 0
@@ -84,7 +95,7 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
 
   const [interimTranscript, setInterimTranscript] = useState('')
   const onVoiceTranscript = useCallback((text: string) => {
-    setPrompt((prev) => (prev ? prev + ' ' : '') + text)
+    setPrompt((prev) => appendAfterSentence(prev, text))
     setInterimTranscript('')
     if (autoSubmitOnSpeech) {
       setTimeout(() => submitRef.current?.(), 150)
@@ -167,12 +178,15 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
     }
   }, [shouldShowWarning, warningStorageKey])
 
-  // Voice: focus chat field when listening; clear interim when stopped
+  // Voice: focus when listening; when stopped, keep spoken words by merging interim into prompt
   useEffect(() => {
     if (speech.isListening && textareaRef.current) {
       textareaRef.current.focus()
     }
-    if (!speech.isListening) setInterimTranscript('')
+    if (!speech.isListening) {
+      setPrompt((prev) => appendAfterSentence(prev, interimTranscript))
+      setInterimTranscript('')
+    }
   }, [speech.isListening])
 
   // Voice: show error toast when permission denied or other error
@@ -217,6 +231,7 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
   }, [lastError?.id, lastError?.error, t])
 
   const handleSubmit = () => {
+    if (speech.isListening) speech.stop()
     const trimmed = prompt.trim()
     if (!trimmed || isOverLimit || isProcessing) return
 

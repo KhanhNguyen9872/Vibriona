@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { API_CONFIG } from '../config/api'
 
 interface SpeechResultItem {
   isFinal: boolean
@@ -49,6 +50,7 @@ export function useSpeechRecognition(
   const audioContextRef = useRef<AudioContext | null>(null)
   const rafRef = useRef<number>(0)
   const analyserRef = useRef<AnalyserNode | null>(null)
+  const lastSpeechTimeRef = useRef(0)
 
   const isSupported = typeof window !== 'undefined' && !!SpeechRecognition
 
@@ -90,6 +92,7 @@ export function useSpeechRecognition(
     rec.lang = langForSpeech(locale)
 
     rec.onresult = (event: SpeechRecognitionResultEvent) => {
+      lastSpeechTimeRef.current = Date.now()
       let finalBuffer = ''
       let interimBuffer = ''
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -124,6 +127,7 @@ export function useSpeechRecognition(
 
     try {
       rec.start()
+      lastSpeechTimeRef.current = Date.now()
       setIsListening(true)
       setError(null)
       stopMicLevel()
@@ -180,6 +184,17 @@ export function useSpeechRecognition(
     if (!isListening) stopMicLevel()
     return () => stopMicLevel()
   }, [isListening, stopMicLevel])
+
+  // Auto-stop after 4s of no speech (no result events)
+  useEffect(() => {
+    if (!isListening) return
+    const id = setInterval(() => {
+      if (Date.now() - lastSpeechTimeRef.current >= API_CONFIG.VOICE_SILENCE_AUTO_STOP_MS) {
+        stop()
+      }
+    }, 500)
+    return () => clearInterval(id)
+  }, [isListening, stop])
 
   const toggle = useCallback(() => {
     if (isListening) stop()
