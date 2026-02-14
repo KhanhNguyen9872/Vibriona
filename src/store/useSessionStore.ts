@@ -57,6 +57,7 @@ interface SessionState {
   newChat: () => void
   pinSession: (id: string) => void
   renameSession: (id: string, title: string) => void
+  reorderSessions: (fromIndex: number, toIndex: number) => void
   // Slide operations (session-scoped)
   setSessionSlides: (slides: Slide[]) => void
   mergeSlides: (updatedSlides: Slide[]) => void
@@ -218,6 +219,14 @@ export const useSessionStore = create<SessionState>()(
             s.id === id ? { ...s, title } : s
           ),
         })),
+
+      reorderSessions: (fromIndex, toIndex) =>
+        set((state) => {
+          const list = [...state.sessions]
+          const [removed] = list.splice(fromIndex, 1)
+          if (removed) list.splice(toIndex, 0, removed)
+          return { sessions: list }
+        }),
 
       // --- Slide operations (scoped to current session) ---
 

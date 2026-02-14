@@ -115,7 +115,7 @@ export default function ScriptWorkspace() {
     : null
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
@@ -517,6 +517,7 @@ export default function ScriptWorkspace() {
                     onToggleSelect={toggleSlideSelection}
                     onEdit={(idx) => setEditingSlideIndex(idx)}
                     readonly={isReadonly}
+                    isDragActive={activeDragIndex !== null}
                   />
                 ))}
                 <AnimatePresence>
@@ -530,7 +531,7 @@ export default function ScriptWorkspace() {
 
             <DragOverlay dropAnimation={null}>
               {activeDragIndex !== null && displaySlides[activeDragIndex] && (
-                <div className="scale-[1.03] rounded-xl ring-1 ring-black/10 dark:ring-white/10 opacity-95">
+                <div className="scale-105 rounded-xl shadow-2xl ring-2 ring-black/10 dark:ring-white/20 opacity-95 cursor-grabbing">
                   <SlideCard
                     slide={displaySlides[activeDragIndex]}
                     index={activeDragIndex}

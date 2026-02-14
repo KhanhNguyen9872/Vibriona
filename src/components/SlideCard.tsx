@@ -37,6 +37,7 @@ interface SlideCardProps {
   onToggleSelect: (index: number) => void
   onEdit?: (index: number) => void
   readonly?: boolean
+  isDragActive?: boolean
 }
 
 
@@ -48,6 +49,7 @@ export default function SlideCard({
   onToggleSelect,
   onEdit,
   readonly = false,
+  isDragActive = false,
 }: SlideCardProps) {
   const { t } = useTranslation()
   const layoutLabels: Record<string, string> = {
@@ -267,18 +269,23 @@ export default function SlideCard({
   }
 
   return (
-    <motion.div
-      layout // <--- KEY CHANGE: Enables automatic position animation
-      layoutId={slide.id || `slide-${slide.slide_number}`} // Optional: helps tracking
-      transition={{ type: "spring", stiffness: 300, damping: 30 }} // Snappy physics
+    <div
       id={`slide-card-${index}`}
       ref={setNodeRef}
       style={style}
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`
+      className="origin-center"
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{
+          opacity: isDragging ? 0 : 1,
+          y: 0,
+          scale: isDragActive && !isDragging ? 0.98 : 1,
+          transition: { duration: isDragActive ? 0.2 : 0.15 },
+        }}
+        transition={{ duration: 0.2 }}
+        className={`
         relative border rounded-xl transition-all duration-300
-        ${isDragging ? 'opacity-30 z-50' : ''}
         ${showMenu ? 'z-40' : ''}
         ${isBlurred ? 'blur-[2px] opacity-60 pointer-events-none' : ''}
         ${selected
@@ -297,7 +304,7 @@ export default function SlideCard({
         ${flashing ? 'slide-flash' : ''}
         ${slide._actionMarker ? 'opacity-70 scale-[0.98]' : ''}
       `}
-    >
+      >
       {/* Magic Overlay (Processing) — Text-Only, Blur Only */}
       {isProcessing && (
         <div className="absolute inset-0 z-30 overflow-hidden rounded-xl bg-white/60 dark:bg-black/60 backdrop-blur-[2px] transition-all duration-300">
@@ -479,6 +486,7 @@ export default function SlideCard({
         )}
       </AnimatePresence>
 
-    </motion.div>
+      </motion.div>
+    </div>
   )
 }

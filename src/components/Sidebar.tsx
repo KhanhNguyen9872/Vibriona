@@ -3,6 +3,18 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { confirmAction } from '../utils/confirmAction'
 import { motion, AnimatePresence } from 'motion/react'
+import {
+  DndContext,
+  DragOverlay,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core'
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { MAX_PROJECTS } from '../config/limits'
 import { useSessionStore, type Session } from '../store/useSessionStore'
 import { useQueueStore } from '../store/useQueueStore'
@@ -21,7 +33,8 @@ import {
   Pencil,
   User,
   MoreHorizontal,
-  FolderInput
+  FolderInput,
+  GripVertical,
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -31,9 +44,53 @@ interface SidebarProps {
   onSessionSelect?: () => void
 }
 
+function SortableSessionWrapper({
+  session,
+  isDragActive,
+  children,
+}: {
+  session: Session
+  isDragActive: boolean
+  children: React.ReactNode
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: session.id })
+  const style = { transform: CSS.Transform.toString(transform), transition }
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="mb-0.5 origin-center"
+    >
+      <motion.div
+        initial={{ opacity: 0, x: -8 }}
+        animate={{
+          opacity: isDragging ? 0 : 1,
+          x: 0,
+          scale: isDragActive && !isDragging ? 0.98 : 1,
+          transition: { duration: isDragActive ? 0.2 : 0.15 },
+        }}
+        exit={{ opacity: 0, x: -8 }}
+        transition={{ duration: 0.2 }}
+        className="flex items-stretch gap-0"
+      >
+        <div
+          {...attributes}
+          {...listeners}
+          className="flex items-center shrink-0 py-1 cursor-grab active:cursor-grabbing touch-none self-center rounded hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50"
+        >
+          <GripVertical className="w-3 h-3 text-neutral-400" />
+        </div>
+        <div className={`min-w-0 flex-1 relative transition-opacity duration-200 ${isDragActive && !isDragging ? 'opacity-70' : ''}`}>
+          {children}
+        </div>
+      </motion.div>
+    </div>
+  )
+}
+
 export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelect }: SidebarProps) {
   const { t } = useTranslation()
-  const { sessions, currentSessionId, setCurrentSession, deleteSession, importSession, pinSession, renameSession, clearSessions } =
+  const { sessions, currentSessionId, setCurrentSession, deleteSession, importSession, pinSession, renameSession, reorderSessions, clearSessions } =
     useSessionStore()
   const { profiles, activeProfileId } = useSettingsStore()
   const { isProjectProcessing } = useQueueStore()
@@ -43,6 +100,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
   const [renameValue, setRenameValue] = useState('')
   const [showProfileManager, setShowProfileManager] = useState(false)
   const [showFooterMenu, setShowFooterMenu] = useState(false)
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
   
   const renameInputRef = useRef<HTMLInputElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -118,12 +176,23 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
     }
   }
 
-  // Sort: pinned first, then by timestamp descending
-  const sortedSessions = [...sessions].sort((a, b) => {
-    if (a.pinned && !b.pinned) return -1
-    if (!a.pinned && b.pinned) return 1
-    return b.timestamp - a.timestamp
-  })
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+  )
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveDragId(String(event.active.id))
+  }, [])
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    setActiveDragId(null)
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const fromIndex = sessions.findIndex((s) => s.id === active.id)
+    const toIndex = sessions.findIndex((s) => s.id === over.id)
+    if (fromIndex === -1 || toIndex === -1) return
+    reorderSessions(fromIndex, toIndex)
+  }, [sessions, reorderSessions])
 
   const handleExportSession = (id: string) => {
     setMenuSessionId(null)
@@ -259,15 +328,11 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
               </p>
             ) : (
                <AnimatePresence>
-                {!collapsed ? sortedSessions.map((session) => (
-                  <motion.div
-                    key={session.id}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -8 }}
-                    transition={{ duration: 0.15 }}
-                    className="relative mb-0.5"
-                  >
+                {!collapsed ? (
+                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+                    <SortableContext items={sessions.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                      {sessions.map((session) => (
+                        <SortableSessionWrapper key={session.id} session={session} isDragActive={activeDragId !== null}>
                     <button
                       onClick={() => handleSelect(session.id)}
                       className={`group w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-all duration-200 cursor-pointer ${session.id === currentSessionId
@@ -376,8 +441,45 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                         </motion.div>
                       )}
                     </AnimatePresence>
-                  </motion.div>
-                )) : (
+                        </SortableSessionWrapper>
+                      ))}
+                    </SortableContext>
+
+                    <DragOverlay dropAnimation={null}>
+                      {activeDragId ? (() => {
+                        const session = sessions.find((s) => s.id === activeDragId)
+                        if (!session) return null
+                        return (
+                          <div className="flex items-stretch gap-0 rounded-xl shadow-2xl ring-2 ring-black/10 dark:ring-white/20 bg-white dark:bg-neutral-800 scale-105 cursor-grabbing opacity-95 overflow-hidden">
+                            <div className="flex items-center shrink-0 py-1 pl-1 pr-0.5 text-neutral-400">
+                              <GripVertical className="w-3 h-3" />
+                            </div>
+                            <div className="flex items-center gap-2 px-2.5 py-2 min-w-0 flex-1">
+                              <div className="relative shrink-0">
+                                <MessageSquare className="w-3.5 h-3.5 text-neutral-400" />
+                                {session.pinned && <Pin className="w-2 h-2 text-amber-500 absolute -top-1 -right-1" />}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[11px] font-medium truncate leading-tight text-neutral-700 dark:text-neutral-300">
+                                  {session.title}
+                                </p>
+                                <div className="flex items-center justify-between mt-0.5">
+                                  <p className="text-[10px] text-neutral-400">{formatTime(session.timestamp)}</p>
+                                  {session.slides && session.slides.length > 0 && (
+                                    <span className="text-[10px] font-medium text-neutral-500 bg-neutral-100 dark:bg-neutral-700 px-1.5 rounded-full">
+                                      {session.slides.length}{t('workspace.slidesUnitShort')}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <MoreVertical className="w-3 h-3 text-neutral-400 shrink-0" />
+                            </div>
+                          </div>
+                        )
+                      })() : null}
+                    </DragOverlay>
+                  </DndContext>
+                ) : (
                     // Collapsed View Items (Icons only)
                     <div className="flex flex-col items-center gap-2">
                         <button
@@ -387,7 +489,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                         >
                             <Plus className="w-4 h-4" />
                         </button>
-                        {sortedSessions.map((session) => (
+                        {sessions.map((session) => (
                           <button
                             key={session.id}
                             onClick={() => handleSelect(session.id)}
