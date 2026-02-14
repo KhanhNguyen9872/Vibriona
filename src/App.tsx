@@ -44,7 +44,7 @@ function App() {
   const scheduledDeletions = useRef<Set<string>>(new Set())
   const mountedRef = useRef(false)
   const isMobile = useIsMobile()
-  const { mobileActiveTab, setMobileActiveTab, heroHold, splitPaneWidth, setSplitPaneWidth, isInitialLoad, setInitialLoad, mobileScriptPanelVisible, toggleMobileScriptPanel, setMobileScriptPanelVisible, chatPanelVisible, toggleChatPanel, setChatPanelVisible } = useUIStore()
+  const { mobileActiveTab, setMobileActiveTab, heroHold, splitPaneWidth, setSplitPaneWidth, isInitialLoad, setInitialLoad, mobileScriptPanelVisible, toggleMobileScriptPanel, setMobileScriptPanelVisible, chatPanelVisible, toggleChatPanel, setChatPanelVisible, setViewMode } = useUIStore()
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
   const [githubDropdownOpen, setGithubDropdownOpen] = useState(false)
   const githubDropdownRef = useRef<HTMLDivElement>(null)
@@ -182,6 +182,10 @@ function App() {
     const action = item.responseAction || (item.contextSlideNumbers?.length ? 'update' : 'create')
     const mergedSlides = applyDelta(prevSlides, { action, slides: item.slides! })
     setSessionSlides(mergedSlides)
+    // When going from empty -> first script (create), force SlideCard (grid) view
+    if (action === 'create' && prevSlides.length === 0 && mergedSlides.length > 0) {
+      setViewMode('grid')
+    }
 
     // Capture full slide state after the update
     const updatedSession = getCurrentSession()
