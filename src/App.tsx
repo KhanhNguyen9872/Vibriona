@@ -401,7 +401,7 @@ function App() {
                 onClick={handleNewChat}
                 className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
               >
-                <img src={`${import.meta.env.BASE_URL}assets/logo.png`} alt="Logo" className="w-7 h-7 object-contain" />
+                <img src={`${import.meta.env.BASE_URL}assets/logo.png`} alt={t('app.title')} className="w-7 h-7 object-contain" />
                 <span className="text-sm font-bold tracking-tight max-[480px]:hidden">{t('app.title')}</span>
               </div>
             </div>
@@ -501,7 +501,7 @@ function App() {
                   type="button"
                   onClick={() => setGithubDropdownOpen((v) => !v)}
                   className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer text-neutral-500 hover:text-black dark:hover:text-white"
-                  title="GitHub"
+                  title={t('app.github')}
                 >
                   <Github className="w-[18px] h-[18px]" />
                 </button>
@@ -517,7 +517,7 @@ function App() {
                       <div className="p-4 flex flex-col items-center gap-3">
                         <img
                           src={`${import.meta.env.BASE_URL}assets/author.jpg`}
-                          alt="Author"
+                          alt={t('app.author')}
                           className="w-16 h-16 rounded-full object-cover ring-2 ring-neutral-200 dark:ring-neutral-600"
                         />
                         <div className="text-center">
@@ -531,7 +531,7 @@ function App() {
                           onClick={() => setGithubDropdownOpen(false)}
                           className="w-full py-2 px-3 rounded-lg bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-sm font-medium text-center transition-colors"
                         >
-                          Đi tới Github
+                          {t('app.goToGithub')}
                         </a>
                       </div>
                     </motion.div>

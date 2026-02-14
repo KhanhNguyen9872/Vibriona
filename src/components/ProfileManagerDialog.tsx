@@ -223,8 +223,8 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
       }
     } catch (err: any) {
       if (err.code === 'ERR_NETWORK' && !err.response) {
-          toast.error("CORS Error: The server rejected the request. Ensure the API server allows requests from this domain.", {
-              description: "Common for local LLMs like Ollama (OLLAMA_ORIGINS) or custom proxies."
+          toast.error(t('errors.corsMessage'), {
+              description: t('errors.corsDescription'),
           });
       } else {
           toast.error(t('profiles.fetchModelsError'));
@@ -369,7 +369,7 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
   const confirmEdit = (id: string, e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation();
     if (!editName.trim()) {
-        toast.error("Profile name cannot be empty");
+        toast.error(t('profiles.emptyName'));
         return;
     }
     updateProfile(id, { name: editName.trim() });
@@ -555,7 +555,7 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                                             ? 'border-neutral-400 dark:border-zinc-600 hover:border-neutral-900 dark:hover:border-white hover:bg-neutral-100 dark:hover:bg-zinc-800' 
                                             : 'border-neutral-200 dark:border-zinc-800 opacity-40 cursor-not-allowed'
                                     }`}
-                                    title={isValid ? "Set as Active Profile" : "Incomplete Profile"}
+                                    title={isValid ? t('profiles.setActiveProfile') : t('profiles.incompleteProfile')}
                                   >
                                     {isActive && <Check className="w-3 h-3" />}
                                   </div>
@@ -734,7 +734,7 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                                      type={showApiKey ? "text" : "password"}
                                      value={draft.apiKey}
                                      onChange={(e) => updateDraft('apiKey', e.target.value)}
-                                     placeholder={draft.noAuth ? "Authorization not required" : "sk-..."}
+                                     placeholder={draft.noAuth ? t('settings.apiKeyPlaceholderNoAuth') : t('config.apiKeyPlaceholder')}
                                      disabled={draft.noAuth}
                                      className={`w-full bg-white dark:bg-zinc-900 border rounded-lg px-4 py-2.5 pr-10 text-sm font-mono text-neutral-700 dark:text-zinc-300 focus:outline-none transition-colors ${
                                        draft.noAuth ? 'opacity-40 cursor-not-allowed border-neutral-200 dark:border-zinc-800' :
@@ -837,7 +837,7 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
                                                 <span className="truncate">{m.id}</span>
                                             </div>
                                             {m.thinking && (
-                                                <div title="Reasoning model">
+                                                <div title={t('settings.reasoningModel')}>
                                                     <Brain className="w-3 h-3 text-neutral-600 dark:text-neutral-400 shrink-0" />
                                                 </div>
                                             )}

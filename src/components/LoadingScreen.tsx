@@ -64,7 +64,7 @@ export default function LoadingScreen() {
         >
           <img
             src={`${import.meta.env.BASE_URL}assets/logo.png`}
-            alt="Logo"
+            alt={t('app.title')}
             className="w-16 h-16 object-contain"
           />
         </motion.div>

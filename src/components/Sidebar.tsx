@@ -525,7 +525,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                 <button
                     onClick={() => setShowProfileManager(true)}
                     className={`flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-neutral-200/60 dark:hover:bg-neutral-800 transition-colors text-neutral-500 dark:text-neutral-400 hover:text-black dark:hover:text-white group ${collapsed ? '' : 'flex-1'}`}
-                    title="Manage Profile"
+                    title={t('app.manageProfile')}
                 >
                     <div className="w-8 h-8 rounded-full bg-neutral-100 dark:bg-zinc-800 flex items-center justify-center text-neutral-600 dark:text-zinc-400 border border-neutral-200 dark:border-zinc-700 group-hover:border-neutral-400 dark:group-hover:border-zinc-500 transition-colors shrink-0">
                         <User className="w-4 h-4" />

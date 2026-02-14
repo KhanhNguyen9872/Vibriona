@@ -137,7 +137,7 @@ export default function MessageList({ messages, isStreaming, streamingThinking }
         <span
           className="text-[11px] font-medium text-neutral-400 dark:text-zinc-500 truncate cursor-pointer hover:text-neutral-600 dark:hover:text-zinc-300 transition-colors"
           onDoubleClick={handleStartRename}
-          title={t('sessions.renameHint') || 'Double click to rename'}
+          title={t('sessions.renameHint')}
         >
           {currentSession?.title ?? ''}
         </span>
@@ -217,7 +217,7 @@ export default function MessageList({ messages, isStreaming, streamingThinking }
               <div className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                 {msg.role === 'assistant' && (
                   <div className="shrink-0 w-7 h-7 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mt-0.5">
-                    <img src="assets/logo.png" alt="Vibriona" className="w-5 h-5 object-contain" />
+                    <img src="assets/logo.png" alt={t('app.title')} className="w-5 h-5 object-contain" />
                   </div>
                 )}
                 {msg.role === 'user' && (
@@ -240,7 +240,7 @@ export default function MessageList({ messages, isStreaming, streamingThinking }
               className="flex gap-3 justify-start"
             >
               <div className="shrink-0 w-7 h-7 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mt-0.5">
-                <img src="assets/logo.png" alt="Vibriona" className="w-5 h-5 object-contain animate-pulse" />
+                <img src="assets/logo.png" alt={t('app.title')} className="w-5 h-5 object-contain animate-pulse" />
               </div>
               <div className="bg-neutral-100 dark:bg-zinc-900 rounded-2xl rounded-bl-md px-4 py-2.5">
                 <div className="flex items-center gap-2.5">

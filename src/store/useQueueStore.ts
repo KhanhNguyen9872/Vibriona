@@ -8,6 +8,7 @@ import { extractCompletionMessage } from '../api/parseStream'
 import type { Slide } from '../api/prompt'
 import { getSystemPrompt } from '../api/prompt'
 import { toast } from 'sonner'
+import i18n from '../i18n'
 
 export interface QueueItem {
   id: string
@@ -115,7 +116,7 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
       // Show compaction indicator
       const compactingMsgId = sessionStore.addMessage({
         role: 'assistant',
-        content: 'Compacting conversation...',
+        content: i18n.t('chat.compacting'),
         timestamp: Date.now(),
         isScriptGeneration: false,
         isThinking: true,
