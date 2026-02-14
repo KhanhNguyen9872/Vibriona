@@ -109,8 +109,7 @@ export default function HeroChatInput() {
               return
             }
           }
-        } catch (error) {
-          console.warn('Failed to load cached suggestions:', error)
+        } catch {
           // Don't return, fall through to fetch
         }
       }
@@ -147,10 +146,8 @@ export default function HeroChatInput() {
             }
             setIsLoadingSuggestions(false)
           },
-          onError: (error) => {
+          onError: () => {
             if (controller.signal.aborted) return
-            console.warn('Streaming error:', error)
-            // toast.error(error) - Suppress toast for suggestions to avoid noise
             setSuggestions(fallbackSuggestions)
             setLoadedSuggestionsCount(4)
             setIsUsingFallbackSuggestions(true)
@@ -161,7 +158,6 @@ export default function HeroChatInput() {
         if (error.name === 'AbortError' || controller.signal.aborted) {
            return // Ignore aborts
         }
-        console.warn('Failed to load dynamic suggestions, using defaults:', error)
         setSuggestions(fallbackSuggestions)
         setLoadedSuggestionsCount(4)
         setIsUsingFallbackSuggestions(true)
@@ -225,7 +221,6 @@ export default function HeroChatInput() {
           setIsLoadingSuggestions(false)
         },
         onError: (error) => {
-          console.warn('Refresh error:', error)
           if (error.includes('CORS Error') || error.includes('Service busy')) {
             toast.error(error)
           }
@@ -235,8 +230,7 @@ export default function HeroChatInput() {
           setIsLoadingSuggestions(false)
         }
       })
-    } catch (error) {
-      console.warn('Failed to refresh suggestions:', error)
+    } catch {
       setSuggestions(getRandomFallbackSuggestions())
       setLoadedSuggestionsCount(4)
       setIsUsingFallbackSuggestions(true)
@@ -321,11 +315,43 @@ export default function HeroChatInput() {
       {/* Input Container */}
       <div className="relative group">
         <div
-          className={`relative flex items-start rounded-2xl border transition-all duration-300 ${isSubmitted
+          className={`relative flex items-start rounded-2xl border transition-all duration-300 overflow-hidden ${isSubmitted
               ? 'bg-neutral-100 dark:bg-zinc-800/60 border-neutral-200 dark:border-zinc-700'
               : 'bg-white dark:bg-zinc-800/50 border-neutral-200 dark:border-zinc-700 hover:border-neutral-400 dark:hover:border-zinc-500 focus-within:border-neutral-400 dark:focus-within:border-zinc-500'
             }`}
         >
+          {/* Light sweep left-to-right when generating */}
+          <AnimatePresence>
+            {isSubmitted && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 rounded-2xl pointer-events-none z-10"
+                aria-hidden
+              >
+                <motion.div
+                  className="absolute inset-0 rounded-2xl"
+                  style={{
+                    background: 'linear-gradient(105deg, transparent 0%, transparent 35%, rgba(255,255,255,0.25) 50%, transparent 65%, transparent 100%)',
+                    width: '60%',
+                  }}
+                  animate={{ x: ['-80%', '180%'] }}
+                  transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+                />
+                <motion.div
+                  className="absolute inset-0 rounded-2xl dark:opacity-70"
+                  style={{
+                    background: 'linear-gradient(105deg, transparent 0%, transparent 38%, rgba(251,191,36,0.2) 50%, transparent 62%, transparent 100%)',
+                    width: '50%',
+                  }}
+                  animate={{ x: ['-70%', '190%'] }}
+                  transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut', delay: 0.15 }}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Sparkle accent */}
           <div className="pl-4 pr-1 py-3.5">
             <Sparkles className={`w-4 h-4 transition-colors duration-300 ${isSubmitted
