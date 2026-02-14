@@ -199,8 +199,20 @@ export function extractCompletionMessage(content: string): string {
   return ''
 }
 
+export interface BatchOperation {
+  type: 'update' | 'delete'
+  slide_number: number
+  title?: string
+  content?: string
+  visual_needs_image?: boolean
+  visual_description?: string
+  layout_suggestion?: string
+  speaker_notes?: string
+  estimated_duration?: string
+}
+
 export interface DeltaResponse {
-  action?: 'create' | 'update' | 'append' | 'delete' | 'ask' | 'response' | 'info'
+  action?: 'create' | 'update' | 'append' | 'delete' | 'ask' | 'response' | 'info' | 'batch'
   slides: Slide[]
   // Fields for ask action
   question?: string
@@ -209,7 +221,9 @@ export interface DeltaResponse {
   // Field for response action
   content?: string
   // Fields for info action
-  slide_ids?: string[]
+  slide_numbers?: number[]
+  // Fields for batch action
+  operations?: BatchOperation[]
 }
 
 /**
@@ -230,7 +244,7 @@ export function parsePartialResponse(text: string): DeltaResponse {
   // 1. Try full parse first
   try {
     const parsed = JSON.parse(trimmed)
-    if (parsed && (Array.isArray(parsed.slides) || parsed.action === 'ask' || parsed.action === 'response')) {
+    if (parsed && (Array.isArray(parsed.slides) || parsed.action === 'ask' || parsed.action === 'response' || parsed.action === 'batch')) {
       const response = {
         action: parsed.action,
         slides: parsed.slides || [],
@@ -238,7 +252,8 @@ export function parsePartialResponse(text: string): DeltaResponse {
         options: parsed.options,
         allowCustom: parsed.allow_custom_input,
         content: parsed.content,
-        slide_ids: parsed.slide_ids
+        slide_numbers: parsed.slide_numbers,
+        operations: parsed.operations
       }
 
       // 🐛 DEBUG: Log parsed response

@@ -250,6 +250,18 @@ function App() {
     metaThemeColor.setAttribute('content', theme === 'dark' ? '#0a0a0a' : '#ffffff')
   }, [theme])
 
+  // Redirect any non-root path to '/' (single-route app)
+  useEffect(() => {
+    const base = import.meta.env.BASE_URL
+    const pathname = window.location.pathname
+    const basePath = base.endsWith('/') ? base.slice(0, -1) || '/' : base
+    const isRoot = pathname === '/' || pathname === basePath || pathname === base
+    if (!isRoot) {
+      window.location.replace(base + (window.location.search || ''))
+      return
+    }
+  }, [])
+
   // Deep linking: restore session from URL on mount
   useEffect(() => {
     if (mountedRef.current) return

@@ -1,9 +1,11 @@
 
 import type { Slide } from '../api/prompt'
+import type { BatchOperation } from '../api/parseStream'
 
 export interface DeltaResponse {
-  action?: 'create' | 'update' | 'append' | 'delete' | 'ask' | 'response' | 'info'
+  action?: 'create' | 'update' | 'append' | 'delete' | 'ask' | 'response' | 'info' | 'batch'
   slides: Slide[]
+  operations?: BatchOperation[]
 }
 
 /**
@@ -83,6 +85,53 @@ export const applyDelta = (
       }
       return existingSlide
     })
+  }
+
+  // CASE 5: BATCH (Multiple operations)
+  if (action === 'batch' && delta.operations && delta.operations.length > 0) {
+    let result = [...currentSlides]
+    
+    for (const op of delta.operations) {
+      if (op.type === 'delete') {
+        // Remove the slide
+        const deleteIndex = result.findIndex(s => s.slide_number === op.slide_number)
+        if (deleteIndex !== -1) {
+          if (options.markActions) {
+            result[deleteIndex] = { ...result[deleteIndex], _actionMarker: 'delete' as const }
+          } else {
+            result.splice(deleteIndex, 1)
+          }
+        }
+      } else if (op.type === 'update') {
+        // Update the slide
+        const updateIndex = result.findIndex(s => s.slide_number === op.slide_number)
+        if (updateIndex !== -1) {
+          const updatedSlide: Slide = {
+            ...result[updateIndex],
+            ...(op.title !== undefined && { title: op.title }),
+            ...(op.content !== undefined && { content: op.content }),
+            ...(op.visual_needs_image !== undefined && { visual_needs_image: op.visual_needs_image }),
+            ...(op.visual_description !== undefined && { visual_description: op.visual_description }),
+            ...(op.layout_suggestion !== undefined && { layout_suggestion: op.layout_suggestion as any }),
+            ...(op.speaker_notes !== undefined && { speaker_notes: op.speaker_notes }),
+            ...(op.estimated_duration !== undefined && { estimated_duration: op.estimated_duration })
+          }
+          
+          result[updateIndex] = options.markActions
+            ? { ...updatedSlide, _actionMarker: 'batch' as const }
+            : updatedSlide
+        }
+      }
+    }
+    
+    // Renumber if not marking actions and we deleted slides
+    if (!options.markActions) {
+      result = result
+        .filter(s => !s._actionMarker || s._actionMarker !== 'delete')
+        .map((s, index) => ({ ...s, slide_number: index + 1 }))
+    }
+    
+    return result
   }
 
   // Fallback: If no action (e.g. legacy or start of stream), prefer "Create/Replace" behavior

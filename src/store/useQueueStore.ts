@@ -24,7 +24,7 @@ export interface QueueItem {
   error?: string
   contextSlides?: Slide[]
   contextSlideNumbers?: number[]
-  responseAction?: 'create' | 'update' | 'append' | 'delete' | 'ask' | 'response' | 'info'
+  responseAction?: 'create' | 'update' | 'append' | 'delete' | 'ask' | 'response' | 'info' | 'batch'
   // Fields for ask action
   question?: string
   options?: string[]
@@ -32,7 +32,9 @@ export interface QueueItem {
   // Field for response action
   content?: string
   // Fields for info action
-  slide_ids?: string[]
+  slide_numbers?: number[]
+  // Fields for batch action
+  operations?: any[]
   hasReceivedAction?: boolean // Track when action type is known from stream
 }
 
@@ -236,13 +238,10 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
     
     // Helper: Build skeleton list (ID + Title only)
     const buildSkeletonList = (slides: Slide[]) => {
-      // FORCE SIMPLE IDs for LLM Context: "slide-1", "slide-2", etc.
-      // This reduces token usage and confusion for the Bot.
+      // Return only slide_number and title for token optimization
       return slides.map(s => ({
-        id: `slide-${s.slide_number}`, // <--- FORCE SIMPLE ID
         slide_number: s.slide_number,
         title: s.title,
-        // Omit: content, speaker_notes, visual_description, etc.
       }))
     }
 
@@ -253,7 +252,7 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
       const fullDetailsForSelected = next.contextSlides
       
       apiPrompt = `[SYSTEM_STATE: EXISTING_PROJECT_ACTIVE]
-[PROJECT_STRUCTURE (IDs & Titles Only)]:
+[PROJECT_STRUCTURE (Numbers & Titles Only)]:
 ${JSON.stringify(skeleton, null, 2)}
 
 [DETAILED_CONTEXT_FOR_SELECTED_SLIDES]:
@@ -268,7 +267,7 @@ USER INSTRUCTION: ${next.prompt}`
       const skeleton = buildSkeletonList(projectSession.slides)
       
       apiPrompt = `[SYSTEM_STATE: EXISTING_PROJECT_ACTIVE]
-[PROJECT_STRUCTURE (IDs & Titles Only)]:
+[PROJECT_STRUCTURE (Numbers & Titles Only)]:
 ${JSON.stringify(skeleton, null, 2)}
 
 USER REQUEST: ${next.prompt}`
@@ -282,7 +281,7 @@ USER REQUEST: ${next.prompt}`
         get().updateItem(next.id, { thinkingText })
       },
       onResponseUpdate: (response) => {
-        const { action, slides: newSlides, question, options, allowCustom, content, slide_ids } = response
+        const { action, slides: newSlides, question, options, allowCustom, content, slide_numbers, operations } = response
         
         get().updateItem(next.id, { 
           slides: newSlides,
@@ -292,7 +291,8 @@ USER REQUEST: ${next.prompt}`
           allowCustom,
           content,
           hasReceivedAction: true,
-          slide_ids
+          slide_numbers,
+          operations
         })
       },
       onDone: (fullText, slides, thinking, completionMessage) => {
@@ -351,28 +351,23 @@ USER REQUEST: ${next.prompt}`
         // Only run if we didn't salvage slides (meaning we genuinely need info)
         if (finalAction === 'info' && finalSlides.length === 0) {
           
-          // 1. Determine Target IDs
-          let targetIds = currentItem?.slide_ids || []
+          // 1. Determine Target slide numbers
+          let targetNumbers = currentItem?.slide_numbers || []
           
-          // 🛡️ PHASE 54: SMART FALLBACK: If Bot requested INFO but gave no IDs (or empty array), fetch ALL slides.
-          if (targetIds.length === 0) {
+          // 🛡️ PHASE 54: SMART FALLBACK: If Bot requested INFO but gave no numbers (or empty array), fetch ALL slides.
+          if (targetNumbers.length === 0) {
             const projectSession = useSessionStore.getState().sessions.find(s => s.id === next.projectId)
             if (projectSession?.slides) {
-              targetIds = projectSession.slides.map(s => s.id || `slide-${s.slide_number}`)
+              targetNumbers = projectSession.slides.map(s => s.slide_number)
             }
           }
 
           // 2. Execute Recursion if we have targets
-          if (targetIds.length > 0) {
+          if (targetNumbers.length > 0) {
             // Retrieve Data
             const projectSession = useSessionStore.getState().sessions.find(s => s.id === next.projectId)
             const allSlides = projectSession?.slides || []
-            const requestedSlides = allSlides.filter(s => {
-              // 🛡️ PHASE 56: ROBUST ID MATCHING
-              // Check BOTH the UUID and the 'slide-N' format
-               const simpleId = `slide-${s.slide_number}`
-               return (s.id && targetIds.includes(s.id)) || targetIds.includes(simpleId)
-            })
+            const requestedSlides = allSlides.filter(s => targetNumbers.includes(s.slide_number))
 
             // 2. Get Original Intent
             const originalUserRequest = currentItem?.prompt || "User request unavailable"
@@ -390,10 +385,10 @@ ${JSON.stringify(requestedSlides, null, 2)}
 
             // Update History (Append the Bot's "info" request AND the System's "data" response)
             // Ensure we append the actual text generated by the bot as the assistant response
-            // If bot provided no IDs originally, we might want to synthesize the info request in history 
+            // If bot provided no numbers originally, we might want to synthesize the info request in history 
             // but relying on fullText is usually safer if it exists. 
             // If fullText is empty (edge case), we synthesize a proper info output.
-            const infoMessageContent = fullText || JSON.stringify({ action: 'info', slide_ids: targetIds })
+            const infoMessageContent = fullText || JSON.stringify({ action: 'info', slide_numbers: targetNumbers })
 
             const newHistory: HistoryMessage[] = [
               ...history, 
@@ -412,7 +407,7 @@ ${JSON.stringify(requestedSlides, null, 2)}
               onToken: (t) => get().updateItem(next.id, { streamingText: t }),
               onThinking: (t) => get().updateItem(next.id, { thinkingText: t }),
               onResponseUpdate: (res) => {
-                 const { action, slides, question, options, allowCustom, content, slide_ids } = res
+                 const { action, slides, question, options, allowCustom, content, slide_numbers, operations } = res
                  get().updateItem(next.id, { 
                    slides,
                    responseAction: action as any, 
@@ -421,7 +416,8 @@ ${JSON.stringify(requestedSlides, null, 2)}
                    allowCustom,
                    content,
                    hasReceivedAction: true,
-                   slide_ids
+                   slide_numbers,
+                   operations
                  })
               },
               onDone: (ft, s, th, cm) => {
@@ -526,6 +522,25 @@ ${JSON.stringify(requestedSlides, null, 2)}
           options: item.options || [],
           allowCustom: item.allowCustom
         }
+      })
+    }
+
+    // 🔀 If action is "batch", create a summary message
+    if (item.responseAction === 'batch' && item.operations && item.operations.length > 0) {
+      const opSummary = item.operations.map(op => {
+        if (op.type === 'delete') {
+          return `Deleted slide ${op.slide_number}`
+        } else if (op.type === 'update') {
+          return `Updated slide ${op.slide_number}`
+        }
+        return ''
+      }).filter(Boolean).join(', ')
+      
+      useSessionStore.getState().addMessage({
+        role: 'assistant',
+        content: `I have applied ${item.operations.length} changes: ${opSummary}`,
+        timestamp: Date.now(),
+        isScriptGeneration: false
       })
     }
 

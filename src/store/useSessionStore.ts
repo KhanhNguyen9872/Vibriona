@@ -242,15 +242,9 @@ export const useSessionStore = create<SessionState>()(
         const { currentSessionId } = get()
         if (!currentSessionId) return
         
-        // Auto-generate IDs for slides that don't have them
-        const slidesWithIds = slides.map(s => ({
-          ...s,
-          id: s.id || `slide-${s.slide_number}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-        }))
-        
         set((state) => ({
           sessions: state.sessions.map((s) =>
-            s.id === currentSessionId ? { ...s, slides: slidesWithIds } : s
+            s.id === currentSessionId ? { ...s, slides } : s
           ),
         }))
       },
@@ -259,17 +253,11 @@ export const useSessionStore = create<SessionState>()(
         const { currentSessionId } = get()
         if (!currentSessionId) return
         
-        // Auto-generate IDs for updated slides that don't have them
-        const updatedWithIds = updatedSlides.map(s => ({
-          ...s,
-          id: s.id || `slide-${s.slide_number}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-        }))
-        
         set((state) => ({
           sessions: state.sessions.map((s) => {
             if (s.id !== currentSessionId) return s
             const newSlides = s.slides.map((existing) => {
-              const updated = updatedWithIds.find((u) => u.slide_number === existing.slide_number)
+              const updated = updatedSlides.find((u) => u.slide_number === existing.slide_number)
               return updated ? { ...existing, ...updated } : existing
             })
             return { ...s, slides: newSlides }
@@ -342,10 +330,10 @@ export const useSessionStore = create<SessionState>()(
           sessions: state.sessions.map((s) => {
             if (s.id !== currentSessionId) return s
             
-            // Create a map for O(1) lookup
+            // Create a map for O(1) lookup using slide_number
             const slideMap = new Map(
               s.slides.map((slide) => [
-                slide.id || `slide-${slide.slide_number}`,
+                `slide-${slide.slide_number}`,
                 slide
               ])
             )

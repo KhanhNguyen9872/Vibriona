@@ -50,7 +50,7 @@ export default function ScriptView({
         const isEnhancing = slide.isEnhancing || processingSlideNumbers.includes(slide.slide_number)
         return (
         <motion.article
-          key={slide.id || `slide-${slide.slide_number}`}
+          key={`slide-${slide.slide_number}`}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2, delay: index * 0.03 }}
