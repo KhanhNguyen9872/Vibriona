@@ -20,6 +20,10 @@ interface UIState {
   setActiveMenuSlideNumber: (number: number | null) => void
   viewMode: 'grid' | 'script'
   setViewMode: (mode: 'grid' | 'script') => void
+  isResizing: boolean
+  setResizing: (v: boolean) => void
+  resizeJustEnded: boolean
+  setResizeJustEnded: (v: boolean) => void
 }
 
 let heroHoldTimer: ReturnType<typeof setTimeout> | null = null
@@ -74,4 +78,8 @@ export const useUIStore = create<UIState>((set) => ({
     try { localStorage.setItem('vibriona-view-mode', mode) } catch { /* noop */ }
     set({ viewMode: mode })
   },
+  isResizing: false,
+  setResizing: (v) => set({ isResizing: v }),
+  resizeJustEnded: false,
+  setResizeJustEnded: (v) => set({ resizeJustEnded: v }),
 }))

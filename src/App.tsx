@@ -44,7 +44,7 @@ function App() {
   const scheduledDeletions = useRef<Set<string>>(new Set())
   const mountedRef = useRef(false)
   const isMobile = useIsMobile()
-  const { mobileActiveTab, setMobileActiveTab, heroHold, splitPaneWidth, setSplitPaneWidth, isInitialLoad, setInitialLoad, mobileScriptPanelVisible, toggleMobileScriptPanel, setMobileScriptPanelVisible, chatPanelVisible, toggleChatPanel, setChatPanelVisible, setViewMode } = useUIStore()
+  const { mobileActiveTab, setMobileActiveTab, heroHold, splitPaneWidth, setSplitPaneWidth, isInitialLoad, setInitialLoad, mobileScriptPanelVisible, toggleMobileScriptPanel, setMobileScriptPanelVisible, chatPanelVisible, toggleChatPanel, setChatPanelVisible, setViewMode, isResizing, resizeJustEnded, setResizeJustEnded } = useUIStore()
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
   const [githubDropdownOpen, setGithubDropdownOpen] = useState(false)
   const githubDropdownRef = useRef<HTMLDivElement>(null)
@@ -86,6 +86,13 @@ function App() {
     hasReceivedSlideAction ||
     items.some((i) => i.status === 'done' && i.slides && i.slides.length > 0 && i.projectId === projectId) ||
     (currentSession?.slides && currentSession.slides.length > 0)
+
+  // Clear resizeJustEnded after one frame so transition stays 0 only for the frame after release (no flash)
+  useEffect(() => {
+    if (!resizeJustEnded) return
+    const id = requestAnimationFrame(() => setResizeJustEnded(false))
+    return () => cancelAnimationFrame(id)
+  }, [resizeJustEnded, setResizeJustEnded])
 
   // On mobile: reset chat/script panel visibility to both visible (toggle buttons are desktop-only)
   useEffect(() => {
@@ -595,14 +602,17 @@ function App() {
                     width: chatPanelVisible ? (mobileScriptPanelVisible ? `${splitPaneWidth}%` : '100%') : 0,
                     minWidth: chatPanelVisible ? 320 : 0,
                     opacity: chatPanelVisible ? 1 : 0,
-                    flex: chatPanelVisible ? undefined : '0 0 0',
+                    flex: chatPanelVisible
+                      ? (mobileScriptPanelVisible ? `0 0 ${splitPaneWidth}%` : '1 1 0%')
+                      : '0 0 0',
                   }
                 : undefined
             }
-            transition={{
-              duration: 0.28,
-              ease: [0.32, 0.72, 0, 1],
-            }}
+            transition={
+              isResizing || resizeJustEnded
+                ? { duration: 0 }
+                : { duration: 0.28, ease: [0.32, 0.72, 0, 1] }
+            }
           >
             {/* Show hero only when no messages AND no slides (new project state) */}
             {heroHold || (messages.length === 0 && !hasSlideData) ? (
@@ -623,7 +633,7 @@ function App() {
           {hasSlideData && !heroHold && (isMobile || (mobileScriptPanelVisible && chatPanelVisible)) && (
             <ResizableDivider
               onResize={setSplitPaneWidth}
-              minWidth={500}
+              minWidth={320}
               maxPercentage={70}
             />
           )}
