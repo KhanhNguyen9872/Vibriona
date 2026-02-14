@@ -30,7 +30,10 @@ export default function HeroChatInput() {
   const { addMessage, createSession, currentSessionId } = useSessionStore()
   const { startHeroHold } = useUIStore()
   const { isConfigured, disableSuggestions, autoSubmitOnSpeech } = useSettingsStore()
-  const submitRef = useRef<() => void>(() => {})
+  const submitRef = useRef<(overrideText?: string) => void>(() => {})
+  const promptRef = useRef(prompt)
+  promptRef.current = prompt
+  const pendingSubmitOnStopRef = useRef(false)
 
   const projectId = currentSessionId || ''
   const isProcessing = isProjectProcessing(projectId)
@@ -40,11 +43,16 @@ export default function HeroChatInput() {
     setPrompt((prev) => (prev ? prev + ' ' : '') + text)
     setInterimTranscript('')
     if (autoSubmitOnSpeech) {
-      setTimeout(() => submitRef.current?.(), 150)
+      setTimeout(() => submitRef.current?.(), 280)
     }
   }, [autoSubmitOnSpeech])
   const onInterim = useCallback((text: string) => setInterimTranscript(text || ''), [])
   const speech = useSpeechRecognition(i18n.language, onVoiceTranscript, onInterim)
+
+  // When listening, "effective" content = what's shown (prompt + interim); submit button enables and submits this
+  const effectiveContent = speech.isListening
+    ? (prompt + (prompt ? ' ' : '') + interimTranscript).trim()
+    : prompt.trim()
 
   // Calculate character and word count
   const charCount = prompt.length
@@ -73,13 +81,26 @@ export default function HeroChatInput() {
     adjustTextareaHeight()
   }, [prompt])
 
-  // Voice: focus when listening; clear interim when stopped
+  // Voice: focus when listening; when stopped, merge interim and maybe auto-submit
   useEffect(() => {
     if (speech.isListening && textareaRef.current) {
       textareaRef.current.focus()
     }
-    if (!speech.isListening) setInterimTranscript('')
-  }, [speech.isListening])
+    if (!speech.isListening) {
+      const hadInterim = !!interimTranscript.trim()
+      setPrompt((prev) => (prev ? prev + ' ' : '') + (interimTranscript || '').trim())
+      setInterimTranscript('')
+      if (hadInterim && autoSubmitOnSpeech) pendingSubmitOnStopRef.current = true
+    }
+  }, [speech.isListening, autoSubmitOnSpeech])
+
+  // After merging interim on stop, submit once when prompt has updated (if auto-submit on speech)
+  useEffect(() => {
+    if (!speech.isListening && pendingSubmitOnStopRef.current && autoSubmitOnSpeech && prompt.trim()) {
+      pendingSubmitOnStopRef.current = false
+      submitRef.current?.(prompt)
+    }
+  }, [speech.isListening, autoSubmitOnSpeech, prompt])
 
   // Voice: show error toast
   useEffect(() => {
@@ -266,9 +287,10 @@ export default function HeroChatInput() {
     }
   }
 
-  const handleSubmit = async (e?: React.FormEvent) => {
-    e?.preventDefault()
-    const trimmed = prompt.trim()
+  const handleSubmit = async (e?: React.FormEvent, overrideText?: string) => {
+    e?.preventDefault?.()
+    const raw = overrideText ?? promptRef.current ?? prompt
+    const trimmed = (typeof raw === 'string' ? raw : '').trim()
     if (!trimmed || isProcessing || isSubmitted) return
 
     const activeProfileId = useSettingsStore.getState().activeProfileId;
@@ -317,7 +339,7 @@ export default function HeroChatInput() {
     // Note: Mobile tab switching now happens automatically in App.tsx 
     // only when action is confirmed to be slide-related (intent-aware)
   }
-  submitRef.current = handleSubmit
+  submitRef.current = (text?: string) => handleSubmit(undefined, text)
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -462,8 +484,8 @@ export default function HeroChatInput() {
               ) : (
                 <motion.button
                   key="submit"
-                  onClick={handleSubmit}
-                  disabled={!prompt.trim()}
+                  onClick={() => submitRef.current?.(speech.isListening ? effectiveContent : undefined)}
+                  disabled={!effectiveContent}
                   className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-black dark:bg-white text-white dark:text-black text-[11px] font-semibold tracking-wide hover:opacity-90 active:scale-[0.97] transition-all disabled:opacity-25 disabled:cursor-not-allowed cursor-pointer"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.97 }}

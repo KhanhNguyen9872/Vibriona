@@ -91,14 +91,18 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
     return active?.systemPromptType ?? 'medium'
   })
   const getSystemPromptType = useCallback(() => systemPromptType, [systemPromptType])
-  const submitRef = useRef<() => void>(() => {})
+  const submitRef = useRef<(overrideText?: string) => void>(() => {})
+  const promptRef = useRef(prompt)
+  promptRef.current = prompt
+  const pendingSubmitOnStopRef = useRef(false)
 
   const [interimTranscript, setInterimTranscript] = useState('')
   const onVoiceTranscript = useCallback((text: string) => {
     setPrompt((prev) => appendAfterSentence(prev, text))
     setInterimTranscript('')
     if (autoSubmitOnSpeech) {
-      setTimeout(() => submitRef.current?.(), 150)
+      // Delay so React commits state; submit will read latest via promptRef
+      setTimeout(() => submitRef.current?.(), 280)
     }
   }, [autoSubmitOnSpeech])
   const onInterim = useCallback((text: string) => {
@@ -124,6 +128,10 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
   const queuedCount = items.filter((i) => i.status === 'queued').length
   const lastError = [...items].reverse().find((i) => i.status === 'error')
 
+  // When listening, "effective" content = what's shown (prompt + interim); used for submit button and for submit-on-click
+  const effectiveContent = speech.isListening
+    ? (prompt + (prompt ? ' ' : '') + interimTranscript).trim()
+    : prompt.trim()
   const charCount = prompt.length
   const wordCount = useMemo(() => {
     const trimmed = prompt.trim()
@@ -178,16 +186,26 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
     }
   }, [shouldShowWarning, warningStorageKey])
 
-  // Voice: focus when listening; when stopped, keep spoken words by merging interim into prompt
+  // Voice: focus when listening; when stopped, merge interim into prompt and maybe auto-submit
   useEffect(() => {
     if (speech.isListening && textareaRef.current) {
       textareaRef.current.focus()
     }
     if (!speech.isListening) {
+      const hadInterim = !!interimTranscript.trim()
       setPrompt((prev) => appendAfterSentence(prev, interimTranscript))
       setInterimTranscript('')
+      if (hadInterim && autoSubmitOnSpeech) pendingSubmitOnStopRef.current = true
     }
-  }, [speech.isListening])
+  }, [speech.isListening, autoSubmitOnSpeech])
+
+  // After merging interim on stop, submit once when prompt has updated (if auto-submit on speech)
+  useEffect(() => {
+    if (!speech.isListening && pendingSubmitOnStopRef.current && autoSubmitOnSpeech && prompt.trim()) {
+      pendingSubmitOnStopRef.current = false
+      submitRef.current?.(prompt)
+    }
+  }, [speech.isListening, autoSubmitOnSpeech, prompt])
 
   // Voice: show error toast when permission denied or other error
   useEffect(() => {
@@ -230,9 +248,12 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
     }
   }, [lastError?.id, lastError?.error, t])
 
-  const handleSubmit = () => {
+  const handleSubmit = (eOrOverride?: React.MouseEvent | React.FormEvent | string) => {
+    const overrideText = typeof eOrOverride === 'string' ? eOrOverride : undefined
+    if (eOrOverride && typeof eOrOverride !== 'string' && 'preventDefault' in eOrOverride) (eOrOverride as React.FormEvent).preventDefault()
     if (speech.isListening) speech.stop()
-    const trimmed = prompt.trim()
+    const raw = overrideText ?? promptRef.current ?? prompt
+    const trimmed = (typeof raw === 'string' ? raw : '').trim()
     if (!trimmed || isOverLimit || isProcessing) return
 
     const activeProfileId = useSettingsStore.getState().activeProfileId;
@@ -274,8 +295,9 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
       })
     })
 
-    // Clear input
+    // Clear input (and ref so next voice doesn't see stale text)
     setPrompt('')
+    promptRef.current = ''
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
@@ -501,8 +523,8 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
                 </div>
               </div>
               <button
-                onClick={handleSubmit}
-                disabled={!prompt.trim() || isOverLimit || isProcessing}
+                onClick={() => handleSubmit(speech.isListening ? effectiveContent : undefined)}
+                disabled={!effectiveContent || isOverLimit || isProcessing}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black dark:bg-white text-white dark:text-black text-[11px] font-semibold tracking-wide hover:opacity-90 active:scale-[0.97] transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
               >
                 {isProcessing ? (

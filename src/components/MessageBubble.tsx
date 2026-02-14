@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useSessionStore, type ChatMessage } from '../store/useSessionStore'
 import { extractCompletionMessage } from '../api/parseStream'
 import MarkdownRenderer from './MarkdownRenderer'
-import { Sparkles, Presentation, RotateCcw } from 'lucide-react'
+import { Sparkles, Presentation, RotateCcw, Copy } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import ClarificationRequest from './ClarificationRequest'
@@ -83,6 +83,17 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
     restoreSnapshot(JSON.parse(JSON.stringify(message.slideSnapshot)))
   }
 
+  const handleCopy = async () => {
+    const textToCopy = message.role === 'assistant' ? displayContent : message.content
+    if (!textToCopy?.trim()) return
+    try {
+      await navigator.clipboard.writeText(textToCopy.trim())
+      toast.success(t('chat.copied'))
+    } catch {
+      toast.error(t('chat.copyFailed'))
+    }
+  }
+
   // Styling based on role
   const bubbleClass = message.role === 'user'
     ? 'bg-neutral-200 dark:bg-zinc-700 text-neutral-900 dark:text-zinc-100 rounded-2xl rounded-br-md px-4 py-2.5 max-w-[80%]'
@@ -122,6 +133,16 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
                 </span>
               </button>
             )}
+
+            {/* Copy (icon only, to the right of Restore, top row) */}
+            <button
+              onClick={handleCopy}
+              title={t('chat.copy')}
+              aria-label={t('chat.copy')}
+              className="flex items-center justify-center p-1 rounded-md border border-neutral-200/80 dark:border-zinc-700/80 text-neutral-500 dark:text-zinc-400 hover:border-neutral-400 dark:hover:border-zinc-500 hover:text-neutral-700 dark:hover:text-zinc-200 transition-all active:scale-[0.97] cursor-pointer shrink-0"
+            >
+              <Copy className="w-2.5 h-2.5" />
+            </button>
           </div>
 
           {/* Time */}
@@ -193,26 +214,20 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
         </div>
       )}
 
-      {/* Footer: Snapshot restore button & Time (Only for non-script-generation messages or user messages) */}
+      {/* Footer: Copy + Time — one line only (user: Copy left; assistant: same style as header row) */}
       {(message.role === 'user' || (message.role === 'assistant' && !(message.slideSnapshot && message.slideSnapshot.length > 0))) && (
-        <div className={`flex items-center flex-wrap gap-2 mt-2 ${message.role === 'user' ? 'justify-end' : 'justify-between'
-          }`}>
-          {message.slideSnapshot && message.slideSnapshot.length > 0 && message.role === 'assistant' ? (
-            <button
-              onClick={handleRestore}
-              className="snapshot-restore flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-semibold border border-neutral-200/80 dark:border-zinc-700/80 text-neutral-500 dark:text-zinc-400 hover:border-neutral-400 dark:hover:border-zinc-500 hover:text-neutral-700 dark:hover:text-zinc-200 transition-all active:scale-[0.97] cursor-pointer w-fit whitespace-nowrap"
-            >
-              <RotateCcw className="w-2.5 h-2.5" />
-              {t('chat.restoreSnapshot')}
-              <span className="text-neutral-400 dark:text-zinc-600 font-normal">
-                ({t('chat.snapshotSlides', { count: message.slideSnapshot.length })})
-              </span>
-            </button>
-          ) : null}
-
-          <p className={`text-[10px] whitespace-nowrap pr-1 ${message.role === 'user'
-              ? 'text-neutral-400 dark:text-zinc-400'
-              : 'text-neutral-400 dark:text-zinc-500'
+        <div className="flex flex-nowrap items-center justify-between gap-2 mt-2 min-w-0 w-full">
+          <button
+            onClick={handleCopy}
+            title={t('chat.copy')}
+            aria-label={t('chat.copy')}
+            className="flex items-center justify-center p-1 rounded-md border border-neutral-200/80 dark:border-zinc-700/80 text-neutral-500 dark:text-zinc-400 hover:border-neutral-400 dark:hover:border-zinc-500 hover:text-neutral-700 dark:hover:text-zinc-200 transition-all active:scale-[0.97] cursor-pointer shrink-0"
+          >
+            <Copy className="w-2.5 h-2.5" />
+          </button>
+          <p className={`text-[10px] whitespace-nowrap shrink-0 ${message.role === 'user'
+              ? 'text-neutral-400 dark:text-zinc-400 pr-1'
+              : 'text-neutral-400 dark:text-zinc-500 ml-2'
             }`}>
             {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
             {' '}

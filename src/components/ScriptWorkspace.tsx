@@ -380,9 +380,8 @@ export default function ScriptWorkspace() {
             </>
           )}
 
-          {/* View Mode Toggle */}
-          {displaySlides.length > 0 && !isStreaming && (
-            <div className="flex items-center bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5">
+          {/* View Mode Toggle — same in empty state and when streaming */}
+          <div className="flex items-center bg-neutral-100 dark:bg-neutral-800 rounded-lg p-0.5">
               <button
                 onClick={() => setViewMode('grid')}
                 className={`p-1.5 rounded-md transition-all duration-150 cursor-pointer ${
@@ -406,7 +405,6 @@ export default function ScriptWorkspace() {
                 <ScrollText className="w-3.5 h-3.5" />
               </button>
             </div>
-          )}
 
           {displaySlides.length > 0 && !isStreaming && (
             <div className="relative" ref={exportRef}>
@@ -499,6 +497,7 @@ export default function ScriptWorkspace() {
               onEnhance={(idx) => handleEnhanceSlide(idx)}
               onDelete={handleDeleteSlide}
               processingSlideNumbers={processingSlideNumbers || []}
+              showBottomSkeleton={showBottomSkeleton}
             />
           ) : (
           <DndContext

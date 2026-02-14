@@ -3,7 +3,9 @@ import { motion } from 'motion/react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
+import { AnimatePresence } from 'motion/react'
 import { FileText, Image, Mic, Timer, Layout, Pencil, Wand2, Trash2 } from 'lucide-react'
+import SlideSkeleton from './SlideSkeleton'
 import type { Slide } from '../api/prompt'
 
 interface ScriptViewProps {
@@ -13,6 +15,7 @@ interface ScriptViewProps {
   onEnhance?: (index: number) => void
   onDelete?: (index: number) => void
   processingSlideNumbers?: number[]
+  showBottomSkeleton?: boolean
 }
 
 export default function ScriptView({ 
@@ -21,7 +24,8 @@ export default function ScriptView({
   onEdit, 
   onEnhance, 
   onDelete,
-  processingSlideNumbers = [] 
+  processingSlideNumbers = [],
+  showBottomSkeleton = false
 }: ScriptViewProps) {
   const { t } = useTranslation()
 
@@ -152,6 +156,13 @@ export default function ScriptView({
           </div>
         </motion.article>
       )})}
+      <AnimatePresence>
+        {showBottomSkeleton && (
+          <div className="mt-4">
+            <SlideSkeleton />
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
