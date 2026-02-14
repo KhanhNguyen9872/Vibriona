@@ -3,6 +3,12 @@ import { create } from 'zustand'
 interface UIState {
   mobileActiveTab: 'chat' | 'script'
   setMobileActiveTab: (tab: 'chat' | 'script') => void
+  mobileScriptPanelVisible: boolean
+  setMobileScriptPanelVisible: (visible: boolean) => void
+  toggleMobileScriptPanel: () => void
+  chatPanelVisible: boolean
+  setChatPanelVisible: (visible: boolean) => void
+  toggleChatPanel: () => void
   heroHold: boolean
   startHeroHold: () => void
   clearHeroHold: () => void
@@ -21,6 +27,22 @@ let heroHoldTimer: ReturnType<typeof setTimeout> | null = null
 export const useUIStore = create<UIState>((set) => ({
   mobileActiveTab: 'chat',
   setMobileActiveTab: (tab) => set({ mobileActiveTab: tab }),
+  mobileScriptPanelVisible: true,
+  setMobileScriptPanelVisible: (visible) => set({ mobileScriptPanelVisible: visible }),
+  toggleMobileScriptPanel: () =>
+    set((s) => {
+      const next = !s.mobileScriptPanelVisible
+      if (next === false && !s.chatPanelVisible) return { mobileScriptPanelVisible: false, chatPanelVisible: true }
+      return { mobileScriptPanelVisible: next }
+    }),
+  chatPanelVisible: true,
+  setChatPanelVisible: (visible) => set({ chatPanelVisible: visible }),
+  toggleChatPanel: () =>
+    set((s) => {
+      const next = !s.chatPanelVisible
+      if (next === false && !s.mobileScriptPanelVisible) return { chatPanelVisible: false, mobileScriptPanelVisible: true }
+      return { chatPanelVisible: next }
+    }),
   heroHold: false,
   startHeroHold: () => {
     if (heroHoldTimer) clearTimeout(heroHoldTimer)

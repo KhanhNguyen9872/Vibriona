@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'motion/react'
-import { Sparkles, Loader2, ArrowRight, RefreshCw } from 'lucide-react'
+import { Sparkles, Loader2, ArrowRight, RefreshCw, Mic, MicOff } from 'lucide-react'
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
 import { toast } from 'sonner'
 import { MAX_PROJECTS } from '../config/limits'
 import { useQueueStore } from '../store/useQueueStore'
@@ -28,10 +29,22 @@ export default function HeroChatInput() {
   const { addToQueue, isProjectProcessing } = useQueueStore()
   const { addMessage, createSession, currentSessionId } = useSessionStore()
   const { startHeroHold } = useUIStore()
-  const { isConfigured, disableSuggestions } = useSettingsStore()
+  const { isConfigured, disableSuggestions, autoSubmitOnSpeech } = useSettingsStore()
+  const submitRef = useRef<() => void>(() => {})
 
   const projectId = currentSessionId || ''
   const isProcessing = isProjectProcessing(projectId)
+
+  const [interimTranscript, setInterimTranscript] = useState('')
+  const onVoiceTranscript = useCallback((text: string) => {
+    setPrompt((prev) => (prev ? prev + ' ' : '') + text)
+    setInterimTranscript('')
+    if (autoSubmitOnSpeech) {
+      setTimeout(() => submitRef.current?.(), 150)
+    }
+  }, [autoSubmitOnSpeech])
+  const onInterim = useCallback((text: string) => setInterimTranscript(text || ''), [])
+  const speech = useSpeechRecognition(i18n.language, onVoiceTranscript, onInterim)
 
   // Calculate character and word count
   const charCount = prompt.length
@@ -59,6 +72,21 @@ export default function HeroChatInput() {
   useEffect(() => {
     adjustTextareaHeight()
   }, [prompt])
+
+  // Voice: focus when listening; clear interim when stopped
+  useEffect(() => {
+    if (speech.isListening && textareaRef.current) {
+      textareaRef.current.focus()
+    }
+    if (!speech.isListening) setInterimTranscript('')
+  }, [speech.isListening])
+
+  // Voice: show error toast
+  useEffect(() => {
+    if (speech.error) {
+      toast.error(speech.error === 'Permission denied' ? t('chat.voicePermissionDenied') : t('chat.voiceError'))
+    }
+  }, [speech.error, t])
 
   const abortControllerRef = useRef<AbortController | null>(null)
 
@@ -289,6 +317,7 @@ export default function HeroChatInput() {
     // Note: Mobile tab switching now happens automatically in App.tsx 
     // only when action is confirmed to be slide-related (intent-aware)
   }
+  submitRef.current = handleSubmit
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -317,7 +346,9 @@ export default function HeroChatInput() {
         <div
           className={`relative flex items-start rounded-2xl border transition-all duration-300 overflow-hidden ${isSubmitted
               ? 'bg-neutral-100 dark:bg-zinc-800/60 border-neutral-200 dark:border-zinc-700'
-              : 'bg-white dark:bg-zinc-800/50 border-neutral-200 dark:border-zinc-700 hover:border-neutral-400 dark:hover:border-zinc-500 focus-within:border-neutral-400 dark:focus-within:border-zinc-500'
+              : speech.isListening
+                ? 'bg-red-50/50 dark:bg-red-950/20 border-red-300 dark:border-red-700/70 ring-2 ring-red-200/60 dark:ring-red-800/40'
+                : 'bg-white dark:bg-zinc-800/50 border-neutral-200 dark:border-zinc-700 hover:border-neutral-400 dark:hover:border-zinc-500 focus-within:border-neutral-400 dark:focus-within:border-zinc-500'
             }`}
         >
           {/* Light sweep left-to-right when generating */}
@@ -364,14 +395,47 @@ export default function HeroChatInput() {
 
           <textarea
             ref={textareaRef}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
+            value={speech.isListening && interimTranscript ? prompt + (prompt ? ' ' : '') + interimTranscript : prompt}
+            onChange={(e) => {
+              setPrompt(e.target.value)
+              if (speech.isListening) setInterimTranscript('')
+            }}
             onKeyDown={handleKeyDown}
-            placeholder={t('chat.placeholder')}
+            placeholder={speech.isListening ? t('chat.voiceListeningPlaceholder') : t('chat.placeholder')}
             disabled={isSubmitted}
             rows={1}
-            className="flex-1 bg-transparent text-sm leading-relaxed placeholder:text-neutral-400 dark:placeholder:text-zinc-500 focus:outline-none py-3.5 pr-2 disabled:cursor-not-allowed resize-none min-h-[28px] max-h-[200px]"
+            className="flex-1 bg-transparent text-sm leading-relaxed placeholder:text-neutral-400 dark:placeholder:text-zinc-500 focus:outline-none py-3.5 pr-2 mr-2 disabled:cursor-not-allowed resize-none min-h-[28px] max-h-[200px]"
           />
+
+          {speech.isListening && (
+            <div className="absolute left-12 right-20 bottom-2 flex items-end justify-center gap-1 h-8 pointer-events-none" aria-hidden>
+              {(speech.audioLevels ?? Array(8).fill(0)).map((level, i) => {
+                const height = Math.max(4, 4 + level * 36)
+                return (
+                  <div
+                    key={i}
+                    className="w-1.5 rounded-t rounded-b-sm bg-red-500 dark:bg-red-400 transition-[height] duration-100 ease-out"
+                    style={{ height: `${height}px` }}
+                  />
+                )
+              })}
+            </div>
+          )}
+
+          {speech.isSupported && !isSubmitted && (
+            <button
+              type="button"
+              onClick={speech.toggle}
+              title={speech.isListening ? t('chat.voiceStop') : t('chat.voiceStart')}
+              className={`self-center p-2 rounded-lg transition-colors touch-manipulation ${
+                speech.isListening
+                  ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                  : 'text-neutral-400 dark:text-zinc-500 hover:text-neutral-600 dark:hover:text-zinc-400'
+              }`}
+            >
+              {speech.isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </button>
+          )}
 
           {/* Submit Button */}
           <div className="pr-2.5 py-2">

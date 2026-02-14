@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { motion } from 'motion/react'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { toast } from 'sonner'
-import { X, Sun, Moon, Languages } from 'lucide-react'
+import { X, Sun, Moon, Languages, Mic } from 'lucide-react'
 import type { Theme, Language } from '../store/useSettingsStore'
 
 interface SettingsProps {
@@ -16,6 +16,7 @@ export default function Settings({ onClose }: SettingsProps) {
   const [theme, setTheme] = useState<Theme>(store.theme)
   const [language, setLanguage] = useState<Language>(store.language)
   const [disableSuggestions, setDisableSuggestions] = useState<boolean>(store.disableSuggestions)
+  const [autoSubmitOnSpeech, setAutoSubmitOnSpeech] = useState<boolean>(store.autoSubmitOnSpeech)
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -29,6 +30,7 @@ export default function Settings({ onClose }: SettingsProps) {
     store.setTheme(theme)
     store.setLanguage(language)
     store.setDisableSuggestions(disableSuggestions)
+    store.setAutoSubmitOnSpeech(autoSubmitOnSpeech)
     i18n.changeLanguage(language)
     toast.success(t('settings.saved'))
     onClose()
@@ -93,6 +95,9 @@ export default function Settings({ onClose }: SettingsProps) {
                   {t('settings.dark')}
                 </button>
               </div>
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                {t('settings.themeHint')}
+              </p>
             </div>
 
             {/* Language */}
@@ -122,6 +127,9 @@ export default function Settings({ onClose }: SettingsProps) {
                   VI
                 </button>
               </div>
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                {t('settings.languageHint')}
+              </p>
             </div>
           </div>
 
@@ -150,6 +158,39 @@ export default function Settings({ onClose }: SettingsProps) {
                 {t('common.yes')}
               </button>
             </div>
+            <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              {t('settings.disableSuggestionsHint')}
+            </p>
+          </div>
+
+          {/* Auto submit on speech */}
+          <div className="space-y-2">
+            <label className="block text-xs font-medium uppercase tracking-widest text-neutral-400">
+              {t('settings.autoSubmitOnSpeech')}
+            </label>
+            <div className="flex rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-hidden">
+              <button
+                onClick={() => setAutoSubmitOnSpeech(false)}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors cursor-pointer ${!autoSubmitOnSpeech
+                    ? 'bg-black text-white dark:bg-white dark:text-black'
+                    : 'bg-neutral-50 dark:bg-neutral-800/50 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+                  }`}
+              >
+                {t('common.no')}
+              </button>
+              <button
+                onClick={() => setAutoSubmitOnSpeech(true)}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors cursor-pointer ${autoSubmitOnSpeech
+                    ? 'bg-black text-white dark:bg-white dark:text-black'
+                    : 'bg-neutral-50 dark:bg-neutral-800/50 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+                  }`}
+              >
+                {t('common.yes')}
+              </button>
+            </div>
+            <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              {t('settings.autoSubmitOnSpeechHint')}
+            </p>
           </div>
 
           {/* Save */}

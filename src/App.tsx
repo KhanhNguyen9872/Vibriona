@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Toaster, toast } from 'sonner'
-import { Settings as SettingsIcon, Menu, Github, Search } from 'lucide-react'
+import { Settings as SettingsIcon, Menu, Github, Search, PanelRightClose, PanelRightOpen, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useSettingsStore } from './store/useSettingsStore'
 import { useQueueStore } from './store/useQueueStore'
@@ -44,7 +44,7 @@ function App() {
   const scheduledDeletions = useRef<Set<string>>(new Set())
   const mountedRef = useRef(false)
   const isMobile = useIsMobile()
-  const { mobileActiveTab, setMobileActiveTab, heroHold, splitPaneWidth, setSplitPaneWidth, isInitialLoad, setInitialLoad } = useUIStore()
+  const { mobileActiveTab, setMobileActiveTab, heroHold, splitPaneWidth, setSplitPaneWidth, isInitialLoad, setInitialLoad, mobileScriptPanelVisible, toggleMobileScriptPanel, setMobileScriptPanelVisible, chatPanelVisible, toggleChatPanel, setChatPanelVisible } = useUIStore()
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
   const [githubDropdownOpen, setGithubDropdownOpen] = useState(false)
   const githubDropdownRef = useRef<HTMLDivElement>(null)
@@ -86,6 +86,21 @@ function App() {
     hasReceivedSlideAction ||
     items.some((i) => i.status === 'done' && i.slides && i.slides.length > 0 && i.projectId === projectId) ||
     (currentSession?.slides && currentSession.slides.length > 0)
+
+  // On mobile: reset chat/script panel visibility to both visible (toggle buttons are desktop-only)
+  useEffect(() => {
+    if (isMobile) {
+      setChatPanelVisible(true)
+      setMobileScriptPanelVisible(true)
+    }
+  }, [isMobile, setChatPanelVisible, setMobileScriptPanelVisible])
+
+  // When switching to a project that has no script yet, show chat panel again
+  useEffect(() => {
+    if (!hasSlideData && !chatPanelVisible) {
+      setChatPanelVisible(true)
+    }
+  }, [currentSessionId, hasSlideData, chatPanelVisible, setChatPanelVisible])
 
   // Auto-switch to script panel on mobile when generating slides (but not for chat responses)
   useEffect(() => {
@@ -434,6 +449,34 @@ function App() {
                 </button>
               )}
 
+              {/* Tablet/Desktop: toggle chat panel (left panel), then script panel (right panel) */}
+              {!isMobile && hasSlideData && !heroHold && (
+                <button
+                  onClick={toggleChatPanel}
+                  className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                  title={chatPanelVisible ? t('chat.hideChat') : t('chat.showChat')}
+                >
+                  {chatPanelVisible ? (
+                    <PanelLeftClose className="w-[18px] h-[18px] text-neutral-500" />
+                  ) : (
+                    <PanelLeftOpen className="w-[18px] h-[18px] text-neutral-500" />
+                  )}
+                </button>
+              )}
+              {!isMobile && hasSlideData && !heroHold && (
+                <button
+                  onClick={toggleMobileScriptPanel}
+                  className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                  title={mobileScriptPanelVisible ? t('workspace.hideScript') : t('workspace.showScript')}
+                >
+                  {mobileScriptPanelVisible ? (
+                    <PanelRightClose className="w-[18px] h-[18px] text-neutral-500" />
+                  ) : (
+                    <PanelRightOpen className="w-[18px] h-[18px] text-neutral-500" />
+                  )}
+                </button>
+              )}
+
               <button
                 onClick={() => setShowSettings(true)}
                 className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
@@ -536,13 +579,27 @@ function App() {
           </AnimatePresence>
 
           {/* Chat panel */}
-          <div
+          <motion.div
             className={`
-            flex flex-col min-w-0 bg-white dark:bg-neutral-950
+            flex flex-col min-w-0 shrink-0 bg-white dark:bg-neutral-950 overflow-hidden
             ${mobileActiveTab === 'chat' ? 'flex-1 w-full' : 'hidden'}
             md:flex ${hasSlideData && !heroHold ? 'md:min-w-[320px]' : 'md:flex-1 w-full'}
           `}
-            style={hasSlideData && !isMobile && !heroHold ? { width: `${splitPaneWidth}%` } : undefined}>
+            animate={
+              !isMobile && hasSlideData && !heroHold
+                ? {
+                    width: chatPanelVisible ? (mobileScriptPanelVisible ? `${splitPaneWidth}%` : '100%') : 0,
+                    minWidth: chatPanelVisible ? 320 : 0,
+                    opacity: chatPanelVisible ? 1 : 0,
+                    flex: chatPanelVisible ? undefined : '0 0 0',
+                  }
+                : undefined
+            }
+            transition={{
+              duration: 0.28,
+              ease: [0.32, 0.72, 0, 1],
+            }}
+          >
             {/* Show hero only when no messages AND no slides (new project state) */}
             {heroHold || (messages.length === 0 && !hasSlideData) ? (
               <HeroSection />
@@ -556,10 +613,10 @@ function App() {
                 <ChatInput />
               </>
             )}
-          </div>
+          </motion.div>
 
-          {/* Resizable divider */}
-          {hasSlideData && !heroHold && (
+          {/* Resizable divider (hidden on desktop when either panel is collapsed) */}
+          {hasSlideData && !heroHold && (isMobile || (mobileScriptPanelVisible && chatPanelVisible)) && (
             <ResizableDivider
               onResize={setSplitPaneWidth}
               minWidth={500}
@@ -571,16 +628,30 @@ function App() {
           <AnimatePresence mode="popLayout">
             {hasSlideData && !heroHold && (
               <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
+                initial={isMobile ? { opacity: 0, x: 20 } : false}
+                animate={
+                  isMobile
+                    ? { opacity: 1, x: 0 }
+                    : {
+                        width: mobileScriptPanelVisible ? 'auto' : 0,
+                        flex: mobileScriptPanelVisible ? '1 1 0%' : '0 0 0',
+                        minWidth: 0,
+                        maxWidth: '100%',
+                        opacity: mobileScriptPanelVisible ? 1 : 0,
+                        overflow: 'hidden',
+                      }
+                }
                 exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+                transition={{
+                  duration: isMobile ? 0.8 : 0.28,
+                  ease: isMobile ? [0.16, 1, 0.3, 1] : [0.32, 0.72, 0, 1],
+                }}
                 className={`
-                  flex-col min-w-0 bg-white dark:bg-neutral-950
-                  ${mobileActiveTab === 'script' ? 'flex flex-1 w-full' : 'hidden'}
-                  md:flex
+                  flex flex-col min-w-0 bg-white dark:bg-neutral-950 overflow-hidden
+                  ${isMobile
+                    ? (mobileActiveTab === 'script' ? 'flex-1 w-full' : 'hidden')
+                    : 'md:flex md:min-h-0'}
                 `}
-                style={!isMobile ? { width: `${100 - splitPaneWidth}%` } : undefined}
               >
                 <ScriptWorkspace />
               </motion.div>

@@ -12,7 +12,7 @@ export default defineConfig({
       options: {
         compact: true,
         controlFlowFlattening: true, // Tắt để tăng tốc
-        controlFlowFlatteningThreshold: 0.7,
+        controlFlowFlatteningThreshold: 0.5,
         deadCodeInjection: false, // Tắt để tăng tốc
         deadCodeInjectionThreshold: 0.6,
         debugProtection: false, // Tắt để tăng tốc

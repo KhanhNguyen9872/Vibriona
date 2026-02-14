@@ -27,6 +27,7 @@ interface SettingsState {
   theme: Theme;
   language: Language;
   disableSuggestions: boolean;
+  autoSubmitOnSpeech: boolean;
   availableModels: string[];
 
   // --- Profile Actions ---
@@ -39,6 +40,7 @@ interface SettingsState {
   setTheme: (theme: Theme) => void;
   setLanguage: (language: Language) => void;
   setDisableSuggestions: (disable: boolean) => void;
+  setAutoSubmitOnSpeech: (value: boolean) => void;
   setAvailableModels: (models: string[]) => void;
 
   // --- Legacy Compatibility Getters (Computed properties) ---
@@ -64,6 +66,7 @@ export const useSettingsStore = create<SettingsState>()(
       theme: 'dark',
       language: 'en',
       disableSuggestions: false,
+      autoSubmitOnSpeech: false,
       availableModels: [],
 
       // --- Profile Actions ---
@@ -91,6 +94,7 @@ export const useSettingsStore = create<SettingsState>()(
       setTheme: (theme) => set({ theme }),
       setLanguage: (language) => set({ language }),
       setDisableSuggestions: (disableSuggestions) => set({ disableSuggestions }),
+      setAutoSubmitOnSpeech: (autoSubmitOnSpeech) => set({ autoSubmitOnSpeech }),
       setAvailableModels: (models) => set({ availableModels: models }),
 
       // --- Computed Helpers ---

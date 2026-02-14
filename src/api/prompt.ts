@@ -34,7 +34,7 @@ export const SYSTEM_PROMPT = `You are Vibriona, an AI Presentation Architect. Re
 {
   "slide_number": number,
   "title": string,
-  "content": string,                  // Markdown, 30-50 words
+  "content": string,                  // Markdown, 40-60 words
   "visual_needs_image": boolean,
   "visual_description": string,       // Image generation prompt
   "layout_suggestion": "intro|split-left|split-right|centered|quote",

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'motion/react'
 import { useQueueStore } from '../store/useQueueStore'
@@ -8,7 +8,8 @@ import { API_CONFIG } from '../config/api'
 import { STORAGE_KEYS } from '../config/defaults'
 import { SYSTEM_PROMPT } from '../api/prompt'
 import { toast } from 'sonner'
-import { Sparkles, Loader2, Square, AlertCircle, X, Layers, Pencil, AlertTriangle } from 'lucide-react'
+import { Sparkles, Loader2, Square, AlertCircle, X, Layers, Pencil, AlertTriangle, Mic, MicOff } from 'lucide-react'
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
 
 const MAX_CHARS = 4096
 
@@ -62,14 +63,28 @@ interface ChatInputProps {
 }
 
 export default function ChatInput({ className = '' }: ChatInputProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [prompt, setPrompt] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [contextTooltipOpen, setContextTooltipOpen] = useState(false)
   const contextTooltipRef = useRef<HTMLDivElement>(null)
+  const { isConfigured, autoSubmitOnSpeech } = useSettingsStore()
+  const submitRef = useRef<() => void>(() => {})
+
+  const [interimTranscript, setInterimTranscript] = useState('')
+  const onVoiceTranscript = useCallback((text: string) => {
+    setPrompt((prev) => (prev ? prev + ' ' : '') + text)
+    setInterimTranscript('')
+    if (autoSubmitOnSpeech) {
+      setTimeout(() => submitRef.current?.(), 150)
+    }
+  }, [autoSubmitOnSpeech])
+  const onInterim = useCallback((text: string) => {
+    setInterimTranscript(text || '')
+  }, [])
+  const speech = useSpeechRecognition(i18n.language, onVoiceTranscript, onInterim)
   const { addToQueue, cancelProjectProcess, isProjectProcessing, items } = useQueueStore()
   const { addMessage, createSession, currentSessionId, clearSlideSelection, getSelectedSlideIndices, getCurrentSession, setProcessingSlides, clearCompaction } = useSessionStore()
-  const { isConfigured } = useSettingsStore()
 
   const currentSession = getCurrentSession()
   const sessionSlides = currentSession?.slides ?? []
@@ -140,6 +155,21 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
       sessionStorage.setItem(warningStorageKey, '1')
     }
   }, [shouldShowWarning, warningStorageKey])
+
+  // Voice: focus chat field when listening; clear interim when stopped
+  useEffect(() => {
+    if (speech.isListening && textareaRef.current) {
+      textareaRef.current.focus()
+    }
+    if (!speech.isListening) setInterimTranscript('')
+  }, [speech.isListening])
+
+  // Voice: show error toast when permission denied or other error
+  useEffect(() => {
+    if (speech.error) {
+      toast.error(speech.error === 'Permission denied' ? t('chat.voicePermissionDenied') : t('chat.voiceError'))
+    }
+  }, [speech.error, t])
 
   // Mobile: close context tooltip when tapping outside
   useEffect(() => {
@@ -243,6 +273,7 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
       })
     }
   }
+  submitRef.current = handleSubmit
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -326,24 +357,64 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
       <div className="max-w-full mx-auto">
         <div className={`relative border rounded-2xl transition-all ${isProcessing
             ? 'bg-neutral-100 dark:bg-zinc-800/50 border-neutral-200 dark:border-zinc-600/50'
-            : 'bg-neutral-50 dark:bg-zinc-800/30 focus-within:ring-2 focus-within:border-neutral-400 dark:focus-within:border-zinc-500'
+            : speech.isListening
+              ? 'bg-red-50/50 dark:bg-red-950/20 border-red-300 dark:border-red-700/70 ring-2 ring-red-200/60 dark:ring-red-800/40'
+              : 'bg-neutral-50 dark:bg-zinc-800/30 focus-within:ring-2 focus-within:border-neutral-400 dark:focus-within:border-zinc-500'
           } ${isOverLimit
             ? 'border-red-300 dark:border-red-800 focus-within:ring-red-200/50 dark:focus-within:ring-red-900/30'
-            : 'border-neutral-200 dark:border-zinc-700 focus-within:ring-black/20 dark:focus-within:ring-zinc-500/30'
+            : !speech.isListening && 'border-neutral-200 dark:border-zinc-700 focus-within:ring-black/20 dark:focus-within:ring-zinc-500/30'
           }`}>
           <textarea
             ref={textareaRef}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
+            value={speech.isListening && interimTranscript ? prompt + (prompt ? ' ' : '') + interimTranscript : prompt}
+            onChange={(e) => {
+              setPrompt(e.target.value)
+              if (speech.isListening) setInterimTranscript('')
+            }}
             onKeyDown={handleKeyDown}
-            placeholder={isContextEdit ? t('chat.editPlaceholder') : isEditMode ? t('chat.updatePlaceholder') : t('chat.placeholder')}
+            placeholder={speech.isListening ? t('chat.voiceListeningPlaceholder') : (isContextEdit ? t('chat.editPlaceholder') : isEditMode ? t('chat.updatePlaceholder') : t('chat.placeholder'))}
             rows={1}
             className="w-full resize-none bg-transparent text-sm leading-relaxed placeholder:text-neutral-400 focus:outline-none px-4 pt-4 pb-16"
           />
 
+          {/* Voice: equalizer-style bars when listening (each bar = frequency band) */}
+          {speech.isListening && (
+            <div className="absolute left-4 right-4 bottom-12 flex items-end justify-center gap-1 h-10 pointer-events-none" aria-hidden>
+              {(speech.audioLevels ?? Array(8).fill(0)).map((level, i) => {
+                const height = Math.max(4, 4 + level * 42)
+                return (
+                  <div
+                    key={i}
+                    className="w-1.5 rounded-t rounded-b-sm bg-red-500 dark:bg-red-400 transition-[height] duration-100 ease-out"
+                    style={{ height: `${height}px` }}
+                  />
+                )
+              })}
+            </div>
+          )}
+
           {/* Bottom bar */}
           <div className="absolute inset-x-3 bottom-2.5 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
+              {speech.isSupported && (
+                <button
+                  type="button"
+                  onClick={speech.toggle}
+                  disabled={isProcessing}
+                  title={speech.isListening ? t('chat.voiceStop') : t('chat.voiceStart')}
+                  className={`p-1.5 rounded-lg transition-colors touch-manipulation disabled:opacity-40 disabled:cursor-not-allowed ${
+                    speech.isListening
+                      ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                      : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-zinc-700'
+                  }`}
+                >
+                  {speech.isListening ? (
+                    <MicOff className="w-4 h-4" aria-hidden />
+                  ) : (
+                    <Mic className="w-4 h-4" aria-hidden />
+                  )}
+                </button>
+              )}
               <span className={`text-[10px] tabular-nums font-medium transition-colors ${isOverLimit
                   ? 'text-red-500'
                   : charCount > MAX_CHARS * 0.9
