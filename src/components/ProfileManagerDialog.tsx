@@ -339,7 +339,7 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
       id: newId,
       name: newProfileName.trim(),
       apiType: 'ollama',
-      apiUrl: 'https://127.0.0.1:11434',
+      apiUrl: 'http://127.0.0.1:11434',
       apiKey: '',
       noAuth: true,
       selectedModel: 'llama3.2',
