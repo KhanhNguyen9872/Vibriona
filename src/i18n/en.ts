@@ -381,6 +381,7 @@ const en = {
       exportModalProgressLabel: 'Export progress',
       exportModalSlidesCount: '{{current}} / {{total}} slides',
       exportModalClose: 'Close',
+      exportModalCancelConfirm: 'Do you want to cancel the export?',
       exportModalExportError: 'Export error',
       exportModalDoNotClose: 'Please do not close this window during export.',
       exportModalHint1: 'Tip: Fewer words per slide = more impact.',

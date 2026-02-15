@@ -381,6 +381,7 @@ const vi = {
       exportModalProgressLabel: 'Tiến trình xuất',
       exportModalSlidesCount: '{{current}} / {{total}} slide',
       exportModalClose: 'Đóng',
+      exportModalCancelConfirm: 'Bạn có muốn hủy quá trình xuất?',
       exportModalExportError: 'Lỗi xuất',
       exportModalDoNotClose: 'Vui lòng không đóng cửa sổ này trong quá trình xuất.',
       exportModalHint1: 'Mẹo: Ít chữ mỗi slide = ấn tượng mạnh hơn.',
