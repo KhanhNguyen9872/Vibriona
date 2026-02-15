@@ -777,6 +777,7 @@ function renderFallbackSlide(pptSlide: PptxGenJS.Slide, slide: Slide): void {
 
 /** Error message thrown when export is cancelled by user (abort signal). */
 export const EXPORT_CANCELLED_MESSAGE = 'Export cancelled'
+export const EXPORT_NO_SLIDES_MESSAGE = 'No slides to export'
 
 /** Optional i18n: (key, opts) => translated string for progress status. */
 export type ExportTranslateFn = (key: string, opts?: Record<string, string | number>) => string
@@ -795,7 +796,7 @@ export async function generatePPTX_AI(
   t?: ExportTranslateFn
 ): Promise<void> {
   if (slides.length === 0) {
-    throw new Error('No slides to export')
+    throw new Error(EXPORT_NO_SLIDES_MESSAGE)
   }
 
   const pptx = new PptxGenJS()

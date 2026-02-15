@@ -346,6 +346,7 @@ const en = {
       exporting: 'Generating file...',
       exportDone: 'File downloaded',
       exportFailed: 'Export failed',
+      exportNoSlides: 'No slides to export.',
       markdownCopied: 'Markdown copied to clipboard',
       markdownCopyFailed: 'Failed to copy',
       backgroundComplete: 'Project Generation Complete',

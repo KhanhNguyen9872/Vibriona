@@ -346,6 +346,7 @@ const vi = {
       exporting: 'Đang tạo tệp...',
       exportDone: 'Đã tải tệp',
       exportFailed: 'Xuất tệp thất bại',
+      exportNoSlides: 'Chưa có slide nào để xuất.',
       markdownCopied: 'Đã sao chép Markdown',
       markdownCopyFailed: 'Sao chép thất bại',
       backgroundComplete: 'Hoàn tất tạo dự án',

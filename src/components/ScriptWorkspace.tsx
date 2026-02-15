@@ -22,7 +22,7 @@ import { useQueueStore } from '../store/useQueueStore'
 import { useSessionStore } from '../store/useSessionStore'
 import { useUIStore } from '../store/useUIStore'
 import { mergeSlides, applyDelta } from '../utils/slideMerger'
-import { generatePPTX_AI, generatePPTX_Legacy, EXPORT_CANCELLED_MESSAGE, copyMarkdown, downloadJSON, generatePDF } from '../api/export'
+import { generatePPTX_AI, generatePPTX_Legacy, EXPORT_CANCELLED_MESSAGE, EXPORT_NO_SLIDES_MESSAGE, copyMarkdown, downloadJSON, generatePDF } from '../api/export'
 import SlideCard from './SlideCard'
 import { ExportProgressModal } from './ExportProgressModal'
 import ScriptView from './ScriptView'
@@ -251,7 +251,7 @@ export default function ScriptWorkspace() {
       setIsExporting(false)
       setExportProgress((prev) => ({ ...prev, status: '' }))
       setExportResult('error')
-      setExportResultMessage(message)
+      setExportResultMessage(message === EXPORT_NO_SLIDES_MESSAGE ? t('workspace.exportNoSlides') : message)
       setExportTimeTracking({ startTime: null, slideStartTime: null, slideTimes: [] })
     }
   }
