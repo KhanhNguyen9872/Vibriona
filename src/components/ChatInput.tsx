@@ -148,11 +148,13 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
     messageCount >= API_CONFIG.CONTEXT_WARNING_THRESHOLD && !warningAlreadyShown
 
   // Context = exactly what we send to the bot: system prompt + chat (compacted + messages)
+  const COMPACTED_WRAPPER_LENGTH = '[Previous conversation summary: ]'.length // prefix + suffix "]" around summary
   const contextStats = useMemo(() => {
     const messages = currentSession?.messages ?? []
     const lastCompactedIndex = currentSession?.lastCompactedIndex ?? 0
     const uncompactedCount = lastCompactedIndex > 0 ? messages.length - lastCompactedIndex : messages.length
-    const compactedChars = currentSession?.compactedContext?.length ?? 0
+    const summaryLength = currentSession?.compactedContext?.length ?? 0
+    const compactedChars = summaryLength > 0 ? summaryLength + COMPACTED_WRAPPER_LENGTH : 0
     const recentMessages = lastCompactedIndex > 0 ? messages.slice(lastCompactedIndex) : messages
     const messagesChars = recentMessages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0)
     const systemChars = getSystemPrompt(getSystemPromptType()).length

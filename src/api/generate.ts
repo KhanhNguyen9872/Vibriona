@@ -21,6 +21,7 @@ export interface HistoryMessage {
 /**
  * Stream a chat completion from an OpenAI-compatible or Ollama endpoint.
  * Returns an AbortController so the caller can cancel.
+ * @param abortSignal - Optional external signal; when aborted, the request is cancelled.
  */
 export function streamGenerate(
   apiUrl: string,
@@ -30,7 +31,9 @@ export function streamGenerate(
   apiType: 'ollama' | 'gemini' | 'openai',
   callbacks: StreamCallbacks,
   history: HistoryMessage[] = [],
-  systemPrompt: string = SYSTEM_PROMPT
+  systemPrompt: string = SYSTEM_PROMPT,
+  temperatureOverride?: number,
+  abortSignal?: AbortSignal
 ): AbortController {
   const controller = new AbortController()
   let processedLength = 0
@@ -38,6 +41,7 @@ export function streamGenerate(
   let apiThinking = '' // reasoning_content from API field
 
   const config = getAPIConfig({ apiUrl, apiKey, model, apiType })
+  const temperature = temperatureOverride ?? API_CONFIG.DEFAULT_TEMPERATURE
 
   let url = config.endpoint
   let body: any = {
@@ -90,7 +94,7 @@ export function streamGenerate(
     body = {
       contents,
       generationConfig: {
-        temperature: API_CONFIG.DEFAULT_TEMPERATURE,
+        temperature,
         maxOutputTokens: API_CONFIG.MAX_TOKENS,
       }
     }
@@ -100,18 +104,18 @@ export function streamGenerate(
       ...history,
       { role: 'user', content: userPrompt },
     ]
-    body.temperature = API_CONFIG.DEFAULT_TEMPERATURE
+    body.temperature = temperature
     body.stream = true
     body.max_tokens = API_CONFIG.MAX_TOKENS
   }
 
-  // Choose request config based on API type
+  // Choose request config based on API type; use external abort signal when provided
   const requestConfig: any = {
       method: 'post',
       url,
       data: body,
       headers: config.headers,
-      signal: controller.signal,
+      signal: abortSignal ?? controller.signal,
   }
 
   if (apiType !== 'gemini') {
@@ -215,7 +219,10 @@ export function streamGenerate(
       callbacks.onDone(fullContent, finalSlides, allThinking, completionMessage)
     })
     .catch((err) => {
-      if (axios.isCancel(err)) return
+      if (axios.isCancel(err)) {
+        callbacks.onError('Export cancelled')
+        return
+      }
 
       const status = err.response?.status
       let message = parseAPIError(err)

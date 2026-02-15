@@ -156,9 +156,9 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
                 
                 sessionStore.compactConversation(next.projectId, summary, newCompactedIndex)
                 
-                // Remove compaction indicator message
+                // Replace compaction indicator with completion message
                 sessionStore.updateMessage(compactingMsgId, {
-                  content: '',
+                  content: i18n.t('chat.compacted'),
                   isThinking: false,
                 })
                 resolve()

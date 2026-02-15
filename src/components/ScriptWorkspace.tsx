@@ -22,8 +22,9 @@ import { useQueueStore } from '../store/useQueueStore'
 import { useSessionStore } from '../store/useSessionStore'
 import { useUIStore } from '../store/useUIStore'
 import { mergeSlides, applyDelta } from '../utils/slideMerger'
-import { generatePPTX, copyMarkdown, downloadJSON, generatePDF } from '../api/export'
+import { generatePPTX_AI, EXPORT_CANCELLED_MESSAGE, copyMarkdown, downloadJSON, generatePDF } from '../api/export'
 import SlideCard from './SlideCard'
+import { ExportProgressModal } from './ExportProgressModal'
 import ScriptView from './ScriptView'
 import SlideEditorModal from './SlideEditorModal'
 import SlideSkeleton from './SlideSkeleton'
@@ -71,6 +72,10 @@ export default function ScriptWorkspace() {
   const { viewMode, setViewMode } = useUIStore()
   const { undo, redo, pastStates, futureStates } = useSessionStore.temporal.getState()
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const [exportProgress, setExportProgress] = useState({ current: 0, total: 0, status: '' })
+  const [exportError, setExportError] = useState<string | null>(null)
+  const exportAbortRef = useRef<AbortController | null>(null)
   const [activeDragIndex, setActiveDragIndex] = useState<number | null>(null)
   const [editingSlideIndex, setEditingSlideIndex] = useState<number | null>(null)
   const [addingSlide, setAddingSlide] = useState<Slide | null>(null)
@@ -164,13 +169,40 @@ export default function ScriptWorkspace() {
 
   const handleExportPptx = async () => {
     setShowExportMenu(false)
-    const tid = toast.loading(t('workspace.exporting'))
+    setExportError(null)
+    exportAbortRef.current = new AbortController()
+    setIsExporting(true)
+    setExportProgress({ current: 0, total: displaySlides.length, status: '' })
     try {
-      await generatePPTX(displaySlides, scriptName)
-      toast.success(t('workspace.exportDone'), { id: tid })
-    } catch {
-      toast.error(t('workspace.enhanceFailed'), { id: tid })
+      await generatePPTX_AI(
+        displaySlides,
+        scriptName,
+        (current, total, status) => {
+          setExportProgress({ current, total, status })
+        },
+        exportAbortRef.current.signal,
+        t
+      )
+      toast.success(t('workspace.exportDone'))
+      setIsExporting(false)
+      setExportProgress({ current: 0, total: 0, status: '' })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t('workspace.enhanceFailed')
+      if (message === EXPORT_CANCELLED_MESSAGE) {
+        handleCloseExportOverlay()
+        return
+      }
+      setExportError(message)
+      setExportProgress((prev) => ({ ...prev, status: '' }))
     }
+  }
+
+  const handleCloseExportOverlay = () => {
+    exportAbortRef.current?.abort()
+    exportAbortRef.current = null
+    setIsExporting(false)
+    setExportError(null)
+    setExportProgress({ current: 0, total: 0, status: '' })
   }
 
   const handleCopyMarkdown = async () => {
@@ -654,6 +686,14 @@ export default function ScriptWorkspace() {
           />
         )}
       </AnimatePresence>
+      <ExportProgressModal
+        isOpen={isExporting}
+        current={exportProgress.current}
+        total={exportProgress.total}
+        status={exportProgress.status}
+        error={exportError}
+        onClose={handleCloseExportOverlay}
+      />
     </div>
   )
 }

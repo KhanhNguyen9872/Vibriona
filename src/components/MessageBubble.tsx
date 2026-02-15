@@ -168,7 +168,9 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
           <span className="dot-typing text-neutral-500">
             <span /><span /><span />
           </span>
-          <span className="text-[12px] text-neutral-500">{t('workspace.enhancing')}</span>
+          <span className="text-[12px] text-neutral-500">
+            {message.content?.trim() ? message.content : t('workspace.enhancing')}
+          </span>
         </div>
       ) : (
         <MarkdownRenderer

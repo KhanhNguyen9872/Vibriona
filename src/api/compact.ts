@@ -41,19 +41,20 @@ export async function compactConversation(
 
   const systemPrompt = `You are a conversation summarizer for Vibriona, a presentation generation tool.
 
-Your task: Create a concise plain-text summary (500-1000 words) of the conversation history.
+Your task: Create a brief, concise plain-text summary in 200-400 words maximum. Be strict about length.
 
-What to preserve:
+What to preserve (only essentials):
 1. Main presentation topic and key themes
-2. Slides created/modified/deleted (numbers and titles)
-3. User's layout/style preferences
-4. Important decisions and changes made
-5. Context needed for continuing the conversation
+2. Slides created/modified/deleted (numbers and titles only; no slide body text)
+3. Important user decisions (e.g. "user wanted formal language")
+4. Context needed to continue the conversation
 
-Output format: Plain text summary ONLY. Do NOT use JSON, code blocks, or markdown formatting.
+What to omit: Layout choices, speaker notes, visual descriptions, and minor edits. One short sentence per slide or change is enough.
 
-Example:
-The user created a 5-slide presentation on AI Ethics: Introduction, Data Privacy, Algorithmic Bias, Accountability, and Future Considerations. Slide 3 was enhanced with real-world bias examples including hiring discrimination and facial recognition issues. Slide 2's layout was changed to split-left. All slides were revised to use formal, academic language per user request.`
+Output format: Plain text summary ONLY. No JSON, code blocks, or markdown. Write in short sentences.
+
+Example (brief):
+User created a 5-slide presentation on AI Ethics: Intro, Data Privacy, Algorithmic Bias, Accountability, Future Considerations. Slide 3 was enhanced with bias examples. User requested formal language.`
 
   const userPrompt = `Please summarize the following conversation history. Focus on the main topic, slides created/modified, and key decisions:\n\n${conversationText}`
 
@@ -76,8 +77,8 @@ The user created a 5-slide presentation on AI Ethics: Introduction, Data Privacy
         }
       ],
       generationConfig: {
-        temperature: 0.3, // Lower temperature for more focused summaries
-        maxOutputTokens: 2048,
+        temperature: 0, // Lower temperature for more focused summaries
+        maxOutputTokens: API_CONFIG.MAX_TOKENS,
       }
     }
   } else {
