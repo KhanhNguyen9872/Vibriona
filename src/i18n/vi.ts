@@ -373,7 +373,7 @@ const vi = {
       gridView: 'Xem thẻ',
       scriptView: 'Xem kịch bản',
       exportPdf: 'Tải PDF kịch bản',
-      exportDesigningSlide: 'Đang thiết kế slide {{number}}: {{title}}...',
+      exportDesigningSlide: 'Slide {{number}}: {{title}}...',
       exportSaving: 'Đang lưu tệp...',
       exportModalTitle: 'Đang tạo bài thuyết trình',
       exportModalStopped: 'Đã dừng xuất',

@@ -822,7 +822,7 @@ export async function generatePPTX_AI(
     if (onProgress) {
       const status = t
         ? t('workspace.exportDesigningSlide', { number: i + 1, title: slide.title })
-        : `Designing slide ${i + 1}: ${slide.title}...`
+        : `Slide ${i + 1}: ${slide.title}...`
       onProgress(i + 1, total, status)
     }
 

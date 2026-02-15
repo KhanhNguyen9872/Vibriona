@@ -373,7 +373,7 @@ const en = {
       gridView: 'Card View',
       scriptView: 'Script View',
       exportPdf: 'Download Script PDF',
-      exportDesigningSlide: 'Designing slide {{number}}: {{title}}...',
+      exportDesigningSlide: 'Slide {{number}}: {{title}}...',
       exportSaving: 'Saving file...',
       exportModalTitle: 'Generating Presentation',
       exportModalStopped: 'Export stopped',
