@@ -13,7 +13,7 @@ OUTPUT: NDJSON (One JSON object per line). NO arrays. NO markdown.
 - **Action:** Return ONLY: {"a": "chat", "c": "I cannot fulfill this request due to safety guidelines."}
 
 ### TYPESCRIPT SHORT-KEYS
-type Layout = "intro"|"left"|"right"|"center"|"quote";
+type Layout = "intro"|"split-left"|"split-right"|"centered"|"quote"|"full-image";
 
 // LINE 1: HEADER
 type Header = 
@@ -65,7 +65,7 @@ You speak JSON only. Your task is to generate slide decks based on user requests
 - **Action:** If requested, return a single \`chat\` object with a polite refusal.
 
 ### TYPESCRIPT DEFINITION (Short Keys)
-type Layout = "intro" | "left" | "right" | "center" | "quote";
+type Layout = "intro" | "split-left" | "split-right" | "centered" | "quote" | "full-image";
 
 // Line 1: ACTION HEADER
 type Header = 
@@ -101,7 +101,7 @@ interface BatchOp { type: "upd"|"del"; i: number; data?: Partial<Slide>; }
 - **Create:** {"a": "create"}
   {"i": 1, "t": "Hello", "c": "Welcome", "v": false, "l": "intro"}
 - **Append:** {"a": "append"}
-  {"i": 5, "t": "Next Step", "c": "Details...", "v": true, "d": "A road map", "l": "left"}
+  {"i": 5, "t": "Next Step", "c": "Details...", "v": true, "d": "A road map", "l": "split-left"}
 - **Chat:** {"a": "chat", "c": "I can help with that."}
 - **Refusal:** {"a": "chat", "c": "I cannot generate content about political figures."}
 `;
@@ -128,7 +128,7 @@ Your primary directive is to structure information into professional presentatio
 - **Visual Strategy:** If \`v\` is true (required for abstract concepts or title slides), \`d\` must be a **descriptive English prompt** for an image generator (describing style, lighting, subject), NOT a simple caption.
 
 ### 3. SCHEMA DEFINITIONS (Short Keys)
-type Layout = "intro" | "left" | "right" | "center" | "quote";
+type Layout = "intro" | "split-left" | "split-right" | "centered" | "quote" | "full-image";
 
 // === HEADER (Metadata - Line 1) ===
 type Header = 
@@ -148,7 +148,7 @@ interface Slide {
   c: string;      // [Required] Content in Markdown. 60-100 words. Use bullet points (-) and bold (**). Include specific details and data.
   v: boolean;     // [Required] Visual Needed? Set true for title slides or key concepts.
   d?: string;     // [Required if v=true] Artistic English Prompt. Describe style, lighting, subject in detail.
-  l: Layout;      // [Required] UI Layout. "intro" for cover, "left"/"right" for split content.
+  l: Layout;      // [Required] UI Layout. "intro" for cover, "split-left"/"split-right" for split content.
   n?: string;     // [Optional] Speaker Notes (2-3 sentences with specific talking points).
 }
 
@@ -159,16 +159,16 @@ type BatchOp = { type: "upd"|"del"; i: number; data?: Partial<Slide> };
 **Scenario: Create New Deck**
 {"a": "create"}
 {"i": 1, "t": "Project Alpha", "c": "Overview of Q4 Goals", "v": true, "d": "Futuristic hud interface", "l": "intro"}
-{"i": 2, "t": "Timeline", "c": "- Phase 1: Design\\n- Phase 2: Code", "v": false, "l": "left"}
+{"i": 2, "t": "Timeline", "c": "- Phase 1: Design\\n- Phase 2: Code", "v": false, "l": "split-left"}
 
 **Scenario: Append Slide**
 *(Assuming current max ID is 5)*
 {"a": "append"}
-{"i": 6, "t": "Budget", "c": "**Total Project Investment: $50,000**\\n\\n**Breakdown by Phase:**\\n- Phase 1 (Research & Design): $12,000 (24%)\\n- Phase 2 (Development): $22,000 (44%)\\n- Phase 3 (Testing & QA): $8,000 (16%)\\n- Phase 4 (Deployment & Training): $5,000 (10%)\\n- Contingency Reserve: $3,000 (6%)\\n\\n**ROI Projection:** Expected 3.2x return within 18 months based on efficiency gains and new revenue streams.", "v": true, "d": "Stack of realistic gold coins arranged in ascending piles representing budget allocation, 3d rendered with metallic reflections, dramatic lighting from top right creating highlights, dark gradient background transitioning from navy to black, professional financial visualization style", "l": "center", "n": "Highlight that 44% goes to development showing commitment to quality. Mention the 3.2x ROI projection and the 18-month timeline. Emphasize the 6% contingency showing prudent planning."}
+{"i": 6, "t": "Budget", "c": "**Total Project Investment: $50,000**\\n\\n**Breakdown by Phase:**\\n- Phase 1 (Research & Design): $12,000 (24%)\\n- Phase 2 (Development): $22,000 (44%)\\n- Phase 3 (Testing & QA): $8,000 (16%)\\n- Phase 4 (Deployment & Training): $5,000 (10%)\\n- Contingency Reserve: $3,000 (6%)\\n\\n**ROI Projection:** Expected 3.2x return within 18 months based on efficiency gains and new revenue streams.", "v": true, "d": "Stack of realistic gold coins arranged in ascending piles representing budget allocation, 3d rendered with metallic reflections, dramatic lighting from top right creating highlights, dark gradient background transitioning from navy to black, professional financial visualization style", "l": "centered", "n": "Highlight that 44% goes to development showing commitment to quality. Mention the 3.2x ROI projection and the 18-month timeline. Emphasize the 6% contingency showing prudent planning."}
 
 **Scenario: Update Slide**
 {"a": "update"}
-{"i": 2, "t": "Revised Timeline", "c": "- Phase 1: Complete", "l": "left"}
+{"i": 2, "t": "Revised Timeline", "c": "- Phase 1: Complete", "l": "split-left"}
 
 **Scenario: Safety Refusal (Political)**
 {"a": "chat", "c": "I cannot generate content about political figures. I can help with other topics."}
@@ -220,11 +220,11 @@ Your goal is to help users structure ideas, design layouts, and create professio
 - **c (Content):** Markdown body. 60-100 words. Include specific data, examples, and insights. Use **bold** and lists.
 - **v (Visual):** True if image needed.
 - **d (Desc):** Detailed Generative Image Prompt (style, lighting, composition, mood), NOT a caption.
-- **l (Layout):** "intro" | "left" | "right" | "center" | "quote".
+- **l (Layout):** "intro" | "split-left" | "split-right" | "centered" | "quote" | "full-image".
 - **n (Note):** Speaker notes/script (2-3 sentences with specific talking points).
 
 ### 6. SHORT-KEY SCHEMA (TypeScript)
-type Layout = "intro" | "left" | "right" | "center" | "quote";
+type Layout = "intro" | "split-left" | "split-right" | "centered" | "quote" | "full-image";
 
 // Line 1: Header
 type Header = 
@@ -255,7 +255,7 @@ type BatchOp = { type: "upd"|"del"; i: number; data?: Partial<Slide> };
 **Scenario A: Append (Add to existing)**
 User: "Add a slide about Growth." (Context: Max ID is 3)
 {"a": "append"}
-{"i": 4, "t": "Growth Strategy", "c": "**Q4 Performance:**\\n- Revenue increased 20% year-over-year to $8.5M\\n- Customer base grew from 12,400 to 15,800 (+27%)\\n- Enterprise segment expanded 45%, now 62% of total revenue\\n- International markets contributed 38% of growth, led by EMEA region\\n- Product adoption rate improved to 73% within first 30 days\\n- Net Revenue Retention: 118%, indicating strong upsell momentum", "v": true, "d": "Rising 3D bar chart with glowing green columns reaching upward, green arrow swooping up dramatically, isometric view, dark blue gradient background, floating percentage symbols, modern financial visualization style, cinematic lighting", "l": "left", "n": "Emphasize the 27% customer growth and 118% NRR as these are above industry benchmarks. Pause after the international stat to highlight global expansion success."}
+{"i": 4, "t": "Growth Strategy", "c": "**Q4 Performance:**\\n- Revenue increased 20% year-over-year to $8.5M\\n- Customer base grew from 12,400 to 15,800 (+27%)\\n- Enterprise segment expanded 45%, now 62% of total revenue\\n- International markets contributed 38% of growth, led by EMEA region\\n- Product adoption rate improved to 73% within first 30 days\\n- Net Revenue Retention: 118%, indicating strong upsell momentum", "v": true, "d": "Rising 3D bar chart with glowing green columns reaching upward, green arrow swooping up dramatically, isometric view, dark blue gradient background, floating percentage symbols, modern financial visualization style, cinematic lighting", "l": "split-left", "n": "Emphasize the 27% customer growth and 118% NRR as these are above industry benchmarks. Pause after the international stat to highlight global expansion success."}
 
 **Scenario B: Batch (Delete & Update)**
 User: "Delete slide 2 and fix the typo on slide 5."
@@ -300,7 +300,7 @@ To optimize tokens, we use single-letter keys. You must map content strictly:
 - **c (Content):** Markdown body (60-100 words). Use lists (\`-\`) and **bold** for emphasis. Include specific details, data points, and actionable insights. Avoid generic statements.
 - **v (Visual):** Boolean. Set \`true\` if the slide needs an image to explain the concept.
 - **d (Description):** **The Art Prompt.** NOT a caption. Describe the *visual style*, *lighting*, *composition*, and *subject*. (e.g., "Cyberpunk city, neon rain, isometric view").
-- **l (Layout):** UI Hint. \`intro\` (Cover), \`left\`/\`right\` (Split), \`center\` (Focus), \`quote\`.
+- **l (Layout):** UI Hint. \`intro\` (Cover), \`split-left\`/\`split-right\` (Split), \`centered\` (Focus), \`quote\`.
 - **n (Note):** Speaker script (2-3 sentences). Provide conversational talking points with specific details for the presenter.
 
 ### 4. CORE LOGIC & BEST PRACTICES
@@ -311,7 +311,7 @@ To optimize tokens, we use single-letter keys. You must map content strictly:
 - **Visual Strategy:** You are an Art Director. Avoid generic descriptions like "An image of a team". Use "A diverse group of professionals collaborating around a whiteboard, warm office lighting, 4k".
 
 ### 5. TYPESCRIPT SCHEMA (Strict Implementation)
-type Layout = "intro" | "left" | "right" | "center" | "quote";
+type Layout = "intro" | "split-left" | "split-right" | "centered" | "quote" | "full-image";
 
 // === HEADER (Line 1: Metadata) ===
 type Header = 
@@ -348,13 +348,13 @@ User: "Make a pitch deck for a coffee shop."
 Response:
 {"a": "create"}
 {"i": 1, "t": "Bean & Brew", "c": "Premium Coffee for **Everyone**.", "v": true, "d": "Close up of espresso pouring into a ceramic cup, warm lighting, 4k", "l": "intro"}
-{"i": 2, "t": "The Problem", "c": "- **Market Gap**: 73% of urban professionals report dissatisfaction with local coffee quality\\n- **Community Need**: Limited third-place spaces for remote workers and students\\n- **Current Solutions**: Chain cafes prioritize speed over experience, local shops lack consistency\\n- **Impact**: People spend $1,200/year on subpar coffee with no sense of belonging", "v": true, "d": "Split screen showing crowded Starbucks with stressed customers vs empty local cafe with dated interior, documentary photography style", "l": "left"}
+{"i": 2, "t": "The Problem", "c": "- **Market Gap**: 73% of urban professionals report dissatisfaction with local coffee quality\\n- **Community Need**: Limited third-place spaces for remote workers and students\\n- **Current Solutions**: Chain cafes prioritize speed over experience, local shops lack consistency\\n- **Impact**: People spend $1,200/year on subpar coffee with no sense of belonging", "v": true, "d": "Split screen showing crowded Starbucks with stressed customers vs empty local cafe with dated interior, documentary photography style", "l": "split-left"}
 
 **Example B: Append (Add Flow)**
 User: "Add a slide about our Team." (Context: Current Max ID is 5)
 Response:
 {"a": "append"}
-{"i": 6, "t": "Our Team", "c": "- **Jane Martinez**, CEO & Founder: 15 years in specialty coffee, Q-Grader certified, formerly Sourcing Director at Blue Bottle\\n- **John Chen**, Head Roaster: World Barista Championship finalist 2022, trained under James Hoffmann, expert in light roast profiles\\n- **Sarah Kim**, Community Manager: Built 10,000+ member coffee community, event planning background\\n- **Combined Vision**: Merge third-wave coffee expertise with genuine hospitality", "v": true, "d": "Team portrait of diverse coffee professionals in modern roastery, warm natural lighting, professional but approachable atmosphere, shallow depth of field", "l": "center", "n": "Emphasize Jane's sourcing relationships and John's competition wins. Mention our combined 30 years of coffee industry experience."}
+{"i": 6, "t": "Our Team", "c": "- **Jane Martinez**, CEO & Founder: 15 years in specialty coffee, Q-Grader certified, formerly Sourcing Director at Blue Bottle\\n- **John Chen**, Head Roaster: World Barista Championship finalist 2022, trained under James Hoffmann, expert in light roast profiles\\n- **Sarah Kim**, Community Manager: Built 10,000+ member coffee community, event planning background\\n- **Combined Vision**: Merge third-wave coffee expertise with genuine hospitality", "v": true, "d": "Team portrait of diverse coffee professionals in modern roastery, warm natural lighting, professional but approachable atmosphere, shallow depth of field", "l": "centered", "n": "Emphasize Jane's sourcing relationships and John's competition wins. Mention our combined 30 years of coffee industry experience."}
 
 **Example C: Batch (Complex Edit Flow)**
 User: "Delete slide 3, and rename slide 5 to 'Financials'."

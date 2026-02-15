@@ -58,6 +58,9 @@ interface SessionState {
   getCurrentSession: () => Session | undefined
   importSession: (session: Session) => void
   clearCurrentMessages: () => void
+  deleteMessagesFrom: (messageId: string) => void
+  hasCheckpointAfterTimestamp: (timestamp: number) => boolean
+  getLastCheckpointBeforeMessageId: (messageId: string) => Slide[] | undefined
   newChat: () => void
   pinSession: (id: string) => void
   renameSession: (id: string, title: string) => void
@@ -112,10 +115,12 @@ export const useSessionStore = create<SessionState>()(
           timestamp: Date.now(),
           pinned: false,
         }
-        set((state) => ({
-          sessions: [session, ...state.sessions],
-          currentSessionId: session.id,
-        }))
+        set((state) => {
+          const list = state.sessions
+          const pinnedCount = list.filter((s) => s.pinned === true).length
+          const sessions = [...list.slice(0, pinnedCount), session, ...list.slice(pinnedCount)]
+          return { sessions, currentSessionId: session.id }
+        })
         return session.id
       },
 
@@ -208,6 +213,41 @@ export const useSessionStore = create<SessionState>()(
             s.id === currentSessionId ? { ...s, messages: [] } : s
           ),
         }))
+      },
+
+      deleteMessagesFrom: (messageId) => {
+        const { currentSessionId } = get()
+        if (!currentSessionId) return
+        set((state) => ({
+          sessions: state.sessions.map((s) => {
+            if (s.id !== currentSessionId) return s
+            const msgIndex = s.messages.findIndex((m) => m.id === messageId)
+            if (msgIndex === -1) return s
+            return { ...s, messages: s.messages.slice(0, msgIndex) }
+          }),
+        }))
+      },
+
+      hasCheckpointAfterTimestamp: (timestamp) => {
+        const session = get().getCurrentSession()
+        if (!session) return false
+        return session.messages.some(
+          (m) => m.timestamp > timestamp && m.slideSnapshot && m.slideSnapshot.length > 0
+        )
+      },
+
+      getLastCheckpointBeforeMessageId: (messageId) => {
+        const session = get().getCurrentSession()
+        if (!session) return undefined
+        const idx = session.messages.findIndex((m) => m.id === messageId)
+        if (idx <= 0) return undefined
+        for (let i = idx - 1; i >= 0; i--) {
+          const m = session.messages[i]
+          if (m.slideSnapshot && m.slideSnapshot.length > 0) {
+            return JSON.parse(JSON.stringify(m.slideSnapshot))
+          }
+        }
+        return undefined
       },
 
       newChat: () => {

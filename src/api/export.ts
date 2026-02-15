@@ -1,7 +1,9 @@
+import React from 'react'
 import PptxGenJS from 'pptxgenjs'
-import { jsPDF } from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import ReactPDF from '@react-pdf/renderer'
+import { saveAs } from 'file-saver'
 import type { Slide } from './prompt'
+import { ScriptPdfDocument } from './ScriptPdfDocument'
 import type {
   NDJSONDesignResult,
   NDJSONImagePlaceholder,
@@ -120,6 +122,51 @@ function resolveLayout(slide: Slide, base: LayoutType): LayoutType {
 /** Strip markdown **bold** and convert - lists to plain text for PptxGenJS */
 function parseMarkdownContent(text: string): string {
   return text.replace(/\*\*(.*?)\*\*/g, '$1').trim()
+}
+
+// ---------------------------------------------------------------------------
+// Markdown → PptxGenJS rich text (bold only)
+// ---------------------------------------------------------------------------
+
+interface PptxTextItem {
+  text: string
+  options?: Record<string, unknown>
+}
+
+/**
+ * Phân tích chuỗi Markdown (chỉ hỗ trợ **bold**) thành mảng TextItem cho PptxGenJS.
+ * Biến "**Hello** world" thành [{ text: "Hello", options: { bold: true } }, { text: " world" }].
+ */
+function parseTextWithMarkdown(text: string, baseOpts: Record<string, unknown>): PptxTextItem[] {
+  if (!text) return [{ text: '', options: baseOpts }]
+
+  const regex = /\*\*(.*?)\*\*/g
+  const parts: PptxTextItem[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({
+        text: text.substring(lastIndex, match.index),
+        options: { ...baseOpts, bold: false },
+      })
+    }
+    parts.push({
+      text: match[1],
+      options: { ...baseOpts, bold: true, color: baseOpts.color ?? '000000' },
+    })
+    lastIndex = regex.lastIndex
+  }
+
+  if (lastIndex < text.length) {
+    parts.push({
+      text: text.substring(lastIndex),
+      options: { ...baseOpts, bold: false },
+    })
+  }
+
+  return parts.length > 0 ? parts : [{ text, options: baseOpts }]
 }
 
 /** Draw professional image placeholder box (dashed border, icon, label). Caller appends description to notes. */
@@ -608,22 +655,37 @@ function renderDesignedSlide(
   originalSlide: Slide,
   pptx: PptxGenJS
 ): void {
-  const bgColor = design.config?.background?.color
-  if (typeof bgColor === 'string' && bgColor) {
-    pptSlide.background = { color: bgColor }
+  const bg = design.config?.background
+  if (bg && typeof bg.color === 'string' && bg.color) {
+    pptSlide.background =
+      typeof bg.transparency === 'number'
+        ? { color: bg.color, transparency: bg.transparency }
+        : { color: bg.color }
   }
 
   for (const el of design.elements) {
     const clamped = clampCoordinates(el)
 
     if (clamped.type === 'shape') {
+      const shapeTypeMap = pptx.ShapeType as Record<string, unknown>
       const shapeEnum =
-        clamped.shapeType === 'line'
-          ? pptx.ShapeType.line
-          : clamped.shapeType === 'ellipse'
-            ? pptx.ShapeType.ellipse
-            : pptx.ShapeType.rect
-      pptSlide.addShape(shapeEnum, clamped.options as PptxGenJS.ShapeProps)
+        typeof clamped.shapeType === 'string' && clamped.shapeType in shapeTypeMap
+          ? (shapeTypeMap[clamped.shapeType] as PptxGenJS.ShapeType)
+          : pptx.ShapeType.rect
+      const opts = clamped.options as PptxGenJS.ShapeProps
+      pptSlide.addShape(shapeEnum, {
+        x: opts.x,
+        y: opts.y,
+        w: opts.w,
+        h: opts.h,
+        fill: opts.fill,
+        line: opts.line,
+        rectRadius: opts.rectRadius,
+        shadow: opts.shadow,
+        rotate: opts.rotate,
+        flipH: opts.flipH,
+        flipV: opts.flipV,
+      })
     } else if (clamped.type === 'text') {
       const suggestedSize = clamped.options.fontSize ?? 18
       const safeSize = calculateSafeFontSize(
@@ -632,14 +694,46 @@ function renderDesignedSlide(
         clamped.options.h,
         suggestedSize
       )
-      const textOpts = {
-        ...clamped.options,
+      const opts = clamped.options
+      const baseStyle = {
         fontSize: safeSize,
-        fontFace: clamped.options.fontFace || FONT_STACK,
-        shrinkText: true,
-        wrap: true,
+        color: opts.color,
+        fontFace: opts.fontFace || FONT_STACK,
+        italic: opts.italic,
       }
-      pptSlide.addText(clamped.text ?? '', textOpts as PptxGenJS.TextPropsOptions)
+      const boxOpts: PptxGenJS.TextPropsOptions = {
+        x: opts.x,
+        y: opts.y,
+        w: opts.w,
+        h: opts.h,
+        align: opts.align,
+        valign: opts.valign,
+        fill: opts.fill,
+        line: opts.line,
+        rectRadius: opts.rectRadius,
+        shadow: opts.shadow,
+        shrinkText: opts.shrinkText ?? true,
+        wrap: opts.wrap ?? true,
+      }
+
+      if (opts.bullet) {
+        const lines = (clamped.text ?? '').split('\n').filter((l) => l.trim())
+        const lineHeight = Math.max(0.22, (safeSize * 1.4) / 72)
+        lines.forEach((line, i) => {
+          const cleanLine = line.replace(/^-\s*/, '').trim()
+          const textRuns = parseTextWithMarkdown(cleanLine, baseStyle)
+          pptSlide.addText(textRuns, {
+            ...boxOpts,
+            y: opts.y + i * lineHeight,
+            h: lineHeight,
+            bullet: { code: '2022' },
+            autoFit: true,
+          })
+        })
+      } else {
+        const textRuns = parseTextWithMarkdown(clamped.text ?? '', baseStyle)
+        pptSlide.addText(textRuns, boxOpts)
+      }
     } else if (clamped.type === 'image-placeholder') {
       const { x, y, w, h } = clamped.options
       const altText = clamped.altText ?? originalSlide.visual_description ?? ''
@@ -658,13 +752,22 @@ function renderDesignedSlide(
 /** Fallback: simple layout when AI design fails. */
 function renderFallbackSlide(pptSlide: PptxGenJS.Slide, slide: Slide): void {
   pptSlide.background = { color: 'FFFFFF' }
-  pptSlide.addText(slide.title, { x: 1, y: 1, w: 8, h: 0.8, fontSize: 24, bold: true, fontFace: FONT_STACK })
-  pptSlide.addText(parseMarkdownContent(slide.content), {
+  const titleRuns = parseTextWithMarkdown(slide.title, {
+    fontSize: 24,
+    fontFace: FONT_STACK,
+    bold: true,
+  })
+  pptSlide.addText(titleRuns, { x: 1, y: 1, w: 8, h: 0.8, fontFace: FONT_STACK })
+  const contentRuns = parseTextWithMarkdown(slide.content, {
+    fontSize: 14,
+    fontFace: FONT_STACK,
+    color: '333333',
+  })
+  pptSlide.addText(contentRuns, {
     x: 1,
     y: 2,
     w: 8,
     h: 3,
-    fontSize: 14,
     fontFace: FONT_STACK,
     valign: 'top',
   })
@@ -865,94 +968,19 @@ function downloadBlob(blob: Blob, filename: string): void {
 }
 
 /**
- * Generate a two-column script PDF (Visuals | Audio) and trigger download.
+ * Generate PDF script using @react-pdf/renderer (font tiếng Việt từ CDN, layout Flexbox).
  */
-export async function generatePDF(slides: Slide[], filename = 'presentation'): Promise<void> {
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
-
-  // Header
-  doc.setFontSize(18)
-  doc.setFont('helvetica', 'bold')
-  doc.text(filename.replace(/_/g, ' '), 14, 18)
-
-  doc.setFontSize(9)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(120, 120, 120)
-  doc.text(`Generated by Vibriona — ${new Date().toLocaleDateString()}`, 14, 25)
-  doc.setTextColor(0, 0, 0)
-
-  // Table data
-  const tableBody = slides.map((slide) => {
-    // Left column: Visual
-    const visualLines: string[] = [
-      `SLIDE ${slide.slide_number}: ${slide.title}`,
-    ]
-    if (slide.layout_suggestion) {
-      visualLines.push(`[Layout: ${slide.layout_suggestion}]`)
-    }
-    if (slide.estimated_duration) {
-      visualLines.push(`[Duration: ${slide.estimated_duration}]`)
-    }
-    if (slide.visual_description) {
-      visualLines.push('')
-      visualLines.push(`Visual: ${slide.visual_description}`)
-    }
-
-    // Right column: Audio
-    const audioLines: string[] = []
-    if (slide.content) {
-      audioLines.push(slide.content)
-    }
-    if (slide.speaker_notes) {
-      audioLines.push('')
-      audioLines.push(`[Speaker Notes]`)
-      audioLines.push(slide.speaker_notes)
-    }
-
-    return [visualLines.join('\n'), audioLines.join('\n')]
-  })
-
-  autoTable(doc, {
-    startY: 30,
-    head: [['VISUALS', 'AUDIO / SCRIPT']],
-    body: tableBody,
-    theme: 'grid',
-    headStyles: {
-      fillColor: [30, 30, 30],
-      textColor: 255,
-      fontStyle: 'bold',
-      fontSize: 9,
-      cellPadding: 4,
-    },
-    bodyStyles: {
-      fontSize: 8.5,
-      cellPadding: 5,
-      lineColor: [220, 220, 220],
-      lineWidth: 0.3,
-      valign: 'top',
-      overflow: 'linebreak',
-    },
-    columnStyles: {
-      0: { cellWidth: 110, fontStyle: 'bold' },
-      1: { cellWidth: 165 },
-    },
-    alternateRowStyles: {
-      fillColor: [248, 248, 248],
-    },
-    margin: { left: 14, right: 14 },
-    didDrawPage: (data) => {
-      // Page number footer
-      const pageCount = doc.getNumberOfPages()
-      doc.setFontSize(8)
-      doc.setTextColor(160, 160, 160)
-      doc.text(
-        `Page ${data.pageNumber} of ${pageCount}`,
-        doc.internal.pageSize.getWidth() - 14,
-        doc.internal.pageSize.getHeight() - 8,
-        { align: 'right' }
-      )
-    },
-  })
-
-  doc.save(`${filename}_script.pdf`)
+export async function generatePDF(
+  slides: Slide[],
+  filename = 'presentation'
+): Promise<void> {
+  try {
+    const doc = React.createElement(ScriptPdfDocument, { slides, filename })
+    // pdf() expects ReactElement<DocumentProps>; our component renders Document
+    const blob = await ReactPDF.pdf(doc as Parameters<typeof ReactPDF.pdf>[0]).toBlob()
+    saveAs(blob, `${filename}_script.pdf`)
+  } catch (error) {
+    console.error('PDF Export failed:', error)
+    throw error
+  }
 }

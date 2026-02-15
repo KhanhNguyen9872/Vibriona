@@ -22,7 +22,7 @@ import { useQueueStore } from '../store/useQueueStore'
 import { useSessionStore } from '../store/useSessionStore'
 import { useUIStore } from '../store/useUIStore'
 import { mergeSlides, applyDelta } from '../utils/slideMerger'
-import { generatePPTX_AI, EXPORT_CANCELLED_MESSAGE, copyMarkdown, downloadJSON, generatePDF } from '../api/export'
+import { generatePPTX_AI, generatePPTX_Legacy, EXPORT_CANCELLED_MESSAGE, copyMarkdown, downloadJSON, generatePDF } from '../api/export'
 import SlideCard from './SlideCard'
 import { ExportProgressModal } from './ExportProgressModal'
 import ScriptView from './ScriptView'
@@ -31,7 +31,7 @@ import SlideSkeleton from './SlideSkeleton'
 import SkeletonLoader from './SkeletonLoader'
 import ThinkingIndicator from './ThinkingIndicator'
 import { confirmAction } from '../utils/confirmAction'
-import { Layers, Clock, Trash2, Download, FileDown, ClipboardCopy, FileJson, ChevronDown, Plus, CheckSquare, X, Undo2, Redo2, LayoutGrid, ScrollText, FileText, Wand2 } from 'lucide-react'
+import { Layers, Clock, Trash2, Download, FileDown, ClipboardCopy, FileJson, Plus, CheckSquare, X, Undo2, Redo2, LayoutGrid, ScrollText, FileText, Wand2, HelpCircle } from 'lucide-react'
 import type { Slide } from '../api/prompt'
 
 import { useSettingsStore } from '../store/useSettingsStore'
@@ -71,7 +71,10 @@ export default function ScriptWorkspace() {
   } = useSessionStore()
   const { viewMode, setViewMode } = useUIStore()
   const { undo, redo, pastStates, futureStates } = useSessionStore.temporal.getState()
-  const [showExportMenu, setShowExportMenu] = useState(false)
+  const [showExportOverlay, setShowExportOverlay] = useState(false)
+  const [showGeminiGuide, setShowGeminiGuide] = useState(false)
+  const [showChatGPTGuide, setShowChatGPTGuide] = useState(false)
+  const [showClaudeGuide, setShowClaudeGuide] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0, status: '' })
   const [exportError, setExportError] = useState<string | null>(null)
@@ -81,6 +84,8 @@ export default function ScriptWorkspace() {
   const [addingSlide, setAddingSlide] = useState<Slide | null>(null)
   const exportRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const headerContainerRef = useRef<HTMLDivElement>(null)
+  const [containerWidth, setContainerWidth] = useState(0)
 
   const selectedSlideIndices = getSelectedSlideIndices()
 
@@ -144,17 +149,20 @@ export default function ScriptWorkspace() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
-  // Close export menu on outside click
+  // Close export overlay on Escape
   useEffect(() => {
-    if (!showExportMenu) return
-    const handler = (e: MouseEvent) => {
-      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
-        setShowExportMenu(false)
+    if (!showExportOverlay) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (showGeminiGuide) setShowGeminiGuide(false)
+        else if (showChatGPTGuide) setShowChatGPTGuide(false)
+        else if (showClaudeGuide) setShowClaudeGuide(false)
+        else setShowExportOverlay(false)
       }
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [showExportMenu])
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [showExportOverlay, showGeminiGuide, showChatGPTGuide, showClaudeGuide])
 
   // Auto-scroll to bottom when new slides arrive during generation
   useEffect(() => {
@@ -163,12 +171,25 @@ export default function ScriptWorkspace() {
     }
   }, [displaySlides.length, isStreaming])
 
+  // React to script container width (resize) — hide timestamp and "Xuất" when narrow
+  useEffect(() => {
+    const el = headerContainerRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const w = entry.contentRect.width
+        setContainerWidth(w)
+      }
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   const scriptName = currentSession?.title
-    ? currentSession.title.slice(0, 40).replace(/\s+/g, '_')
+    ? currentSession.title.replace(/\s+/g, '_')
     : 'presentation'
 
   const handleExportPptx = async () => {
-    setShowExportMenu(false)
     setExportError(null)
     exportAbortRef.current = new AbortController()
     setIsExporting(true)
@@ -197,6 +218,17 @@ export default function ScriptWorkspace() {
     }
   }
 
+  const handleExportPptxLegacy = async () => {
+    setShowExportOverlay(false)
+    const tid = toast.loading(t('workspace.exporting'))
+    try {
+      await generatePPTX_Legacy(displaySlides, scriptName)
+      toast.success(t('workspace.exportDone'), { id: tid })
+    } catch {
+      toast.error(t('workspace.enhanceFailed'), { id: tid })
+    }
+  }
+
   const handleCloseExportOverlay = () => {
     exportAbortRef.current?.abort()
     exportAbortRef.current = null
@@ -206,26 +238,26 @@ export default function ScriptWorkspace() {
   }
 
   const handleCopyMarkdown = async () => {
-    setShowExportMenu(false)
+    setShowExportOverlay(false)
     const ok = await copyMarkdown(displaySlides)
     if (ok) toast.success(t('workspace.markdownCopied'))
     else toast.error(t('workspace.markdownCopyFailed'))
   }
 
   const handleExportJson = () => {
-    setShowExportMenu(false)
+    setShowExportOverlay(false)
     downloadJSON(displaySlides, scriptName)
     toast.success(t('workspace.exportDone'))
   }
 
   const handleExportPdf = async () => {
-    setShowExportMenu(false)
+    setShowExportOverlay(false)
     const tid = toast.loading(t('workspace.exporting'))
     try {
       await generatePDF(displaySlides, scriptName)
       toast.success(t('workspace.exportDone'), { id: tid })
     } catch {
-      toast.error(t('workspace.enhanceFailed'), { id: tid })
+      toast.error(t('workspace.exportFailed'), { id: tid })
     }
   }
 
@@ -389,11 +421,14 @@ export default function ScriptWorkspace() {
 
   const sortableIds = displaySlides.map((_, i) => `slide-${i}`)
 
+  const showTimestamp = containerWidth >= 520
+  const showExportLabel = containerWidth >= 420
+
   return (
-    <div className="h-full flex flex-col relative">
-      {/* Workspace header */}
-      <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-neutral-200 dark:border-neutral-700/50">
-        <div className="flex items-center gap-2.5">
+    <div ref={headerContainerRef} className="h-full flex flex-col relative min-w-0 w-full overflow-hidden">
+      {/* Workspace header — scrolls horizontally when very narrow so content is not cut off */}
+      <div className="shrink-0 flex items-center justify-between gap-3 px-6 py-4 border-b border-neutral-200 dark:border-neutral-700/50 min-w-0 overflow-x-auto overflow-y-hidden">
+        <div className="flex items-center gap-2.5 shrink-0">
           <Layers className="w-4 h-4 text-neutral-400" />
           <h2 className="text-sm font-semibold tracking-tight">{t('workspace.title')}</h2>
           {displaySlides.length > 0 && (
@@ -402,9 +437,9 @@ export default function ScriptWorkspace() {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1.5">
-          {timestamp && !isStreaming && (
-            <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-neutral-400">
+        <div className="flex items-center gap-1.5 shrink-0">
+          {timestamp && !isStreaming && showTimestamp && (
+            <div className="flex items-center gap-1.5 text-[10px] text-neutral-400">
               <Clock className="w-3 h-3" />
               {timestamp}
             </div>
@@ -459,56 +494,14 @@ export default function ScriptWorkspace() {
             </div>
 
           {displaySlides.length > 0 && !isStreaming && (
-            <div className="relative" ref={exportRef}>
+            <div ref={exportRef}>
               <button
-                onClick={() => setShowExportMenu((v) => !v)}
+                onClick={() => setShowExportOverlay(true)}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{t('workspace.export')}</span>
-                <ChevronDown className="w-3 h-3" />
+                {showExportLabel && <span>{t('workspace.export')}</span>}
               </button>
-              <AnimatePresence>
-                {showExportMenu && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -4, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -4, scale: 0.95 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-full mt-1 w-52 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700/50 bg-white dark:bg-neutral-900 z-50"
-                  >
-                    <button
-                      onClick={handleExportPptx}
-                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
-                    >
-                      <FileDown className="w-3.5 h-3.5 text-neutral-400" />
-                      {t('workspace.exportPptx')}
-                    </button>
-                    <button
-                      onClick={handleCopyMarkdown}
-                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
-                    >
-                      <ClipboardCopy className="w-3.5 h-3.5 text-neutral-400" />
-                      {t('workspace.exportMarkdown')}
-                    </button>
-                    <button
-                      onClick={handleExportJson}
-                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
-                    >
-                      <FileJson className="w-3.5 h-3.5 text-neutral-400" />
-                      {t('workspace.exportJson')}
-                    </button>
-                    <div className="my-0.5 border-t border-neutral-100 dark:border-neutral-800" />
-                    <button
-                      onClick={handleExportPdf}
-                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
-                    >
-                      <FileText className="w-3.5 h-3.5 text-neutral-400" />
-                      {t('workspace.exportPdf')}
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
           )}
 
@@ -526,10 +519,7 @@ export default function ScriptWorkspace() {
       </div>
 
       {/* Slides area */}
-      <div
-        className={`flex-1 overflow-y-auto px-6 py-5 transition-all duration-200 ${showExportMenu ? 'blur-sm pointer-events-none select-none opacity-60' : ''
-          }`}
-      >
+      <div className="flex-1 overflow-y-auto px-6 py-5 transition-all duration-200">
         {/* Thinking indicator */}
         {showThinking && (
           <ThinkingIndicator
@@ -686,6 +676,300 @@ export default function ScriptWorkspace() {
           />
         )}
       </AnimatePresence>
+
+      {/* Export overlay */}
+      <AnimatePresence>
+        {showExportOverlay && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => !showGeminiGuide && setShowExportOverlay(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-lg bg-white dark:bg-zinc-950 border border-neutral-200 dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-5 pb-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">
+                    {t('workspace.export')}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowExportOverlay(false)}
+                    className="p-1.5 rounded-lg text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 dark:hover:text-zinc-400 dark:hover:bg-zinc-800 transition-colors"
+                    aria-label={t('workspace.exportModalClose')}
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Section 1: PowerPoint Options */}
+                <div>
+                  <h4 className="text-xs font-semibold text-neutral-500 dark:text-zinc-400 uppercase tracking-wide mb-2">
+                    {t('workspace.exportPowerPoint')}
+                  </h4>
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        confirmAction(
+                          t('workspace.exportPptxConfirmMessage'),
+                          () => {
+                            setShowExportOverlay(false)
+                            handleExportPptx()
+                          },
+                          {
+                            title: t('workspace.exportPptxConfirmTitle'),
+                            confirmText: t('common.yes'),
+                            cancelText: t('common.no'),
+                          }
+                        )
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-neutral-200 dark:border-zinc-700 bg-neutral-50/50 dark:bg-zinc-900/50 hover:bg-neutral-100 dark:hover:bg-zinc-800/50 transition-colors text-left"
+                    >
+                      <Wand2 className="w-5 h-5 text-neutral-500 dark:text-zinc-400 shrink-0" />
+                      <div className="flex-1 text-left min-w-0">
+                        <div className="text-sm font-medium text-neutral-800 dark:text-zinc-200">
+                          {t('workspace.exportPptxAI')}
+                        </div>
+                        <div className="text-xs text-neutral-500 dark:text-zinc-400">
+                          {t('workspace.exportPptxAIDesc')}
+                        </div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportPptxLegacy}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-neutral-200 dark:border-zinc-700 bg-neutral-50/50 dark:bg-zinc-900/50 hover:bg-neutral-100 dark:hover:bg-zinc-800/50 transition-colors text-left"
+                    >
+                      <FileDown className="w-5 h-5 text-neutral-500 dark:text-zinc-400 shrink-0" />
+                      <div className="flex-1 text-left min-w-0">
+                        <div className="text-sm font-medium text-neutral-800 dark:text-zinc-200">
+                          {t('workspace.exportPptxLegacy')}
+                        </div>
+                        <div className="text-xs text-neutral-500 dark:text-zinc-400">
+                          {t('workspace.exportPptxLegacyDesc')}
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Section 2: Data for other AI */}
+                <div className="mt-5">
+                  <h4 className="text-xs font-semibold text-neutral-500 dark:text-zinc-400 uppercase tracking-wide mb-1.5">
+                    {t('workspace.exportDataForOtherAI')}
+                  </h4>
+                  <p className="text-sm text-neutral-600 dark:text-zinc-400 mb-3">
+                    {t('workspace.exportDataForOtherAIDescription')}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCopyMarkdown}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg border border-neutral-200 dark:border-zinc-700 text-sm font-medium text-neutral-700 dark:text-zinc-300 hover:bg-neutral-50 dark:hover:bg-zinc-800 transition-colors"
+                    >
+                      <ClipboardCopy className="w-4 h-4" />
+                      {t('workspace.exportMarkdown')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportJson}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg border border-neutral-200 dark:border-zinc-700 text-sm font-medium text-neutral-700 dark:text-zinc-300 hover:bg-neutral-50 dark:hover:bg-zinc-800 transition-colors"
+                    >
+                      <FileJson className="w-4 h-4" />
+                      {t('workspace.exportJson')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportPdf}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg border border-neutral-200 dark:border-zinc-700 text-sm font-medium text-neutral-700 dark:text-zinc-300 hover:bg-neutral-50 dark:hover:bg-zinc-800 transition-colors"
+                    >
+                      <FileText className="w-4 h-4" />
+                      {t('workspace.exportPdf')}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Section 3: AI Guides */}
+                <div className="mt-5">
+                  <h4 className="text-xs font-semibold text-neutral-500 dark:text-zinc-400 uppercase tracking-wide mb-2">
+                    {t('workspace.exportAIGuides')}
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowGeminiGuide(true)}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg border border-neutral-200 dark:border-zinc-700 text-sm font-medium text-neutral-700 dark:text-zinc-300 hover:bg-neutral-50 dark:hover:bg-zinc-800 transition-colors"
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                      {t('workspace.exportGeminiGuide')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowChatGPTGuide(true)}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg border border-neutral-200 dark:border-zinc-700 text-sm font-medium text-neutral-700 dark:text-zinc-300 hover:bg-neutral-50 dark:hover:bg-zinc-800 transition-colors"
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                      {t('workspace.exportChatGPTGuide')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowClaudeGuide(true)}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg border border-neutral-200 dark:border-zinc-700 text-sm font-medium text-neutral-700 dark:text-zinc-300 hover:bg-neutral-50 dark:hover:bg-zinc-800 transition-colors"
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                      {t('workspace.exportClaudeGuide')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Gemini guide modal (inside export overlay flow) */}
+      <AnimatePresence>
+        {showGeminiGuide && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[51] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setShowGeminiGuide(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-white dark:bg-zinc-950 border border-neutral-200 dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-3">
+                  {t('workspace.exportGeminiGuide')}
+                </h3>
+                <ol className="list-decimal list-inside space-y-2 text-sm text-neutral-600 dark:text-zinc-400">
+                  {t('workspace.exportGeminiGuideSteps')
+                    .split('\n')
+                    .map((step, i) => (
+                      <li key={i} className="pl-1">
+                        {step.replace(/^\d+\.\s*/, '')}
+                      </li>
+                    ))}
+                </ol>
+              </div>
+              <div className="p-4 bg-neutral-50 dark:bg-zinc-900/50 border-t border-neutral-200 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setShowGeminiGuide(false)}
+                  className="w-full px-4 py-2.5 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-sm font-medium hover:opacity-90 transition-opacity"
+                >
+                  {t('workspace.exportGeminiGuideClose')}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ChatGPT guide modal */}
+      <AnimatePresence>
+        {showChatGPTGuide && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[51] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setShowChatGPTGuide(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-white dark:bg-zinc-950 border border-neutral-200 dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-3">
+                  {t('workspace.exportChatGPTGuide')}
+                </h3>
+                <ol className="list-decimal list-inside space-y-2 text-sm text-neutral-600 dark:text-zinc-400">
+                  {t('workspace.exportChatGPTGuideSteps')
+                    .split('\n')
+                    .map((step, i) => (
+                      <li key={i} className="pl-1">
+                        {step.replace(/^\d+\.\s*/, '')}
+                      </li>
+                    ))}
+                </ol>
+              </div>
+              <div className="p-4 bg-neutral-50 dark:bg-zinc-900/50 border-t border-neutral-200 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setShowChatGPTGuide(false)}
+                  className="w-full px-4 py-2.5 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-sm font-medium hover:opacity-90 transition-opacity"
+                >
+                  {t('workspace.exportGeminiGuideClose')}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Claude guide modal */}
+      <AnimatePresence>
+        {showClaudeGuide && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[51] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setShowClaudeGuide(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-white dark:bg-zinc-950 border border-neutral-200 dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-3">
+                  {t('workspace.exportClaudeGuide')}
+                </h3>
+                <ol className="list-decimal list-inside space-y-2 text-sm text-neutral-600 dark:text-zinc-400">
+                  {t('workspace.exportClaudeGuideSteps')
+                    .split('\n')
+                    .map((step, i) => (
+                      <li key={i} className="pl-1">
+                        {step.replace(/^\d+\.\s*/, '')}
+                      </li>
+                    ))}
+                </ol>
+              </div>
+              <div className="p-4 bg-neutral-50 dark:bg-zinc-900/50 border-t border-neutral-200 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setShowClaudeGuide(false)}
+                  className="w-full px-4 py-2.5 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-sm font-medium hover:opacity-90 transition-opacity"
+                >
+                  {t('workspace.exportGeminiGuideClose')}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <ExportProgressModal
         isOpen={isExporting}
         current={exportProgress.current}

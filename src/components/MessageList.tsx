@@ -220,9 +220,9 @@ export default function MessageList({ messages, isStreaming, streamingThinking }
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ duration: 0.2 }}
-              className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex gap-3 w-full min-w-0 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              <div className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+              <div className={`flex gap-3 min-w-0 ${msg.role === 'user' ? 'flex-row-reverse flex-1 justify-start' : 'flex-row'}`}>
                 {msg.role === 'assistant' && (
                   <div className="shrink-0 w-7 h-7 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mt-0.5">
                     <img src="assets/logo.png" alt={t('app.title')} className="w-5 h-5 object-contain" />

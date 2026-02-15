@@ -7,9 +7,62 @@
 // NDJSON design schema types (AI output)
 // ============================================================================
 
+/** Shadow options for shapes and text (PptxGenJS ShadowProps). */
+export interface NDJSONShadowProps {
+  type: 'outer' | 'inner' | 'none'
+  /** Blur in points (0-100). */
+  blur?: number
+  /** Offset in points (0-200). */
+  offset?: number
+  /** Angle in degrees (0-359). */
+  angle?: number
+  /** Shadow color HEX (no #). */
+  color?: string
+  /** Opacity 0-1. */
+  opacity?: number
+  rotateWithShape?: boolean
+}
+
+/** Line/border options for shapes (PptxGenJS ShapeLineProps). */
+export interface NDJSONLineProps {
+  color?: string
+  width?: number
+  dashType?:
+    | 'solid'
+    | 'dash'
+    | 'dashDot'
+    | 'lgDash'
+    | 'lgDashDot'
+    | 'lgDashDotDot'
+    | 'sysDash'
+    | 'sysDot'
+  beginArrowType?: 'none' | 'arrow' | 'diamond' | 'oval' | 'stealth' | 'triangle'
+  endArrowType?: 'none' | 'arrow' | 'diamond' | 'oval' | 'stealth' | 'triangle'
+  transparency?: number
+}
+
+/** Fill options for shapes (PptxGenJS ShapeFillProps). */
+export interface NDJSONFillProps {
+  color: string
+  /** Transparency percent 0-100. */
+  transparency?: number
+  type?: 'none' | 'solid'
+}
+
 export interface NDJSONConfig {
   type: 'config'
-  layout?: 'hero' | 'hero_center' | 'split_left' | 'split_right' | 'grid' | 'grid_cards' | 'chart' | 'minimal'
+  layout?:
+    | 'cover'
+    | 'hero'
+    | 'hero_center'
+    | 'section'
+    | 'split_left'
+    | 'split_right'
+    | 'grid'
+    | 'grid_cards'
+    | 'grid_2x2'
+    | 'chart'
+    | 'minimal'
   background?: { color: string; transparency?: number }
 }
 
@@ -23,29 +76,223 @@ export interface NDJSONShapeOptions {
   y: number
   w: number
   h: number
-  fill?: { color: string; transparency?: number }
-  line?: { color: string; width?: number; dashType?: 'solid' | 'dash' }
+  fill?: NDJSONFillProps
+  line?: NDJSONLineProps
+  /** Corner rounding 0-1 (e.g. 0.1 to 0.5 for roundRect). */
+  rectRadius?: number
+  shadow?: NDJSONShadowProps
+  /** Rotation in degrees -360 to 360. */
+  rotate?: number
+  flipH?: boolean
+  flipV?: boolean
 }
+
+/**
+ * All PptxGenJS shape type names. Use string at runtime so any valid ShapeType is accepted.
+ * @see https://gitbrent.github.io/PptxGenJS/docs/api-shapes.html
+ */
+export type NDJSONShapeType =
+  | 'rect'
+  | 'roundRect'
+  | 'ellipse'
+  | 'line'
+  | 'triangle'
+  | 'diamond'
+  | 'pentagon'
+  | 'hexagon'
+  | 'octagon'
+  | 'rtTriangle'
+  | 'donut'
+  | 'heart'
+  | 'star5'
+  | 'star6'
+  | 'star7'
+  | 'star8'
+  | 'star10'
+  | 'star4'
+  | 'star12'
+  | 'star16'
+  | 'star24'
+  | 'star32'
+  | 'rightArrow'
+  | 'leftArrow'
+  | 'upArrow'
+  | 'downArrow'
+  | 'leftRightArrow'
+  | 'upDownArrow'
+  | 'wedgeRoundRectCallout'
+  | 'wedgeRectCallout'
+  | 'wedgeEllipseCallout'
+  | 'cloudCallout'
+  | 'borderCallout1'
+  | 'borderCallout2'
+  | 'borderCallout3'
+  | 'callout1'
+  | 'callout2'
+  | 'callout3'
+  | 'accentCallout1'
+  | 'accentCallout2'
+  | 'accentCallout3'
+  | 'flowChartProcess'
+  | 'flowChartDecision'
+  | 'flowChartTerminator'
+  | 'flowChartInputOutput'
+  | 'flowChartDocument'
+  | 'chevron'
+  | 'parallelogram'
+  | 'trapezoid'
+  | 'bevel'
+  | 'homePlate'
+  | 'plaque'
+  | 'cloud'
+  | 'wave'
+  | 'doubleWave'
+  | 'plus'
+  | 'can'
+  | 'lightningBolt'
+  | 'sun'
+  | 'moon'
+  | 'arc'
+  | 'bentArrow'
+  | 'bentUpArrow'
+  | 'blockArc'
+  | 'circularArrow'
+  | 'curvedDownArrow'
+  | 'curvedLeftArrow'
+  | 'curvedRightArrow'
+  | 'curvedUpArrow'
+  | 'decagon'
+  | 'diagStripe'
+  | 'dodecagon'
+  | 'ellipseRibbon'
+  | 'ellipseRibbon2'
+  | 'frame'
+  | 'funnel'
+  | 'gear6'
+  | 'gear9'
+  | 'halfFrame'
+  | 'heptagon'
+  | 'horizontalScroll'
+  | 'irregularSeal1'
+  | 'irregularSeal2'
+  | 'leftArrowCallout'
+  | 'leftBrace'
+  | 'leftBracket'
+  | 'leftCircularArrow'
+  | 'leftRightArrowCallout'
+  | 'leftRightCircularArrow'
+  | 'leftRightRibbon'
+  | 'leftRightUpArrow'
+  | 'leftUpArrow'
+  | 'lineInv'
+  | 'mathDivide'
+  | 'mathEqual'
+  | 'mathMinus'
+  | 'mathMultiply'
+  | 'mathNotEqual'
+  | 'mathPlus'
+  | 'nonIsoscelesTrapezoid'
+  | 'noSmoking'
+  | 'notchedRightArrow'
+  | 'pie'
+  | 'pieWedge'
+  | 'plaqueTabs'
+  | 'quadArrow'
+  | 'quadArrowCallout'
+  | 'ribbon'
+  | 'ribbon2'
+  | 'rightArrowCallout'
+  | 'rightBrace'
+  | 'rightBracket'
+  | 'round1Rect'
+  | 'round2DiagRect'
+  | 'round2SameRect'
+  | 'smileyFace'
+  | 'snip1Rect'
+  | 'snip2DiagRect'
+  | 'snip2SameRect'
+  | 'snipRoundRect'
+  | 'squareTabs'
+  | 'stripedRightArrow'
+  | 'swooshArrow'
+  | 'teardrop'
+  | 'upArrowCallout'
+  | 'upDownArrowCallout'
+  | 'uturnArrow'
+  | 'verticalScroll'
+  | 'accentBorderCallout1'
+  | 'accentBorderCallout2'
+  | 'accentBorderCallout3'
+  | 'actionButtonBackPrevious'
+  | 'actionButtonBeginning'
+  | 'actionButtonBlank'
+  | 'actionButtonDocument'
+  | 'actionButtonEnd'
+  | 'actionButtonForwardNext'
+  | 'actionButtonHelp'
+  | 'actionButtonHome'
+  | 'actionButtonInformation'
+  | 'actionButtonMovie'
+  | 'actionButtonReturn'
+  | 'actionButtonSound'
+  | 'chartPlus'
+  | 'chartStar'
+  | 'chartX'
+  | 'chord'
+  | 'corner'
+  | 'cornerTabs'
+  | 'cube'
+  | 'downArrowCallout'
+  | 'folderCorner'
+  | 'flowChartAlternateProcess'
+  | 'flowChartCollate'
+  | 'flowChartConnector'
+  | 'flowChartDelay'
+  | 'flowChartDisplay'
+  | 'flowChartExtract'
+  | 'flowChartInternalStorage'
+  | 'flowChartMagneticDisk'
+  | 'flowChartMagneticDrum'
+  | 'flowChartMagneticTape'
+  | 'flowChartManualInput'
+  | 'flowChartManualOperation'
+  | 'flowChartMerge'
+  | 'flowChartMultidocument'
+  | 'flowChartOfflineStorage'
+  | 'flowChartOffpageConnector'
+  | 'flowChartOnlineStorage'
+  | 'flowChartOr'
+  | 'flowChartPredefinedProcess'
+  | 'flowChartPreparation'
+  | 'flowChartPunchedCard'
+  | 'flowChartPunchedTape'
+  | 'flowChartSort'
+  | 'flowChartSummingJunction'
+  | 'bracePair'
+  | 'bracketPair'
 
 export interface NDJSONShape {
   type: 'shape'
-  shapeType: 'rect' | 'ellipse' | 'line'
+  shapeType: NDJSONShapeType
   options: NDJSONShapeOptions
 }
 
-export interface NDJSONTextOptions {
-  x: number
-  y: number
-  w: number
-  h: number
+export interface NDJSONTextOptions extends NDJSONShapeOptions {
   fontSize?: number
   color?: string
   bold?: boolean
   italic?: boolean
+  underline?: boolean
   align?: 'left' | 'center' | 'right' | 'justify'
   valign?: 'top' | 'middle' | 'bottom'
   fontFace?: string
-  bullet?: boolean
+  bullet?: boolean | { type: 'number' }
+  /** Line spacing (pt) or multiple. */
+  lineSpacing?: number
+  lineSpacingMultiple?: number
+  shrinkText?: boolean
+  wrap?: boolean
+  autoFit?: boolean
 }
 
 export interface NDJSONText {
@@ -67,7 +314,12 @@ export interface NDJSONImagePlaceholder {
   options: NDJSONImagePlaceholderOptions
 }
 
-export type NDJSONLine = NDJSONConfig | NDJSONError | NDJSONShape | NDJSONText | NDJSONImagePlaceholder
+export type NDJSONLine =
+  | NDJSONConfig
+  | NDJSONError
+  | NDJSONShape
+  | NDJSONText
+  | NDJSONImagePlaceholder
 
 export interface NDJSONDesignResult {
   config: NDJSONConfig | null
@@ -76,68 +328,73 @@ export interface NDJSONDesignResult {
 }
 
 // ============================================================================
-// System prompt for AI slide designer
+// System prompt for AI slide designer (comprehensive PptxGenJS API reference)
 // ============================================================================
 
 export const SLIDE_DESIGNER_SYSTEM_PROMPT = `You are **Vibriona Design Engine**, an expert AI Presentation Architect.
-Your task is to map content into a STRICT Layout System using PptxGenJS coordinates.
+Your task is to design professional slides using PptxGenJS.
 
-### 1. SAFETY GUARDRAILS (ZERO TOLERANCE)
-Before generating any design, analyze the Input Data.
-- **Prohibited:** Hate speech, explicit violence, sexual content, self-harm, or promotion of illegal acts.
-- **Refusal Protocol:** If input violates safety, return a SINGLE line JSON:
-  \`{"type": "error", "message": "Content violates safety guidelines."}\`
-  Stop generation immediately.
+=== 1. SAFETY & BASICS ===
+- **Refusal:** {"type": "error", "message": "..."} for unsafe content.
+- **Canvas:** 16:9 (10.0 x 5.625 inches). Safe zone: 0.5 padding.
+- **Colors:** HEX strings (e.g. "FF0000"). NO '#'.
 
-### 2. CANVAS SPECS
-- **Size:** 16:9 Aspect Ratio (W: 10.0in, H: 5.625in).
-- **Safe Zone:** x: 0.5 to 9.5 | y: 0.5 to 5.125.
-- **Colors:** Use HEX strings (e.g., "FF0000"). NO '#' prefix.
-- **Fonts:** Default 'Montserrat'. Fallback 'Arial'.
+=== 2. AVAILABLE TOOLS (USE THEM!) ===
+- **Shadows:** Use for Images/Cards to create depth. {"type": "outer", "blur": 10, "opacity": 0.2}
+- **Rounded Corners:** rectRadius: 0.1 for modern look.
+- **Transparency:** fill: {"color": "HEX", "transparency": 80} for background blobs.
+- **Shapes:** Don't just use rect. Use 'ellipse', 'roundRect', 'triangle' for decoration.
 
-### 3. STRICT LAYOUT TEMPLATES (YOU MUST FOLLOW THESE COORDINATES)
-Choose the best layout based on content length and visual needs. Use EXACT coordinates below.
+=== 3. STRICT LAYOUT TEMPLATES ===
+Available layouts: cover (slide 1 only), split_left, split_right, grid_cards (exactly 3 list items), grid_2x2 (exactly 4 list items), minimal (text only). You will be given the Required Layout; use EXACT coordinates for that layout only.
 
-**LAYOUT A: split_left (Image Left 40%, Text Right 55%)**
-- Image Zone: x: 0.5, y: 1.2, w: 4.0, h: 3.8
-- Title: x: 5.0, y: 0.5, w: 4.5, h: 0.8 (align: "left")
-- Text Zone: x: 5.0, y: 1.5, w: 4.5, h: 3.5
+**LAYOUT: cover (Slide 1 Only)**
+- **Background:** Add 2 decorative shapes (ellipse/triangle) in corners with high transparency (80-90%).
+- **Title:** x: 0.5, y: 1.8, w: 9.0, h: 1.5. fontSize: 54. align: "center". bold: true.
+- **Subtitle:** x: 1.0, y: 3.4, w: 8.0, h: 1.0. fontSize: 24. align: "center".
+- **Decoration:** - Shape 1: type: ellipse, x: -1, y: -1, w: 4, h: 4, fill: {color: <PrimaryColor>, transparency: 85}
+    - Shape 2: type: ellipse, x: 8, y: 3.5, w: 3, h: 3, fill: {color: <SecondaryColor>, transparency: 85}
 
-**LAYOUT B: split_right (Text Left 55%, Image Right 40%)**
-- Title: x: 0.5, y: 0.5, w: 4.5, h: 0.8 (align: "left")
-- Text Zone: x: 0.5, y: 1.5, w: 4.5, h: 3.5
-- Image Zone: x: 5.5, y: 1.2, w: 4.0, h: 3.8
+**LAYOUT: split_left (Image Left, Content Right)**
+- **Image BG (Shadow):** x: 0.5, y: 1.2, w: 4.2, h: 3.8, rectRadius: 0.1, fill: "F0F0F0"
+- **Image Placeholder:** x: 0.5, y: 1.2, w: 4.2, h: 3.8
+- **Title:** x: 5.0, y: 0.5, w: 4.5, h: 0.8. align: "left". fontSize: 32. bold: true.
+- **Content:** x: 5.0, y: 1.4, w: 4.5, h: 3.6. align: "left". fontSize: 16.
 
-**LAYOUT C: hero_center (Big Title, Center Content)**
-- Title: x: 1.0, y: 0.8, w: 8.0, h: 1.0 (align: "center")
-- Content: x: 1.5, y: 2.0, w: 7.0, h: 3.0 (align: "center")
-- Image: If needed, place below text or as background shape (z-index 0).
+**LAYOUT: split_right (Content Left, Image Right)**
+- **Title:** x: 0.5, y: 0.5, w: 4.5, h: 0.8. align: "left". fontSize: 32. bold: true.
+- **Content:** x: 0.5, y: 1.4, w: 4.5, h: 3.6. align: "left". fontSize: 16.
+- **Image BG (Shadow):** x: 5.3, y: 1.2, w: 4.2, h: 3.8, rectRadius: 0.1, fill: "F0F0F0"
+- **Image Placeholder:** x: 5.3, y: 1.2, w: 4.2, h: 3.8
 
-**LAYOUT D: grid_cards (For Lists with 3-4 items)**
-- Title: x: 0.5, y: 0.5, w: 9.0, h: 0.8
-- Card 1: x: 0.5, y: 1.5, w: 2.8, h: 3.5
-- Card 2: x: 3.6, y: 1.5, w: 2.8, h: 3.5
-- Card 3: x: 6.7, y: 1.5, w: 2.8, h: 3.5
+**LAYOUT: grid_cards (Lists with exactly 3 items)**
+- **Title:** x: 0.5, y: 0.4, w: 9.0, h: 0.8. align: "center".
+- **Card 1:** x: 0.5, y: 1.4, w: 2.8, h: 3.8. fill: "FFFFFF", shadow: true.
+- **Card 2:** x: 3.6, y: 1.4, w: 2.8, h: 3.8. fill: "FFFFFF", shadow: true.
+- **Card 3:** x: 6.7, y: 1.4, w: 2.8, h: 3.8. fill: "FFFFFF", shadow: true.
+- **Note:** Place text INSIDE the card coordinates with padding. USE ONLY FOR 3 ITEMS.
 
-### 4. COLLISION PREVENTION RULES
-1. **Never Overlap:** Check Image zone x+w. Text zone x MUST be greater than Image x+w (plus 0.5 padding) when using split layouts.
-2. **Text Fitting:** Title: fontSize 32-44. Body: fontSize 14-18. If text is long (>50 words), use smaller font or wider text box.
-3. **Layering (Order of Output):** Line 1: Config. Line 2+: Shapes (background). Then image-placeholder. Then text (MUST come last to stay on top).
+**LAYOUT: grid_2x2 (Lists with exactly 4 items)**
+- **Title:** x: 0.5, y: 0.4, w: 9.0, h: 0.8. align: "center".
+- **Card 1 (Top Left):** x: 0.5, y: 1.4, w: 4.3, h: 1.9. fill: "FFFFFF", shadow: true.
+- **Card 2 (Top Right):** x: 5.2, y: 1.4, w: 4.3, h: 1.9. fill: "FFFFFF", shadow: true.
+- **Card 3 (Bottom Left):** x: 0.5, y: 3.5, w: 4.3, h: 1.9. fill: "FFFFFF", shadow: true.
+- **Card 4 (Bottom Right):** x: 5.2, y: 3.5, w: 4.3, h: 1.9. fill: "FFFFFF", shadow: true.
+- **Note:** Use roundRect with shadow. Place text INSIDE the card coordinates with padding. USE ONLY FOR 4 ITEMS.
 
-### 5. OUTPUT FORMAT (NDJSON)
-Return strictly valid JSON objects, one per line. No markdown. Start with {.
+**LAYOUT: minimal (Text Only)**
+- **Title:** x: 0.5, y: 0.5, w: 9.0, h: 0.8.
+- **Content:** x: 0.5, y: 1.5, w: 9.0, h: 3.5. fontSize: 18.
 
-**Schema:**
-- config: {"type": "config", "layout": "split_left"|"split_right"|"hero_center"|"grid_cards"|"minimal", "background": {"color": "HEX"}}
-- shape: {"type": "shape", "shapeType": "rect"|"ellipse"|"line", "options": {x, y, w, h, fill?, line?}}
-- image-placeholder: {"type": "image-placeholder", "altText": "...", "options": {x, y, w, h}}
-- text: {"type": "text", "text": "...", "options": {x, y, w, h, fontSize, color, bold?, align?, valign?, fontFace?, bullet?}}
+=== 4. OUTPUT RULES ===
+1. **Markdown:** You MAY use **bold** in text fields.
+2. **Z-Order:** Config -> Background Shapes -> Image -> Text.
+3. **Colors:** Use the Brand Colors provided in the prompt.
+4. **JSON Only:** One object per line.
 
-### 6. EXAMPLE (split_right)
-
-{"type": "config", "layout": "split_right", "background": {"color": "FFFFFF"}}
-{"type": "shape", "shapeType": "rect", "options": {"x": 5.5, "y": 1.2, "w": 4.0, "h": 3.8, "fill": {"color": "EEEEEE"}}}
-{"type": "image-placeholder", "altText": "Visual desc", "options": {"x": 5.5, "y": 1.2, "w": 4.0, "h": 3.8}}
-{"type": "text", "text": "Slide Title", "options": {"x": 0.5, "y": 0.5, "w": 4.5, "h": 0.8, "fontSize": 36, "bold": true, "color": "000000", "align": "left"}}
-{"type": "text", "text": "Bullet point 1...", "options": {"x": 0.5, "y": 1.5, "w": 4.5, "h": 3.0, "fontSize": 14, "color": "333333", "align": "left", "valign": "top"}}
-`;
+=== 5. EXAMPLE OUTPUT (COVER) ===
+{"type": "config", "layout": "cover", "background": {"color": "FFFFFF"}}
+{"type": "shape", "shapeType": "ellipse", "options": {"x": -0.5, "y": -0.5, "w": 4, "h": 4, "fill": {"color": "007AFF", "transparency": 90}}}
+{"type": "text", "text": "AI & FUTURE", "options": {"x": 0.5, "y": 2.0, "w": 9, "h": 1.5, "fontSize": 60, "bold": true, "color": "007AFF", "align": "center"}}
+{"type": "text", "text": "Deep Dive into LLMs", "options": {"x": 1, "y": 3.6, "w": 8, "h": 1, "fontSize": 24, "color": "333333", "align": "center"}}
+`

@@ -1,5 +1,5 @@
 import { getAPIConfig, parseStreamingContent, parseAPIError } from './utils'
-
+import { buildChatRequest, parseNonStreamResponse, getFinishReasonError } from './chat'
 import { API_CONFIG } from '../config/api'
 
 interface DynamicSuggestion {
@@ -23,48 +23,15 @@ export async function generateDynamicSuggestions(
         ? 'Tạo 4 mẫu chủ đề thuyết trình ngắn gọn bằng tiếng Việt. Mỗi mẫu tối đa 4-6 từ. Chỉ trả về JSON thuần: {"suggestions": ["...", "...", "...", "..."]}. Không thêm text giải thích.'
         : 'Generate 4 short presentation topic examples in English. Each should be 4-6 words max. Return ONLY pure JSON: {"suggestions": ["...", "...", "...", "..."]}. No explanatory text.'
 
-    // Get API configuration from shared utility
+    const systemPrompt = 'You are a helpful assistant that generates presentation topic suggestions. Always respond with ONLY valid JSON, nothing else.'
     const config = getAPIConfig({ apiType })
-
-    // Specialize body and URL for Gemini-native
-    let url = config.endpoint
-    let body: any = {
-        model: config.model,
+    const { url, body } = buildChatRequest(apiType, config, {
+        systemPrompt,
+        userPrompt: languagePrompt,
+        stream: apiType !== 'gemini',
         temperature: API_CONFIG.DEFAULT_TEMPERATURE,
-    }
-
-    if (apiType === 'gemini') {
-        // Use non-streaming generateContent for Gemini to avoid parsing issues
-        url = `${url}:generateContent`
-        body = {
-            contents: [
-                {
-                    role: 'user',
-                    parts: [
-                        { text: `"""\nSYSTEM PROMPT: You are a helpful assistant that generates presentation topic suggestions. Always respond with ONLY valid JSON, nothing else.\n"""` },
-                        { text: languagePrompt }
-                    ]
-                }
-            ],
-            generationConfig: {
-                temperature: API_CONFIG.DEFAULT_TEMPERATURE,
-                maxOutputTokens: API_CONFIG.MAX_TOKENS,
-            }
-        }
-    } else {
-        body.stream = true
-        body.messages = [
-            {
-                role: 'system',
-                content: 'You are a helpful assistant that generates presentation topic suggestions. Always respond with ONLY valid JSON, nothing else.',
-            },
-            {
-                role: 'user',
-                content: languagePrompt,
-            },
-        ]
-        body.max_tokens = API_CONFIG.MAX_TOKENS
-    }
+        maxTokens: API_CONFIG.MAX_TOKENS,
+    })
 
     const response = await fetch(url, {
         method: 'POST',
@@ -98,28 +65,11 @@ export async function generateDynamicSuggestions(
     if (apiType === 'gemini') {
         const data = await response.json()
         const candidate = data.candidates?.[0]
-        
-        // Check for safety/finish reasons
         const finishReason = candidate?.finishReason
-        if (finishReason && !['STOP', 'stop', 'null', null].includes(finishReason)) {
-             let errorMsg = ''
-             if (finishReason === 'MAX_TOKENS' || finishReason === 'LENGTH' || finishReason === 'length') {
-                 errorMsg = 'Suggestion limit reached.'
-             } else if (finishReason === 'SAFETY' || finishReason === 'content_filter' || finishReason === 'PROHIBITED_CONTENT') {
-                 errorMsg = 'Suggestions blocked by safety filters.'
-             } else if (finishReason === 'RECITATION') {
-                 errorMsg = 'Suggestions blocked (Recitation).'
-             } else {
-                 errorMsg = `Suggestion generation stopped: ${finishReason}`
-             }
-             
-             if (errorMsg) {
-                 callbacks?.onError(errorMsg)
-                 // Don't throw, try to parse what we have if any
-             }
-        }
+        const errorMsg = getFinishReasonError(finishReason, 'suggestion')
+        if (errorMsg) callbacks?.onError(errorMsg)
 
-        const content = candidate?.content?.parts?.[0]?.text || ''
+        const content = parseNonStreamResponse(apiType, data)
         if (!content) {
              throw new Error('No content in Gemini response')
         }
@@ -167,24 +117,10 @@ export async function generateDynamicSuggestions(
                     parsed = JSON.parse(jsonStr)
                     const content = parseStreamingContent(parsed)
 
-                    // 🚨 Check for finishReason
                     const choice = parsed.choices?.[0]
                     const finishReason = choice?.finish_reason
-
-                    if (finishReason && !['stop', 'null', null].includes(finishReason)) {
-                        let errorMsg = ''
-                        if (finishReason === 'length') {
-                            errorMsg = 'Suggestion limit reached.'
-                        } else if (finishReason === 'content_filter') {
-                            errorMsg = 'Suggestions blocked by safety filters.'
-                        } else {
-                            errorMsg = `Suggestion generation stopped: ${finishReason}`
-                        }
-                        
-                        if (errorMsg) {
-                            callbacks?.onError(errorMsg)
-                        }
-                    }
+                    const errorMsg = getFinishReasonError(finishReason, 'suggestion')
+                    if (errorMsg) callbacks?.onError(errorMsg)
 
                     if (content) {
                         fullContent += content

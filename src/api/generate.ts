@@ -2,7 +2,8 @@ import axios from 'axios'
 import { SYSTEM_PROMPT } from './prompt'
 import type { Slide } from './prompt'
 import { extractContentFromChunk, separateThinkingFromContent, parsePartialResponse, extractCompletionMessage, type DeltaResponse } from './parseStream'
-import { getAPIConfig, parseAPIError } from './utils'
+import { getAPIConfig, getAPIErrorMessage } from './utils'
+import { buildChatRequest, getFinishReasonError, parseNonStreamResponse } from './chat'
 import { API_CONFIG } from '../config/api'
 
 export interface StreamCallbacks {
@@ -43,71 +44,14 @@ export function streamGenerate(
   const config = getAPIConfig({ apiUrl, apiKey, model, apiType })
   const temperature = temperatureOverride ?? API_CONFIG.DEFAULT_TEMPERATURE
 
-  let url = config.endpoint
-  let body: any = {
-    model: config.model,
+  const { url, body } = buildChatRequest(apiType, config, {
+    systemPrompt,
+    userPrompt,
+    history,
+    temperature,
     stream: true,
-  }
-
-  if (apiType === 'gemini') {
-    url = `${url}:generateContent`
-
-    const contents: any[] = []
-    const systemPart = { text: `"""\nSYSTEM PROMPT: ${systemPrompt}\n"""` }
-
-    if (history.length > 0) {
-      // Find the first user message in history or handle the start
-      // Gemini expects alternating user/model. We wrap system into the first item.
-      history.forEach((m, idx) => {
-        const parts = [{ text: m.content }]
-        if (idx === 0 && m.role === 'user') {
-          parts.unshift(systemPart)
-        }
-        contents.push({
-          role: m.role === 'assistant' ? 'model' : 'user',
-          parts
-        })
-      })
-
-      // If the first message was NOT user (unlikely), prepend a user message with system prompt
-      if (contents.length > 0 && contents[0].role !== 'user') {
-        contents.unshift({
-          role: 'user',
-          parts: [systemPart]
-        })
-      }
-
-      contents.push({
-        role: 'user',
-        parts: [{ text: userPrompt }]
-      })
-    } else {
-      contents.push({
-        role: 'user',
-        parts: [
-          systemPart,
-          { text: userPrompt }
-        ]
-      })
-    }
-
-    body = {
-      contents,
-      generationConfig: {
-        temperature,
-        maxOutputTokens: API_CONFIG.MAX_TOKENS,
-      }
-    }
-  } else {
-    body.messages = [
-      { role: 'system', content: systemPrompt },
-      ...history,
-      { role: 'user', content: userPrompt },
-    ]
-    body.temperature = temperature
-    body.stream = true
-    body.max_tokens = API_CONFIG.MAX_TOKENS
-  }
+    maxTokens: API_CONFIG.MAX_TOKENS,
+  })
 
   // Choose request config based on API type; use external abort signal when provided
   const requestConfig: any = {
@@ -156,25 +100,9 @@ export function streamGenerate(
             }
           }
     
-          // 🚨 Handle finishing errors (MAX_TOKENS, SAFETY, etc.)
-          if (finishReason) {
-            let errorMsg = ''
-            if (finishReason === 'MAX_TOKENS' || finishReason === 'length' || finishReason === 'LENGTH') {
-              errorMsg = 'Generation limit reached (Max Tokens). Response may be truncated.'
-            } else if (finishReason === 'SAFETY' || finishReason === 'content_filter') {
-              errorMsg = 'Content blocked by safety filters.'
-            } else if (finishReason === 'RECITATION') {
-              errorMsg = 'Generation stopped: Content matches existing data too closely (Recitation).'
-            } else if (finishReason === 'OTHER') {
-              errorMsg = 'Generation stopped due to an unknown miscellaneous reason.'
-            } else {
-              errorMsg = `Generation stopped early: ${finishReason}`
-            }
-            
-            if (errorMsg) {
-              callbacks.onError(errorMsg)
-            }
-          }
+          // Handle finishing errors (MAX_TOKENS, SAFETY, etc.)
+          const errorMsg = getFinishReasonError(finishReason, 'generate')
+          if (errorMsg) callbacks.onError(errorMsg)
         }
   }
 
@@ -184,21 +112,10 @@ export function streamGenerate(
       if (apiType === 'gemini') {
           const candidate = response.data?.candidates?.[0]
           const finishReason = candidate?.finishReason
-          
-          if (finishReason && !['STOP', 'stop', 'null', null].includes(finishReason)) {
-               let errorMsg = ''
-               if (finishReason === 'MAX_TOKENS' || finishReason === 'LENGTH') {
-                    errorMsg = 'Generation limit reached.'
-               } else if (finishReason === 'SAFETY') {
-                    errorMsg = 'Blocked by safety filters.'
-               } else {
-                    errorMsg = `Stopped: ${finishReason}`
-               }
-               if (errorMsg) callbacks.onError(errorMsg)
-          }
+          const errorMsg = getFinishReasonError(finishReason, 'generate')
+          if (errorMsg) callbacks.onError(errorMsg)
 
-          const content = candidate?.content?.parts?.[0]?.text || ''
-          fullContent = content
+          fullContent = parseNonStreamResponse(apiType, response.data)
           callbacks.onToken(fullContent)
 
           // IMPORTANT: Trigger response update for the full content so UI renders action/slides
@@ -225,28 +142,7 @@ export function streamGenerate(
       }
 
       const status = err.response?.status
-      let message = parseAPIError(err)
-
-      if (!message || message === 'Connection failed') {
-        if (status === 401) {
-          message = 'Invalid API key (401 Unauthorized)'
-        } else if (status === 403) {
-          message = 'Access denied (403 Forbidden)'
-        } else if (status === 404) {
-          message = 'Endpoint not found (404). Check your API URL.'
-        } else if (status === 429) {
-          message = 'Rate limited (429). Try again later.'
-        } else if (status && status >= 500) {
-          message = `Server error (${status})`
-        } else if (err.code === 'ERR_NETWORK') {
-          message = 'Network error. Is the API server running?'
-        } else {
-          message = err.message || 'Connection failed'
-        }
-      } else {
-        message = message || err.message || 'Connection failed'
-      }
-
+      const message = getAPIErrorMessage(err, 'Connection failed')
       callbacks.onError(message, status)
     })
 

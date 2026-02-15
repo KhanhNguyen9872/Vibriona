@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { API_CONFIG } from '../config/api'
-import { getAPIConfig, parseAPIError } from './utils'
+import { getAPIConfig, getAPIErrorMessage } from './utils'
+import { buildChatRequest, parseNonStreamResponse, getFinishReasonError } from './chat'
 import type { ChatMessage } from '../store/useSessionStore'
 
 export interface CompactCallbacks {
@@ -58,37 +59,13 @@ User created a 5-slide presentation on AI Ethics: Intro, Data Privacy, Algorithm
 
   const userPrompt = `Please summarize the following conversation history. Focus on the main topic, slides created/modified, and key decisions:\n\n${conversationText}`
 
-  let url = config.endpoint
-  let body: any = {
-    model: config.model,
+  const { url, body } = buildChatRequest(apiType, config, {
+    systemPrompt,
+    userPrompt,
     stream: false,
-  }
-
-  if (apiType === 'gemini') {
-    url = `${url}:generateContent`
-    body = {
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: `"""\nSYSTEM: ${systemPrompt}\n"""` },
-            { text: userPrompt }
-          ]
-        }
-      ],
-      generationConfig: {
-        temperature: 0, // Lower temperature for more focused summaries
-        maxOutputTokens: API_CONFIG.MAX_TOKENS,
-      }
-    }
-  } else {
-    body.messages = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ]
-    body.temperature = 0.3
-    body.max_tokens = API_CONFIG.MAX_TOKENS
-  }
+    temperature: 0,
+    maxTokens: API_CONFIG.MAX_TOKENS,
+  })
 
   try {
     callbacks.onProgress?.('Compacting conversation...')
@@ -101,22 +78,12 @@ User created a 5-slide presentation on AI Ethics: Intro, Data Privacy, Algorithm
       timeout: 60000, // 60 second timeout
     })
 
-    let summary = ''
+    const summary = parseNonStreamResponse(apiType, response.data)
 
-    if (apiType === 'gemini') {
-      const candidate = response.data?.candidates?.[0]
-      const finishReason = candidate?.finishReason
-      
-      if (finishReason && !['STOP', 'stop', 'null', null].includes(finishReason)) {
-        throw new Error(`Generation stopped: ${finishReason}`)
-      }
-
-      summary = candidate?.content?.parts?.[0]?.text || ''
-    } else {
-      // OpenAI/Ollama format
-      summary = response.data?.choices?.[0]?.message?.content || 
-                response.data?.message?.content || ''
-    }
+    const candidate = response.data?.candidates?.[0]
+    const finishReason = candidate?.finishReason
+    const finishError = getFinishReasonError(finishReason, 'compact')
+    if (finishError) throw new Error(finishError)
 
     // Validate summary
     if (!summary || summary.trim().length < 50) {
@@ -130,29 +97,7 @@ User created a 5-slide presentation on AI Ethics: Intro, Data Privacy, Algorithm
       return
     }
 
-    const status = err.response?.status
-    let message = parseAPIError(err)
-
-    if (!message || message === 'Connection failed') {
-      if (status === 401) {
-        message = 'Invalid API key (401 Unauthorized)'
-      } else if (status === 403) {
-        message = 'Access denied (403 Forbidden)'
-      } else if (status === 404) {
-        message = 'Endpoint not found (404). Check your API URL.'
-      } else if (status === 429) {
-        message = 'Rate limited (429). Try again later.'
-      } else if (status && status >= 500) {
-        message = `Server error (${status})`
-      } else if (err.code === 'ECONNABORTED') {
-        message = 'Request timeout. Try again.'
-      } else if (err.code === 'ERR_NETWORK') {
-        message = 'Network error. Is the API server running?'
-      } else {
-        message = err.message || 'Failed to compact conversation'
-      }
-    }
-
+    const message = getAPIErrorMessage(err, 'Failed to compact conversation')
     callbacks.onError(message)
   }
 }

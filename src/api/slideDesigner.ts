@@ -12,9 +12,10 @@ import {
 import { streamGenerate } from './generate'
 import type { ApiType } from './utils'
 
-const DESIGN_TEMPERATURE = 0.2
+const DESIGN_TEMPERATURE = 0.3
 
 const Z_INDEX_ORDER: Record<string, number> = {
+  config: 0,
   shape: 1,
   'image-placeholder': 2,
   text: 3,
@@ -41,37 +42,45 @@ export interface ColorPalette {
 
 /**
  * Suggest layout based on content analysis to guide AI.
+ * Priority 1: Slide 1 always gets COVER (intro/title). Then list items -> grid_2x2 (4 items) or grid_cards (3 items), then image -> split.
  */
 function suggestLayoutForSlide(slide: Slide): string {
+  if (slide.slide_number === 1) return 'cover'
+
   const contentLength = slide.content.length
   const hasImage = !!slide.visual_description
   const listItemCount = (slide.content.match(/^-/gm) || []).length
 
-  if (listItemCount >= 3) return 'grid_cards'
-  if (hasImage && contentLength > 200) return 'split_left'
-  if (hasImage && contentLength <= 200) return 'split_right'
+  // Prioritize grid_2x2 for exactly 4 items to prevent overflow
+  if (listItemCount === 4) return 'grid_2x2'
+  if (listItemCount === 3) return 'grid_cards'
+  if (listItemCount > 4) return 'split_right' // Too many items, use split layout
+  
+  if (hasImage) {
+    if (contentLength > 150) return 'split_right'
+    return 'split_left'
+  }
   if (contentLength > 300) return 'hero_center'
 
-  return 'hero_center'
+  return 'minimal'
 }
 
 /**
  * Build the user prompt for a single slide design request.
+ * Slide 1 is always COVER; layout is suggested from content (grid_2x2 for 4 items, grid_cards for 3 items, split_left/right, minimal).
  */
 function buildDesignUserPrompt(slide: Slide, brandColors: ColorPalette): string {
-  const suggestedLayout = suggestLayoutForSlide(slide)
+  const layout = suggestLayoutForSlide(slide)
 
   return `
-DESIGN THIS SLIDE:
+DESIGN SLIDE #${slide.slide_number} (${slide.slide_number === 1 ? 'COVER SLIDE' : 'CONTENT SLIDE'}):
+- Required Layout: ${layout}
 - Title: "${slide.title}"
-- Content Length: ${slide.content.length} chars
-- RECOMMENDED LAYOUT: "${suggestedLayout}" (use this unless content requires different)
 - Content: "${slide.content}"
-- Visual Need: ${slide.visual_description || 'None'}
-- Brand Colors: Primary=${brandColors.primary}, Secondary=${brandColors.secondary}, Accent=${brandColors.accent}
+- Visual: "${slide.visual_description || ''}"
+- Colors: Primary=${brandColors.primary}, Secondary=${brandColors.secondary}, Accent=${brandColors.accent}
 
-IMPORTANT: Ensure Text and Images DO NOT OVERLAP. Follow the coordinate templates strictly.
-Return NDJSON only: one valid JSON object per line. First line = config, then shapes, image-placeholder, text (text last). No markdown. Start with {.`
+Make it look premium. Return NDJSON.`
 }
 
 /**

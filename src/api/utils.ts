@@ -151,6 +151,31 @@ export function parseAPIError(error: any): string {
 }
 
 /**
+ * Fallback message when parseAPIError returns empty or 'Connection failed'.
+ * Single place for 401/403/404/429/5xx/ERR_NETWORK/ECONNABORTED handling.
+ */
+export function getAPIErrorFallback(err: any, defaultMessage: string = 'Connection failed'): string {
+    const status = err.response?.status
+    if (status === 401) return 'Invalid API key (401 Unauthorized)'
+    if (status === 403) return 'Access denied (403 Forbidden)'
+    if (status === 404) return 'Endpoint not found (404). Check your API URL.'
+    if (status === 429) return 'Rate limited (429). Try again later.'
+    if (status != null && status >= 500) return `Server error (${status})`
+    if (err.code === 'ECONNABORTED') return 'Request timeout. Try again.'
+    if (err.code === 'ERR_NETWORK') return 'Network error. Is the API server running?'
+    return err.message || defaultMessage
+}
+
+/**
+ * Get final user-facing error message: use parseAPIError first, then fallback if empty.
+ */
+export function getAPIErrorMessage(err: any, fallbackDefault: string = 'Connection failed'): string {
+    const message = parseAPIError(err)
+    if (message && message !== 'Connection failed') return message || err.message || fallbackDefault
+    return getAPIErrorFallback(err, fallbackDefault)
+}
+
+/**
  * Check if an error is likely due to CORS restrictions
  */
 export function isLikelyCorsError(error: any): boolean {
@@ -167,13 +192,12 @@ export function parseStreamingContent(parsed: any): string {
 }
 
 /**
- * Parse non-streaming response content from both Ollama and OpenAI formats
+ * Parse non-streaming response content.
+ * @deprecated Use parseNonStreamResponse(apiType, data) from './chat' instead.
  */
 export function parseResponseContent(data: any): string {
-    // Handle Gemini (candidates[0].content.parts[0].text)
-    if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+    if (data?.candidates?.[0]?.content?.parts?.[0]?.text != null) {
         return data.candidates[0].content.parts[0].text
     }
-    // Handle both Ollama (message.content) and OpenAI (choices[0].message.content) formats
-    return data.message?.content || data.choices?.[0]?.message?.content || ''
+    return data?.message?.content || data?.choices?.[0]?.message?.content || ''
 }

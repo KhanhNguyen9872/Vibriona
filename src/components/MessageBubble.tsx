@@ -1,12 +1,13 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import { useSessionStore, type ChatMessage } from '../store/useSessionStore'
 import { extractCompletionMessage } from '../api/parseStream'
 import MarkdownRenderer from './MarkdownRenderer'
-import { Sparkles, Presentation, RotateCcw, Copy } from 'lucide-react'
+import { Sparkles, Presentation, RotateCcw, Copy, Edit } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import ClarificationRequest from './ClarificationRequest'
 import { useQueueStore } from '../store/useQueueStore'
+import { confirmAction } from '../utils/confirmAction'
 
 interface MessageBubbleProps {
   message: ChatMessage
@@ -14,8 +15,32 @@ interface MessageBubbleProps {
 
 export default function MessageBubble({ message }: MessageBubbleProps) {
   const { t } = useTranslation()
-  const { highlightSlide, restoreSnapshot, getCurrentSession, addMessage, updateMessage, createSession, currentSessionId } = useSessionStore()
+  const { highlightSlide, restoreSnapshot, getCurrentSession, addMessage, updateMessage, createSession, currentSessionId, deleteMessagesFrom, hasCheckpointAfterTimestamp, getLastCheckpointBeforeMessageId, clearCompaction } = useSessionStore()
   const { addToQueue } = useQueueStore()
+
+  const [isEditing, setIsEditing] = useState(false)
+  const [editedContent, setEditedContent] = useState('')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      textareaRef.current.focus()
+      const len = textareaRef.current.value.length
+      textareaRef.current.setSelectionRange(len, len)
+    }
+  }, [isEditing])
+
+  useEffect(() => {
+    if (!isEditing) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsEditing(false)
+        setEditedContent(message.role === 'user' ? message.content : '')
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isEditing, message.role, message.content])
 
   // Handle clarification selection
   const handleClarificationSelect = (answer: string) => {
@@ -101,9 +126,58 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
     }
   }
 
-  // Styling based on role
+  const handleEdit = () => {
+    setEditedContent(message.content)
+    setIsEditing(true)
+  }
+
+  const handleCancelEdit = () => {
+    setIsEditing(false)
+    setEditedContent('')
+  }
+
+  const performResend = () => {
+    if (!currentSessionId) return
+    const snapshotToRestore = getLastCheckpointBeforeMessageId(message.id)
+    deleteMessagesFrom(message.id)
+    clearCompaction(currentSessionId)
+    if (snapshotToRestore) restoreSnapshot(snapshotToRestore)
+    addMessage({
+      role: 'user',
+      content: editedContent.trim(),
+      timestamp: Date.now(),
+      isScriptGeneration: false
+    })
+    addToQueue(editedContent.trim(), currentSessionId)
+    setIsEditing(false)
+  }
+
+  const handleSaveEdit = () => {
+    const trimmed = editedContent.trim()
+    if (!trimmed) return
+    if (trimmed === message.content) {
+      setIsEditing(false)
+      return
+    }
+    if (hasCheckpointAfterTimestamp(message.timestamp)) {
+      confirmAction(
+        t('chat.editCheckpointWarning'),
+        performResend,
+        {
+          title: t('chat.editCheckpointTitle'),
+          variant: 'destructive',
+          confirmText: t('common.confirm'),
+          cancelText: t('common.cancel')
+        }
+      )
+    } else {
+      performResend()
+    }
+  }
+
+  // Styling based on role (wider when user is editing so the text field feels full-width)
   const bubbleClass = message.role === 'user'
-    ? 'bg-neutral-200 dark:bg-zinc-700 text-neutral-900 dark:text-zinc-100 rounded-2xl rounded-br-md px-4 py-2.5 max-w-[90%]'
+    ? `bg-neutral-200 dark:bg-zinc-700 text-neutral-900 dark:text-zinc-100 rounded-2xl rounded-br-md px-4 py-2.5 ${isEditing ? 'min-w-[70%] w-full max-w-[88%]' : 'max-w-[90%]'}`
     : 'bg-neutral-100 dark:bg-zinc-900 text-neutral-800 dark:text-zinc-300 rounded-2xl rounded-bl-md px-4 py-2.5 max-w-[90%]'
 
   return (
@@ -172,6 +246,34 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
             {message.content?.trim() ? message.content : t('workspace.enhancing')}
           </span>
         </div>
+      ) : message.role === 'user' && isEditing ? (
+        <div className="flex flex-col gap-2 mt-1 w-full min-w-0">
+          <textarea
+            ref={textareaRef}
+            value={editedContent}
+            onChange={(e) => setEditedContent(e.target.value)}
+            className="w-full min-w-0 min-h-[60px] px-3 py-2 rounded-lg text-[13px] bg-neutral-100 dark:bg-zinc-800 border border-neutral-300 dark:border-zinc-600 text-neutral-900 dark:text-zinc-100 placeholder-neutral-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-zinc-500 resize-y box-border"
+            placeholder={t('chat.placeholder')}
+            rows={3}
+          />
+          <div className="flex gap-2 justify-end">
+            <button
+              type="button"
+              onClick={handleCancelEdit}
+              className="px-3 py-1.5 rounded-lg text-[12px] font-medium border border-neutral-300 dark:border-zinc-600 text-neutral-600 dark:text-zinc-400 hover:bg-neutral-100 dark:hover:bg-zinc-800 transition-colors"
+            >
+              {t('chat.editCancel')}
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveEdit}
+              disabled={!editedContent.trim()}
+              className="px-3 py-1.5 rounded-lg text-[12px] font-medium bg-neutral-800 dark:bg-zinc-200 text-white dark:text-neutral-900 hover:bg-neutral-700 dark:hover:bg-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {t('chat.editSend')}
+            </button>
+          </div>
+        </div>
       ) : (
         <MarkdownRenderer
           content={displayContent}
@@ -224,17 +326,29 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
         </div>
       )}
 
-      {/* Footer: Copy + Time — one line only (user: Copy left; assistant: same style as header row) */}
-      {(message.role === 'user' || (message.role === 'assistant' && !(message.slideSnapshot && message.slideSnapshot.length > 0))) && (
+      {/* Footer: Copy + Edit (user only) + Time — one line only */}
+      {(message.role === 'user' || (message.role === 'assistant' && !(message.slideSnapshot && message.slideSnapshot.length > 0))) && !(message.role === 'user' && isEditing) && (
         <div className="flex flex-nowrap items-center justify-between gap-2 mt-2 min-w-0 w-full">
-          <button
-            onClick={handleCopy}
-            title={t('chat.copy')}
-            aria-label={t('chat.copy')}
-            className="flex items-center justify-center p-1 rounded-md border border-neutral-200/80 dark:border-zinc-700/80 text-neutral-500 dark:text-zinc-400 hover:border-neutral-400 dark:hover:border-zinc-500 hover:text-neutral-700 dark:hover:text-zinc-200 transition-all active:scale-[0.97] cursor-pointer shrink-0"
-          >
-            <Copy className="w-2.5 h-2.5" />
-          </button>
+          <div className="flex flex-nowrap items-center gap-1 min-w-0">
+            <button
+              onClick={handleCopy}
+              title={t('chat.copy')}
+              aria-label={t('chat.copy')}
+              className="flex items-center justify-center p-1 rounded-md border border-neutral-200/80 dark:border-zinc-700/80 text-neutral-500 dark:text-zinc-400 hover:border-neutral-400 dark:hover:border-zinc-500 hover:text-neutral-700 dark:hover:text-zinc-200 transition-all active:scale-[0.97] cursor-pointer shrink-0"
+            >
+              <Copy className="w-2.5 h-2.5" />
+            </button>
+            {message.role === 'user' && (
+              <button
+                onClick={handleEdit}
+                title={t('chat.edit')}
+                aria-label={t('chat.edit')}
+                className="flex items-center justify-center p-1 rounded-md border border-neutral-200/80 dark:border-zinc-700/80 text-neutral-500 dark:text-zinc-400 hover:border-neutral-400 dark:hover:border-zinc-500 hover:text-neutral-700 dark:hover:text-zinc-200 transition-all active:scale-[0.97] cursor-pointer shrink-0"
+              >
+                <Edit className="w-2.5 h-2.5" />
+              </button>
+            )}
+          </div>
           <p className={`text-[10px] whitespace-nowrap shrink-0 ${message.role === 'user'
               ? 'text-neutral-400 dark:text-zinc-400 pr-1'
               : 'text-neutral-400 dark:text-zinc-500 ml-2'

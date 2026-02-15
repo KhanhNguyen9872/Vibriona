@@ -1,5 +1,9 @@
-import { X, CircleStop } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { X, CircleStop, AlertTriangle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+const EXPORT_HINT_KEYS = Array.from({ length: 40 }, (_, i) => `workspace.exportModalHint${i + 1}` as const)
+const HINT_ROTATE_MS = 10_000
 
 export interface ExportProgressModalProps {
   isOpen: boolean
@@ -12,6 +16,10 @@ export interface ExportProgressModalProps {
   onClose?: () => void
 }
 
+function pickRandomHintIndex() {
+  return Math.floor(Math.random() * EXPORT_HINT_KEYS.length)
+}
+
 export function ExportProgressModal({
   isOpen,
   current,
@@ -21,6 +29,16 @@ export function ExportProgressModal({
   onClose,
 }: ExportProgressModalProps) {
   const { t } = useTranslation()
+  const [hintIndex, setHintIndex] = useState(() => pickRandomHintIndex())
+
+  useEffect(() => {
+    if (!isOpen || !!error) return
+    const id = setInterval(() => {
+      setHintIndex(pickRandomHintIndex())
+    }, HINT_ROTATE_MS)
+    return () => clearInterval(id)
+  }, [isOpen, error])
+
   if (!isOpen) return null
 
   const percentage = total > 0 ? Math.round((current / total) * 100) : 0
@@ -66,8 +84,11 @@ export function ExportProgressModal({
             </p>
           ) : (
             <>
-              <p className="text-sm text-neutral-500 dark:text-zinc-400 mb-6 text-center min-h-[2.5rem]">
+              <p className="text-sm text-neutral-500 dark:text-zinc-400 mb-4 text-center min-h-[2.5rem]">
                 {status || t('workspace.exportModalPreparing')}
+              </p>
+              <p className="text-xs text-neutral-400 dark:text-zinc-500 text-center mb-4 min-h-[2rem] transition-opacity duration-300" key={hintIndex}>
+                {t(EXPORT_HINT_KEYS[hintIndex])}
               </p>
               <div className="w-full bg-neutral-200 dark:bg-zinc-700 rounded-full h-2.5 mb-2">
                 <div
@@ -80,8 +101,14 @@ export function ExportProgressModal({
                   aria-label={t('workspace.exportModalProgressLabel')}
                 />
               </div>
-              <div className="text-right w-full text-xs text-neutral-500 dark:text-zinc-400">
+              <div className="text-right w-full text-xs text-neutral-500 dark:text-zinc-400 mb-4">
                 {t('workspace.exportModalSlidesCount', { current, total })}
+              </div>
+              <div className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
+                <p className="text-xs text-amber-800 dark:text-amber-200">
+                  {t('workspace.exportModalDoNotClose')}
+                </p>
               </div>
             </>
           )}

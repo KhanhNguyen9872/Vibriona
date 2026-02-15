@@ -42,6 +42,9 @@ export default defineConfig(({ command }) => {
 
   return {
     base: '/',
+    optimizeDeps: {
+      include: ['@react-pdf/renderer', 'file-saver'],
+    },
     plugins: [
       react(),
       tailwindcss(),

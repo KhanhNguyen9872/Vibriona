@@ -4,6 +4,7 @@ import type { Slide } from './prompt'
 import type { SystemPromptType } from './prompt'
 import { extractContentFromChunk, parsePartialSlides } from './parseStream'
 import { getAPIConfig, parseAPIError } from './utils'
+import { buildChatRequest, getFinishReasonError, parseNonStreamResponse } from './chat'
 import { API_CONFIG } from '../config/api'
 
 // ============================================================================
@@ -24,7 +25,7 @@ Refuse politics/violence/hate. If found, return original slide with content: "Co
   "c": string,      // Content (Markdown, 60-100 words) - Include specific details, data, examples
   "v": boolean,     // Visual needed?
   "d"?: string,     // [Optional] Image Prompt (only if v=true) - Style, Light, Subject
-  "l": "intro"|"left"|"right"|"center"|"quote", // Layout
+  "l": "intro"|"split-left"|"split-right"|"centered"|"quote"|"full-image", // Layout
   "n"?: string      // [Optional] Speaker Notes (2-3 sentences with specific talking points)
 }`;
 
@@ -45,7 +46,7 @@ Do NOT enhance political, harmful, or illegal content. If detected, neutralize t
   "c": string,      // Content (Markdown, 60-100 words) - Be specific, include data/examples
   "v": boolean,     // Visual needed?
   "d"?: string,     // [Optional] Image Prompt (only if v=true) - Style, Light, Subject
-  "l": "intro"|"left"|"right"|"center"|"quote", // Layout
+  "l": "intro"|"split-left"|"split-right"|"centered"|"quote"|"full-image", // Layout
   "n"?: string      // [Optional] Speaker Notes (2-3 sentences)
 }
 
@@ -72,14 +73,14 @@ Output: Single valid JSON object. Short Keys. NO Markdown code blocks.
   "c": string,      // Content (Markdown, 60-100 words) - Detailed and specific
   "v": boolean,     // Visual needed?
   "d"?: string,     // [Optional] Image Prompt (only if v=true) - Style, Light, Subject
-  "l": "intro"|"left"|"right"|"center"|"quote", // Layout
+  "l": "intro"|"split-left"|"split-right"|"centered"|"quote"|"full-image", // Layout
   "n"?: string      // [Optional] Speaker Notes (2-3 sentences)
 }
 
 ### 3. EXAMPLE
 Input: { Title: "Sales", Content: "We sold a lot." }
 Output:
-{"i": 1, "t": "Q4 Sales Performance", "c": "- **Revenue**: $5.2M total revenue (+23% YoY), exceeding target by $800K\\n- **Top Region**: Asia-Pacific contributed 45% of growth, led by Singapore and Tokyo markets\\n- **Product Mix**: Enterprise tier subscriptions grew 67%, now representing 58% of recurring revenue\\n- **Customer Acquisition**: Added 2,847 new customers at $142 avg CAC, improving efficiency by 18%", "v": true, "d": "Rising 3D bar chart with glowing blue columns, futuristic interface elements, dark background with data points floating, cinematic lighting", "l": "right", "n": "Emphasize the Asia-Pacific growth story and the shift to enterprise tier. Mention that this momentum positions us well for Q1 targets."}
+{"i": 1, "t": "Q4 Sales Performance", "c": "- **Revenue**: $5.2M total revenue (+23% YoY), exceeding target by $800K\\n- **Top Region**: Asia-Pacific contributed 45% of growth, led by Singapore and Tokyo markets\\n- **Product Mix**: Enterprise tier subscriptions grew 67%, now representing 58% of recurring revenue\\n- **Customer Acquisition**: Added 2,847 new customers at $142 avg CAC, improving efficiency by 18%", "v": true, "d": "Rising 3D bar chart with glowing blue columns, futuristic interface elements, dark background with data points floating, cinematic lighting", "l": "split-right", "n": "Emphasize the Asia-Pacific growth story and the shift to enterprise tier. Mention that this momentum positions us well for Q1 targets."}
 `;
 
 // ============================================================================
@@ -106,7 +107,7 @@ Single JSON object:
   "c": string,      // Content (Markdown, 70-120 words) - Detailed and data-rich
   "v": boolean,     // Visual needed?
   "d"?: string,     // [Optional] Image Prompt (only if v=true) - Style, Light, Subject
-  "l": "intro"|"left"|"right"|"center"|"quote", // Layout
+  "l": "intro"|"split-left"|"split-right"|"centered"|"quote"|"full-image", // Layout
   "n"?: string      // [Optional] Speaker Notes (2-4 sentences)
 }
 
@@ -120,7 +121,7 @@ Single JSON object:
   "c": "- **Bob Smith**, CEO & Co-Founder: Former VP of Product at Adobe, 20 years in SaaS, led three successful exits totaling $400M. Stanford MBA, Y Combinator alum (W15). Specializes in go-to-market strategy and enterprise sales.\\n- **Alice Doe**, CTO & Co-Founder: Ex-Senior Engineer at Google Cloud, architected systems serving 100M+ users. MIT Computer Science, 8 patents in distributed systems. Expert in scalable infrastructure and team building.\\n- **Together**: Combined network of 500+ industry contacts, $2M angel investment secured, complementary skill sets in business and technology.",
   "v": true,
   "d": "Professional studio portrait of two diverse corporate leaders standing confidently in modern tech office, confident poses, one holding tablet showing company metrics, warm natural lighting from large windows, shallow depth of field, clean minimalist background, corporate photography style, 4k resolution",
-  "l": "left",
+  "l": "split-left",
   "n": "Start with Bob's Adobe background to establish credibility. Emphasize their complementary skills - Bob handles business/sales, Alice handles product/engineering. Mention the $2M raised as proof of investor confidence. Transition to next slide about product roadmap."
 }
 `;
@@ -142,7 +143,7 @@ Your task is to rewrite a specific slide to maximize audience engagement and vis
 - **c (Content):** 80-150 words. Rich, data-driven Markdown. Use lists, bolding, and clear hierarchy. Include specific metrics, examples, case studies, and actionable insights. Avoid vague statements.
 - **v (Visual):** Boolean. Set true if slide needs an image to explain the concept.
 - **d (Description):** **The Art Prompt.** Describe the *image to be generated*, NOT the slide text. Be detailed: include subject, composition, style, lighting, camera angle, mood, and quality markers. E.g., "Isometric 3D illustration of a rocket launching from a launchpad, minimal geometric style, blue and orange color scheme, dramatic upward angle, sense of momentum, 4k render" (Good) vs "A slide showing a rocket" (Bad).
-- **l (Layout):** UI Hint. \`intro\` (Cover), \`left\`/\`right\` (Split), \`center\` (Focus), \`quote\`.
+- **l (Layout):** UI Hint. \`intro\` (Cover), \`split-left\`/\`split-right\` (Split), \`centered\` (Focus), \`quote\`.
 - **n (Note):** 2-4 sentences. Concrete talking points, emphasis areas, key metrics to highlight, and smooth transitions.
 
 ### 3. OUTPUT SCHEMA
@@ -153,7 +154,7 @@ Return a SINGLE JSON object (NO Markdown code blocks):
   "c": string,      // Content (Markdown, 80-150 words) - Detailed and specific
   "v": boolean,     // Visual needed?
   "d"?: string,     // [Optional] Image Prompt (only if v=true) - Detailed description
-  "l": "intro"|"left"|"right"|"center"|"quote", // Layout
+  "l": "intro"|"split-left"|"split-right"|"centered"|"quote"|"full-image", // Layout
   "n"?: string      // [Optional] Speaker Notes (2-4 sentences with specific points)
 }
 
@@ -168,7 +169,7 @@ Slide 5: "Market Analysis. Competitors are A, B, C. We are better."
   "c": "**Traditional Players (Competitors A & B):**\\n- Legacy codebases built 2010-2015, struggle with modern cloud infrastructure\\n- Average deployment time: 6-8 weeks, 67% manual processes\\n- Customer churn: 23% annually, NPS score: 42\\n- Pricing: $299-499/month, limited API access\\n\\n**Our Differentiators:**\\n- **Speed**: AI-driven deployment in 48 hours (2x faster than competition)\\n- **Reliability**: 99.9% uptime SLA vs industry standard 99.5%\\n- **Growth**: Captured 15% market share in Q1, 127 enterprise customers\\n- **Value**: $199/month with unlimited API calls, saving customers avg. $2,400/year",
   "v": true,
   "d": "A professional chessboard photographed from dramatic low angle, glowing golden king piece prominently standing victorious among fallen dark grey pawns, dramatic side lighting creating long shadows, shallow depth of field with bokeh background, photorealistic 3D render, sense of strategic dominance, cinematic composition, 4k quality",
-  "l": "right",
+  "l": "split-right",
   "n": "Lead with the speed advantage - emphasize 48 hours vs 6-8 weeks. Use the chess metaphor to illustrate strategic positioning. Highlight the $2,400 annual savings as it resonates with CFOs in the audience. Pause after the market share stat to let it sink in, then transition to customer testimonials in the next slide."
 }
 `;
@@ -201,17 +202,9 @@ function convertSlideToShortKeys(slide: Slide): any {
     shortKeySlide.d = slide.visual_description
   }
 
-  // Convert layout long to short
+  // Pass layout_suggestion as-is (split-left, split-right, centered, etc.)
   if (slide.layout_suggestion) {
-    const layoutMap: Record<string, string> = {
-      'split-left': 'left',
-      'split-right': 'right',
-      'centered': 'center',
-      'intro': 'intro',
-      'quote': 'quote',
-      'full-image': 'center' // fallback to center
-    }
-    shortKeySlide.l = layoutMap[slide.layout_suggestion] || slide.layout_suggestion
+    shortKeySlide.l = slide.layout_suggestion
   }
 
   if (slide.speaker_notes) {
@@ -237,42 +230,16 @@ export function enhanceSlide(
   const enhancePrompt = getEnhancePrompt(systemPromptType)
 
   const config = getAPIConfig({ apiUrl, apiKey, model, apiType })
-  // Convert slide to short-key format for consistency with enhance prompts
   const shortKeySlide = convertSlideToShortKeys(slide)
   const userMessage = JSON.stringify(shortKeySlide)
 
-  let url = config.endpoint
-  let body: any = {
-    model: config.model,
-  }
-
-  if (apiType === 'gemini') {
-    url = `${url}:generateContent`
-
-    body = {
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: `"""\nSYSTEM PROMPT: ${enhancePrompt}\n"""` },
-            { text: userMessage }
-          ]
-        }
-      ],
-      generationConfig: {
-        temperature: API_CONFIG.DEFAULT_TEMPERATURE,
-        maxOutputTokens: API_CONFIG.MAX_TOKENS,
-      }
-    }
-  } else {
-    body.messages = [
-      { role: 'system', content: enhancePrompt },
-      { role: 'user', content: userMessage },
-    ]
-    body.temperature = API_CONFIG.DEFAULT_TEMPERATURE
-    body.stream = true
-    body.max_tokens = API_CONFIG.MAX_TOKENS
-  }
+  const { url, body } = buildChatRequest(apiType, config, {
+    systemPrompt: enhancePrompt,
+    userPrompt: userMessage,
+    stream: true,
+    temperature: API_CONFIG.DEFAULT_TEMPERATURE,
+    maxTokens: API_CONFIG.MAX_TOKENS,
+  })
 
   // Choose request config based on API type
   const requestConfig: any = {
@@ -291,23 +258,9 @@ export function enhanceSlide(
       const { content, finishReason, newProcessedLength } = extractContentFromChunk(raw, processedLength)
       processedLength = newProcessedLength
       if (content) fullContent += content
-      
-      if (finishReason) {
-        let errorMsg = ''
-        if (finishReason === 'MAX_TOKENS' || finishReason === 'length' || finishReason === 'LENGTH') {
-          errorMsg = 'Enhancement truncated: Max output tokens reached.'
-        } else if (finishReason === 'SAFETY' || finishReason === 'content_filter') {
-          errorMsg = 'Enhancement blocked by safety filters.'
-        } else if (finishReason === 'RECITATION') {
-          errorMsg = 'Enhancement stopped: Copyright protection (Recitation).'
-        } else if (finishReason !== 'STOP') {
-          errorMsg = `Generation stopped: ${finishReason}`
-        }
-        
-        if (errorMsg) {
-          onError(errorMsg)
-        }
-      }
+
+      const errorMsg = getFinishReasonError(finishReason, 'enhance')
+      if (errorMsg) onError(errorMsg)
     }
   }
 
@@ -316,22 +269,11 @@ export function enhanceSlide(
         // Handle Gemini non-streaming
         if (apiType === 'gemini') {
             const candidate = response.data?.candidates?.[0]
-             const finishReason = candidate?.finishReason
-          
-            if (finishReason && !['STOP', 'stop', 'null', null].includes(finishReason)) {
-               let errorMsg = ''
-               if (finishReason === 'MAX_TOKENS' || finishReason === 'LENGTH') {
-                    errorMsg = 'Enhancement truncated.'
-               } else if (finishReason === 'SAFETY') {
-                    errorMsg = 'Enhancement blocked by safety filters.'
-               } else {
-                    errorMsg = `Stopped: ${finishReason}`
-               }
-               if (errorMsg) onError(errorMsg)
-            }
+            const finishReason = candidate?.finishReason
+            const errorMsg = getFinishReasonError(finishReason, 'enhance')
+            if (errorMsg) onError(errorMsg)
 
-            const content = candidate?.content?.parts?.[0]?.text || ''
-            fullContent = content
+            fullContent = parseNonStreamResponse(apiType, response.data)
         }
       // Try to parse the single object
       const trimmed = fullContent.trim()
