@@ -380,6 +380,7 @@ const vi = {
       exportModalPreparing: 'Đang chuẩn bị...',
       exportModalProgressLabel: 'Tiến trình xuất',
       exportModalSlidesCount: '{{current}} / {{total}} slide',
+      exportModalEstimatedTime: 'Ước tính còn',
       exportModalClose: 'Đóng',
       exportModalCancelConfirm: 'Bạn có muốn hủy quá trình xuất?',
       exportModalExportError: 'Lỗi xuất',

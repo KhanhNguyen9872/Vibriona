@@ -380,6 +380,7 @@ const en = {
       exportModalPreparing: 'Preparing...',
       exportModalProgressLabel: 'Export progress',
       exportModalSlidesCount: '{{current}} / {{total}} slides',
+      exportModalEstimatedTime: 'Est. remaining',
       exportModalClose: 'Close',
       exportModalCancelConfirm: 'Do you want to cancel the export?',
       exportModalExportError: 'Export error',

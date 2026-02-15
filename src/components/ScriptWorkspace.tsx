@@ -78,6 +78,14 @@ export default function ScriptWorkspace() {
   const [isExporting, setIsExporting] = useState(false)
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0, status: '' })
   const [exportError, setExportError] = useState<string | null>(null)
+  const [exportResult, setExportResult] = useState<'success' | 'error' | null>(null)
+  const [exportResultMessage, setExportResultMessage] = useState('')
+  const [exportResultFileName, setExportResultFileName] = useState('')
+  const [exportTimeTracking, setExportTimeTracking] = useState<{
+    startTime: number | null
+    slideStartTime: number | null
+    slideTimes: number[]
+  }>({ startTime: null, slideStartTime: null, slideTimes: [] })
   const exportAbortRef = useRef<AbortController | null>(null)
   const [activeDragIndex, setActiveDragIndex] = useState<number | null>(null)
   const [editingSlideIndex, setEditingSlideIndex] = useState<number | null>(null)
@@ -194,27 +202,57 @@ export default function ScriptWorkspace() {
     exportAbortRef.current = new AbortController()
     setIsExporting(true)
     setExportProgress({ current: 0, total: displaySlides.length, status: '' })
+    
+    const startTime = Date.now()
+    let slideStartTime = startTime
+    const slideTimes: number[] = []
+    
+    setExportTimeTracking({ startTime, slideStartTime, slideTimes: [] })
+    
     try {
       await generatePPTX_AI(
         displaySlides,
         scriptName,
         (current, total, status) => {
+          const now = Date.now()
+          
+          // When a new slide completes (current increases), record time
+          if (current > slideTimes.length && slideTimes.length < total) {
+            const slideTime = now - slideStartTime
+            slideTimes.push(slideTime)
+            slideStartTime = now
+            setExportTimeTracking({ startTime, slideStartTime, slideTimes: [...slideTimes] })
+          }
+          
           setExportProgress({ current, total, status })
         },
         exportAbortRef.current.signal,
         t
       )
-      toast.success(t('workspace.exportDone'))
       setIsExporting(false)
       setExportProgress({ current: 0, total: 0, status: '' })
+      setExportResult('success')
+      setExportResultMessage(t('workspace.exportDone'))
+      setExportResultFileName(`${scriptName}.pptx`)
+      setExportTimeTracking({ startTime: null, slideStartTime: null, slideTimes: [] })
     } catch (err) {
-      const message = err instanceof Error ? err.message : t('workspace.enhanceFailed')
+      const raw = err as { error?: unknown; message?: string } | Error
+      const message =
+        typeof raw === 'object' && raw !== null && 'error' in raw && typeof (raw as { message?: string }).message === 'string'
+          ? (raw as { message: string }).message
+          : err instanceof Error
+            ? err.message
+            : t('workspace.enhanceFailed')
       if (message === EXPORT_CANCELLED_MESSAGE) {
         handleCloseExportOverlay()
         return
       }
       setExportError(message)
+      setIsExporting(false)
       setExportProgress((prev) => ({ ...prev, status: '' }))
+      setExportResult('error')
+      setExportResultMessage(message)
+      setExportTimeTracking({ startTime: null, slideStartTime: null, slideTimes: [] })
     }
   }
 
@@ -235,6 +273,10 @@ export default function ScriptWorkspace() {
     setIsExporting(false)
     setExportError(null)
     setExportProgress({ current: 0, total: 0, status: '' })
+    setExportResult(null)
+    setExportResultMessage('')
+    setExportResultFileName('')
+    setExportTimeTracking({ startTime: null, slideStartTime: null, slideTimes: [] })
   }
 
   const handleCopyMarkdown = async () => {
@@ -971,11 +1013,16 @@ export default function ScriptWorkspace() {
       </AnimatePresence>
 
       <ExportProgressModal
-        isOpen={isExporting}
+        isOpen={isExporting || exportResult !== null}
+        result={exportResult}
+        resultMessage={exportResultMessage}
+        resultFileName={exportResultFileName}
         current={exportProgress.current}
         total={exportProgress.total}
         status={exportProgress.status}
         error={exportError}
+        slideTimes={exportTimeTracking.slideTimes}
+        exportStartTime={exportTimeTracking.startTime}
         onClose={handleCloseExportOverlay}
       />
     </div>
