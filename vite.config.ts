@@ -12,7 +12,7 @@ export default defineConfig({
       options: {
         compact: true,
         controlFlowFlattening: true, // Tắt để tăng tốc
-        controlFlowFlatteningThreshold: 1,
+        controlFlowFlatteningThreshold: 0.75,
         deadCodeInjection: false, // Tắt để tăng tốc
         deadCodeInjectionThreshold: 0.6,
         debugProtection: true, // Tắt để tăng tốc
@@ -20,9 +20,9 @@ export default defineConfig({
         disableConsoleOutput: false,
         identifierNamesGenerator: 'mangled',
         log: false, // Tắt log để tăng tốc
-        numbersToExpressions: true, // Tắt để tăng tốc
+        numbersToExpressions: false, // Tắt để tăng tốc
         renameGlobals: false,
-        selfDefending: true, // Tắt để tăng tốc (có thể bật lại nếu cần)
+        selfDefending: false, // Tắt để tăng tốc (có thể bật lại nếu cần)
         simplify: false,
         splitStrings: false, // Tắt để tăng tốc
         splitStringsChunkLength: 1,
