@@ -44,6 +44,7 @@ export default function HeroChatInput() {
   const [, setIsUsingFallbackSuggestions] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const skeletonWidthsRef = useRef<number[]>([])
   const { addToQueue, isProjectProcessing } = useQueueStore()
   const { addMessage, createSession, currentSessionId } = useSessionStore()
   const { startHeroHold } = useUIStore()
@@ -186,6 +187,7 @@ export default function HeroChatInput() {
         setIsLoadingSuggestions(true)
         setSuggestions([])
         setLoadedSuggestionsCount(0)
+        skeletonWidthsRef.current = Array.from({ length: 4 }, () => 80 + Math.random() * 60)
         
         const streamingSuggestions: string[] = []
         const apiType = useSettingsStore.getState().getApiType()
@@ -256,6 +258,7 @@ export default function HeroChatInput() {
       setIsLoadingSuggestions(true)
       setSuggestions([])
       setLoadedSuggestionsCount(0)
+      skeletonWidthsRef.current = Array.from({ length: 4 }, () => 80 + Math.random() * 60)
 
       const language = i18n.language as 'en' | 'vi'
       const storageKey = `${STORAGE_KEY}-${language}`
@@ -361,18 +364,19 @@ export default function HeroChatInput() {
     }
 
     // Add user message (content = prompt only; attached files stored separately for display)
-    addMessage({
+    const msgId = addMessage({
       role: 'user',
       content: promptPart,
       timestamp: Date.now(),
       isScriptGeneration: true,
+      isPending: isProcessing,
       ...(attachedFiles.length > 0 && {
         attachedFiles: attachedFiles.map((f) => ({ name: f.name, content: f.content, type: f.type, mimeType: f.mimeType }))
       })
     })
 
     // Queue processing
-    addToQueue(trimmed, activeProjectId!, undefined, attachedFiles.length > 0 ? attachedFiles.map((f) => ({ name: f.name, content: f.content, type: f.type, mimeType: f.mimeType })) : undefined)
+    addToQueue(trimmed, activeProjectId!, undefined, attachedFiles.length > 0 ? attachedFiles.map((f) => ({ name: f.name, content: f.content, type: f.type, mimeType: f.mimeType })) : undefined, msgId)
 
     // Note: Mobile tab switching now happens automatically in App.tsx 
     // only when action is confirmed to be slide-related (intent-aware)
@@ -835,14 +839,14 @@ export default function HeroChatInput() {
                     {suggestions[i]}
                   </motion.button>
                 ) : (
-                  // Show skeleton while loading
+                  // Show skeleton while loading (stable width from ref to avoid animation reset on input change)
                   <motion.div
                     key={`skeleton-${i}`}
                     className="px-3 py-1.5 rounded-full bg-neutral-200 dark:bg-zinc-700 animate-pulse"
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, delay: i * 0.06 }}
-                    style={{ width: `${80 + Math.random() * 60}px`, height: '26px' }}
+                    style={{ width: `${skeletonWidthsRef.current[i] ?? 100}px`, height: '26px' }}
                   />
                 )
               ))}
