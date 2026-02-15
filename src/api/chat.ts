@@ -17,6 +17,36 @@ export interface BuildChatRequestOptions {
   maxTokens?: number
 }
 
+/** Get plain text from a message (content may be string or OpenAI-style array). */
+function getMessageTextContent(msg: Record<string, unknown>): string {
+  const c = msg.content
+  if (typeof c === 'string') return c
+  if (Array.isArray(c)) {
+    const textPart = c.find((p: unknown) => (p as Record<string, unknown>)?.type === 'text')
+    return typeof (textPart as Record<string, unknown>)?.text === 'string'
+      ? (textPart as Record<string, string>).text
+      : ''
+  }
+  return ''
+}
+
+/** Chỉ gộp khi có đúng 2 message user liền kề và nội dung giống nhau (giữ message sau). */
+function dedupeConsecutiveUserMessages(messages: Record<string, unknown>[]): Record<string, unknown>[] {
+  const out: Record<string, unknown>[] = []
+  for (const msg of messages) {
+    const role = msg.role as string
+    const prev = out[out.length - 1]
+    const prevIsUser = prev && (prev.role as string) === 'user'
+    const currIsUser = role === 'user'
+    if (prevIsUser && currIsUser && getMessageTextContent(prev) === getMessageTextContent(msg)) {
+      out[out.length - 1] = msg
+    } else {
+      out.push(msg)
+    }
+  }
+  return out
+}
+
 /**
  * Build URL and body for a chat request. Single place for gemini vs openai/ollama branching.
  */
@@ -117,13 +147,14 @@ export function buildChatRequest(
         })()
       : { role: 'user', content: userPrompt }
 
+  const rawMessages: Record<string, unknown>[] = [
+    { role: 'system', content: systemPrompt },
+    ...((history as unknown) as Record<string, unknown>[]),
+    lastUserMessage,
+  ]
   const body: Record<string, unknown> = {
     model: config.model,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      ...history,
-      lastUserMessage,
-    ],
+    messages: dedupeConsecutiveUserMessages(rawMessages),
     temperature,
     stream,
     max_tokens: maxTokens,

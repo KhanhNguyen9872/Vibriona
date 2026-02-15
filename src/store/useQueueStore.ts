@@ -236,6 +236,12 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
         }))
     }
 
+    // Avoid duplicate user message: the current turn's user message is sent as userPrompt,
+    // so exclude it from history (drop last entry if it's from the user).
+    if (history.length > 0 && history[history.length - 1].role === 'user') {
+      history = history.slice(0, -1)
+    }
+
     // Mark item as processing and add to activeProcesses
     const processingItem = { ...next, status: 'processing' as const, streamingText: '', thinkingText: '' }
     set((state) => ({

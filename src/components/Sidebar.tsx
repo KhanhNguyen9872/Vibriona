@@ -20,6 +20,7 @@ import { useSessionStore, type Session } from '../store/useSessionStore'
 import { useQueueStore } from '../store/useQueueStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { ProfileManagerDialog } from './ProfileManagerDialog'
+import { IconPickerModal } from './IconPickerModal'
 import {
   MessageSquare,
   Plus,
@@ -35,7 +36,57 @@ import {
   MoreHorizontal,
   FolderInput,
   GripVertical,
+  FileText,
+  Layout,
+  Presentation,
+  Lightbulb,
+  BookOpen,
+  Folder,
+  Sparkles,
+  MessageCircle,
+  StickyNote,
+  Image,
+  Video,
+  Code,
+  Palette,
+  Rocket,
+  Star,
+  Briefcase,
+  Megaphone,
+  type LucideIcon,
 } from 'lucide-react'
+
+export const PROJECT_ICON_IDS = [
+  'messageSquare', 'fileText', 'layout', 'presentation', 'lightbulb', 'bookOpen', 'folder', 'sparkles',
+  'messageCircle', 'stickyNote', 'image', 'video', 'code', 'palette', 'rocket', 'star', 'briefcase', 'megaphone',
+] as const
+export const PROJECT_ICONS: Record<(typeof PROJECT_ICON_IDS)[number], LucideIcon> = {
+  messageSquare: MessageSquare,
+  fileText: FileText,
+  layout: Layout,
+  presentation: Presentation,
+  lightbulb: Lightbulb,
+  bookOpen: BookOpen,
+  folder: Folder,
+  sparkles: Sparkles,
+  messageCircle: MessageCircle,
+  stickyNote: StickyNote,
+  image: Image,
+  video: Video,
+  code: Code,
+  palette: Palette,
+  rocket: Rocket,
+  star: Star,
+  briefcase: Briefcase,
+  megaphone: Megaphone,
+}
+
+export const DEFAULT_PROJECT_ICON = 'messageSquare'
+
+export function SessionIcon({ iconId, className }: { iconId?: string; className?: string }) {
+  const Icon = PROJECT_ICONS[(iconId as (typeof PROJECT_ICON_IDS)[number]) ?? DEFAULT_PROJECT_ICON] ?? MessageSquare
+  return <Icon className={className} />
+}
 
 interface SidebarProps {
   collapsed: boolean
@@ -97,12 +148,13 @@ function SortableSessionWrapper({
 
 export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelect }: SidebarProps) {
   const { t } = useTranslation()
-  const { sessions, currentSessionId, setCurrentSession, deleteSession, importSession, pinSession, renameSession, reorderSessions, clearSessions } =
+  const { sessions, currentSessionId, setCurrentSession, deleteSession, importSession, pinSession, renameSession, setSessionIcon, reorderSessions, clearSessions } =
     useSessionStore()
   const { profiles, activeProfileId } = useSettingsStore()
   const { isProjectProcessing } = useQueueStore()
   
   const [menuSessionId, setMenuSessionId] = useState<string | null>(null)
+  const [iconPickerSessionId, setIconPickerSessionId] = useState<string | null>(null)
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [showProfileManager, setShowProfileManager] = useState(false)
@@ -121,6 +173,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
     const handler = (e: MouseEvent) => {
       if (menuSessionId && menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuSessionId(null)
+        setIconPickerSessionId(null)
       }
       if (showFooterMenu && footerMenuRef.current && !footerMenuRef.current.contains(e.target as Node)) {
         setShowFooterMenu(false)
@@ -183,6 +236,16 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
     }
   }
 
+  const handleOpenIconPicker = (sessionId: string) => {
+    setMenuSessionId(null)
+    setIconPickerSessionId(sessionId)
+  }
+
+  const handleConfirmIcon = (sessionId: string, iconId: string) => {
+    setSessionIcon(sessionId, iconId)
+    setIconPickerSessionId(null)
+  }
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   )
@@ -218,6 +281,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
         createdAt: session.timestamp,
         messages: session.messages,
         slides: session.slides,
+        icon: session.icon ?? null,
       },
     }
 
@@ -276,6 +340,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
           messages,
           slides: Array.isArray(slides) ? slides : [],
           timestamp,
+          icon: isNewFormat ? data.project.icon : undefined,
         }
 
         importSession(session)
@@ -349,7 +414,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                         }`}
                     >
                       <div className="relative shrink-0">
-                        <MessageSquare className={`w-3.5 h-3.5 ${isProjectProcessing(session.id) ? 'text-neutral-400' : 'text-neutral-400'}`} />
+                        <SessionIcon iconId={session.icon} className="w-3.5 h-3.5 text-neutral-400" />
                         {session.pinned && (
                           <Pin className="w-2 h-2 text-amber-500 absolute -top-1 -right-1" />
                         )}
@@ -410,7 +475,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                           animate={{ opacity: 1, scale: 1, y: 0 }}
                           exit={{ opacity: 0, scale: 0.95, y: -2 }}
                           transition={{ duration: 0.12 }}
-                          className="absolute right-2 top-full mt-0.5 z-50 w-40 py-1 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-xl"
+                          className="absolute right-2 top-full mt-0.5 z-50 py-1 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-xl w-40"
                         >
                           <button
                             onClick={() => handlePin(session.id)}
@@ -429,6 +494,14 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                             <Pencil className="w-3 h-3 text-neutral-400" />
                             {t('sessions.renameProject')}
                           </button>
+                          <button
+                            onClick={() => handleOpenIconPicker(session.id)}
+                            className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                          >
+                            <SessionIcon iconId={session.icon} className="w-3 h-3 text-neutral-400" />
+                            {t('sessions.changeIcon')}
+                          </button>
+
                           <div className="my-0.5 mx-2 border-t border-neutral-100 dark:border-neutral-800" />
                           <button
                             onClick={() => handleExportSession(session.id)}
@@ -463,7 +536,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                             </div>
                             <div className="flex items-center gap-2 px-2.5 py-2 min-w-0 flex-1">
                               <div className="relative shrink-0">
-                                <MessageSquare className="w-3.5 h-3.5 text-neutral-400" />
+                                <SessionIcon iconId={session.icon} className="w-3.5 h-3.5 text-neutral-400" />
                                 {session.pinned && <Pin className="w-2 h-2 text-amber-500 absolute -top-1 -right-1" />}
                               </div>
                               <div className="min-w-0 flex-1">
@@ -511,7 +584,7 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
                                 <span /><span /><span />
                               </div>
                             ) : (
-                              <MessageSquare className="w-4 h-4" />
+                              <SessionIcon iconId={session.icon} className="w-4 h-4" />
                             )}
                             {session.pinned && (
                               <Pin className="w-2 h-2 text-amber-500 absolute -top-0.5 -right-0.5" />
@@ -603,6 +676,15 @@ export default function Sidebar({ collapsed, onToggle, onNewChat, onSessionSelec
 
       </motion.aside>
       <ProfileManagerDialog open={showProfileManager} onOpenChange={setShowProfileManager} />
+      
+      {iconPickerSessionId && sessions.find(s => s.id === iconPickerSessionId) && (
+        <IconPickerModal
+          open={!!iconPickerSessionId}
+          onOpenChange={(open) => !open && setIconPickerSessionId(null)}
+          session={sessions.find(s => s.id === iconPickerSessionId)!}
+          onSelectIcon={handleConfirmIcon}
+        />
+      )}
     </>
   )
 }

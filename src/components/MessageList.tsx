@@ -10,6 +10,7 @@ import { useQueueStore } from '../store/useQueueStore'
 import MessageBubble from './MessageBubble'
 import CompactStatusView from './CompactStatusView'
 import { extractCompletionMessage } from '../api/parseStream'
+import { SessionIcon } from './Sidebar'
 
 interface MessageListProps {
   messages: ChatMessage[]
@@ -133,24 +134,27 @@ export default function MessageList({ messages, isStreaming, streamingThinking }
   // Shared Header Component
   const ChatHeader = (
     <div className="shrink-0 flex items-center justify-between h-10 px-4 border-b border-neutral-100 dark:border-zinc-800/60">
-      {isRenaming ? (
-        <input
-          ref={renameInputRef}
-          value={renameValue}
-          onChange={(e) => setRenameValue(e.target.value)}
-          onKeyDown={handleRenameKeyDown}
-          onBlur={handleRenameSubmit}
-          className="w-full max-w-[300px] text-[11px] font-medium leading-tight text-neutral-700 dark:text-neutral-300 bg-white dark:bg-zinc-800 border border-neutral-300 dark:border-zinc-600 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-400"
-        />
-      ) : (
-        <span
-          className="text-[11px] font-medium text-neutral-400 dark:text-zinc-500 truncate cursor-pointer hover:text-neutral-600 dark:hover:text-zinc-300 transition-colors"
-          onDoubleClick={handleStartRename}
-          title={t('sessions.renameHint')}
-        >
-          {currentSession?.title ?? ''}
-        </span>
-      )}
+      <div className="flex items-center gap-2 min-w-0">
+        <SessionIcon iconId={currentSession?.icon} className="w-4 h-4 text-neutral-400 shrink-0" />
+        {isRenaming ? (
+          <input
+            ref={renameInputRef}
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={handleRenameKeyDown}
+            onBlur={handleRenameSubmit}
+            className="w-full max-w-[300px] text-[11px] font-medium leading-tight text-neutral-700 dark:text-neutral-300 bg-white dark:bg-zinc-800 border border-neutral-300 dark:border-zinc-600 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-400"
+          />
+        ) : (
+          <span
+            className="text-[11px] font-medium text-neutral-400 dark:text-zinc-500 truncate cursor-pointer hover:text-neutral-600 dark:hover:text-zinc-300 transition-colors"
+            onDoubleClick={handleStartRename}
+            title={t('sessions.renameHint')}
+          >
+            {currentSession?.title ?? ''}
+          </span>
+        )}
+      </div>
 
       <div className="relative" ref={menuRef}>
         <button

@@ -48,6 +48,8 @@ export interface Session {
   compactedContext?: string // AI-generated summary of old messages
   compactedAt?: number // Timestamp when compaction occurred
   lastCompactedIndex?: number // Index of last message included in compaction
+  /** Sidebar project icon id (e.g. messageSquare, fileText). Optional; defaults to messageSquare when rendering. */
+  icon?: string
 }
 
 interface SessionState {
@@ -68,6 +70,7 @@ interface SessionState {
   newChat: () => void
   pinSession: (id: string) => void
   renameSession: (id: string, title: string) => void
+  setSessionIcon: (id: string, icon: string) => void
   reorderSessions: (fromIndex: number, toIndex: number) => void
   // Slide operations (session-scoped)
   setSessionSlides: (slides: Slide[]) => void
@@ -198,6 +201,7 @@ export const useSessionStore = create<SessionState>()(
           id: crypto.randomUUID(),
           slides: session.slides ?? [],
           pinned: session.pinned === true,
+          icon: session.icon,
           messages: session.messages.map((m) => ({
             ...m,
             id: m.id || crypto.randomUUID(),
@@ -214,7 +218,15 @@ export const useSessionStore = create<SessionState>()(
         if (!currentSessionId) return
         set((state) => ({
           sessions: state.sessions.map((s) =>
-            s.id === currentSessionId ? { ...s, messages: [] } : s
+            s.id === currentSessionId
+              ? {
+                  ...s,
+                  messages: [],
+                  compactedContext: undefined,
+                  compactedAt: undefined,
+                  lastCompactedIndex: undefined,
+                }
+              : s
           ),
         }))
       },
@@ -283,6 +295,13 @@ export const useSessionStore = create<SessionState>()(
         set((state) => ({
           sessions: state.sessions.map((s) =>
             s.id === id ? { ...s, title } : s
+          ),
+        })),
+
+      setSessionIcon: (id, icon) =>
+        set((state) => ({
+          sessions: state.sessions.map((s) =>
+            s.id === id ? { ...s, icon } : s
           ),
         })),
 
