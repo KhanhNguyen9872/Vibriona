@@ -37,6 +37,17 @@ import { useSettingsStore } from '../store/useSettingsStore'
 import { createDefaultSlide } from '../config/defaults'
 import { enhanceSlide } from '../api/enhance'
 
+/** True if undo is allowed (won't revert current session to empty slides) */
+function getCanUndo(): boolean {
+  const { pastStates } = useSessionStore.temporal.getState()
+  if (pastStates.length === 0) return false
+  const cur = useSessionStore.getState().getCurrentSession()
+  const last = pastStates[pastStates.length - 1] as { sessions?: { id: string; slides?: unknown[] }[] } | undefined
+  const pastS = last?.sessions?.find((s) => s.id === cur?.id)
+  const wouldEmpty = (cur?.slides?.length ?? 0) > 0 && pastS && (!pastS.slides || pastS.slides.length === 0)
+  return !wouldEmpty
+}
+
 export default function ScriptWorkspace() {
   const { t } = useTranslation()
   const { items, getActiveProcessForProject } = useQueueStore()
@@ -69,6 +80,15 @@ export default function ScriptWorkspace() {
   const selectedSlideIndices = getSelectedSlideIndices()
 
   const currentSession = getCurrentSession()
+  // Block undo when it would revert to "no slides" (first creation) to avoid wiping the deck
+  const lastPastState = pastStates.length > 0 ? pastStates[pastStates.length - 1] : null
+  const pastSession = lastPastState?.sessions?.find((s: { id: string }) => s.id === currentSession?.id)
+  const wouldRevertToEmpty =
+    (currentSession?.slides?.length ?? 0) > 0 &&
+    pastSession &&
+    (!pastSession.slides || pastSession.slides.length === 0)
+  const canUndo = pastStates.length > 0 && !wouldRevertToEmpty
+
   const projectId = currentSession?.id || ''
   const activeItem = getActiveProcessForProject(projectId)
   const lastDoneItem = [...items].reverse().find((i) => i.status === 'done' && i.projectId === projectId)
@@ -177,12 +197,12 @@ export default function ScriptWorkspace() {
     }
   }
 
-  // Undo/Redo keyboard shortcuts
+  // Undo/Redo keyboard shortcuts (Undo disabled on first creation to avoid wiping deck)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault()
-        undo()
+        if (getCanUndo()) undo()
       }
       if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
         e.preventDefault()
@@ -361,8 +381,8 @@ export default function ScriptWorkspace() {
           {!isStreaming && displaySlides.length > 0 && (
             <>
               <button
-                onClick={() => undo()}
-                disabled={pastStates.length === 0}
+                onClick={() => canUndo && undo()}
+                disabled={!canUndo}
                 className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                 title={`${t('workspace.undo')} (Ctrl+Z)`}
               >

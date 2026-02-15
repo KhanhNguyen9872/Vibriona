@@ -539,6 +539,18 @@ export const useSessionStore = create<SessionState>()(
       const { highlightedSlideIndex: _, processingSlideNumbers: __, ...rest } = state
       return rest
     },
+    // Undo snapshots: all slide edits (updateSlide, deleteSlide, reorderSlides, setSessionSlides, etc.) go through set() and are tracked here.
+    // Don't record "first creation" (0 → N slides) so Undo can't wipe the deck on first use
+    diff: (pastState, currentState) => {
+      const cid = (currentState as SessionState & { currentSessionId?: string | null }).currentSessionId
+      if (!cid) return pastState as typeof currentState
+      const pastSession = (pastState as { sessions?: Session[] })?.sessions?.find((s: Session) => s.id === cid)
+      const currentSession = (currentState as { sessions?: Session[] })?.sessions?.find((s: Session) => s.id === cid)
+      const pastSlides = pastSession?.slides?.length ?? 0
+      const currentSlides = currentSession?.slides?.length ?? 0
+      if (pastSlides === 0 && currentSlides > 0) return null
+      return pastState as typeof currentState
+    },
   },
   )
 )
