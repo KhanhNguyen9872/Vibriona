@@ -34,7 +34,8 @@ export function streamGenerate(
   history: HistoryMessage[] = [],
   systemPrompt: string = SYSTEM_PROMPT,
   temperatureOverride?: number,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  userImages?: { base64: string; mimeType: string }[]
 ): AbortController {
   const controller = new AbortController()
   let processedLength = 0
@@ -48,6 +49,7 @@ export function streamGenerate(
     systemPrompt,
     userPrompt,
     history,
+    userImages: userImages ?? [],
     temperature,
     stream: true,
     maxTokens: API_CONFIG.MAX_TOKENS,
@@ -137,7 +139,7 @@ export function streamGenerate(
     })
     .catch((err) => {
       if (axios.isCancel(err)) {
-        callbacks.onError('Export cancelled')
+        callbacks.onError('Cancelled')
         return
       }
 

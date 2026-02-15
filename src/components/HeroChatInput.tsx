@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'motion/react'
-import { Sparkles, Loader2, ArrowRight, RefreshCw, Mic, MicOff } from 'lucide-react'
+import { Sparkles, Loader2, ArrowRight, RefreshCw, Mic, MicOff, Paperclip, ClipboardPaste, ChevronDown, ChevronUp, X } from 'lucide-react'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
 import { toast } from 'sonner'
 import { MAX_PROJECTS } from '../config/limits'
@@ -16,16 +16,34 @@ import { STORAGE_KEYS } from '../config/defaults'
 import { API_CONFIG } from '../config/api'
 
 const STORAGE_KEY = STORAGE_KEYS.HERO_SUGGESTIONS
+const MAX_CHARS = 4096
+const MAX_ATTACHED_FILES = 3
+const MAX_ATTACH_BYTES = 200_000
+const MAX_IMAGE_BYTES = 4_000_000
+const ALLOWED_EXT = ['.txt', '.md', '.json', '.csv', '.jpg', '.jpeg', '.png', '.webp']
+const IMAGE_EXT = ['.jpg', '.jpeg', '.png', '.webp']
+const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp']
+
+interface AttachedFile {
+  id: string
+  name: string
+  content: string
+  type?: 'text' | 'image'
+  mimeType?: string
+}
 
 export default function HeroChatInput() {
   const { t, i18n } = useTranslation()
   const [prompt, setPrompt] = useState('')
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
+  const [attachListExpanded, setAttachListExpanded] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [loadedSuggestionsCount, setLoadedSuggestionsCount] = useState(0)
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(true)
   const [, setIsUsingFallbackSuggestions] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const { addToQueue, isProjectProcessing } = useQueueStore()
   const { addMessage, createSession, currentSessionId } = useSessionStore()
   const { startHeroHold } = useUIStore()
@@ -290,12 +308,24 @@ export default function HeroChatInput() {
   const handleSubmit = async (e?: React.FormEvent, overrideText?: string) => {
     e?.preventDefault?.()
     const raw = overrideText ?? promptRef.current ?? prompt
-    const trimmed = (typeof raw === 'string' ? raw : '').trim()
+    const promptPart = (typeof raw === 'string' ? raw : '').trim()
+    const textFiles = attachedFiles.filter((f) => f.type !== 'image')
+    const filesPart =
+      textFiles.length > 0
+        ? textFiles.map((f) => `[From file: ${f.name}]\n\n${f.content}`).join('\n\n')
+        : ''
+    const trimmed =
+      promptPart && filesPart ? promptPart + '\n\n' + filesPart : promptPart || filesPart
     if (!trimmed || isProcessing || isSubmitted) return
+    if (trimmed.length > MAX_CHARS) {
+      toast.error(t('chat.overLimit'))
+      return
+    }
 
     // Sync input to trimmed value so UI reflects what we send
-    setPrompt(trimmed)
-    promptRef.current = trimmed
+    setPrompt(promptPart)
+    promptRef.current = promptPart
+    setAttachedFiles([])
 
     const activeProfileId = useSettingsStore.getState().activeProfileId;
     if (!activeProfileId) {
@@ -325,20 +355,24 @@ export default function HeroChatInput() {
     // Create session
     let activeProjectId = currentSessionId
     if (!currentSessionId) {
-      const title = trimmed.length > 60 ? trimmed.slice(0, 60) + '...' : trimmed
+      const titleSource = promptPart || (attachedFiles.length ? attachedFiles.map((f) => f.name).join(', ') : '')
+      const title = titleSource.length > 60 ? titleSource.slice(0, 60) + '...' : titleSource || 'Chat'
       activeProjectId = createSession(title)
     }
 
-    // Add user message
+    // Add user message (content = prompt only; attached files stored separately for display)
     addMessage({
       role: 'user',
-      content: trimmed,
+      content: promptPart,
       timestamp: Date.now(),
       isScriptGeneration: true,
+      ...(attachedFiles.length > 0 && {
+        attachedFiles: attachedFiles.map((f) => ({ name: f.name, content: f.content, type: f.type, mimeType: f.mimeType }))
+      })
     })
 
     // Queue processing
-    addToQueue(trimmed, activeProjectId!)
+    addToQueue(trimmed, activeProjectId!, undefined, attachedFiles.length > 0 ? attachedFiles.map((f) => ({ name: f.name, content: f.content, type: f.type, mimeType: f.mimeType })) : undefined)
 
     // Note: Mobile tab switching now happens automatically in App.tsx 
     // only when action is confirmed to be slide-related (intent-aware)
@@ -349,6 +383,132 @@ export default function HeroChatInput() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSubmit()
+    }
+  }
+
+  const handleClear = () => {
+    setPrompt('')
+    promptRef.current = ''
+    setAttachedFiles([])
+    const ta = textareaRef.current
+    if (ta) {
+      ta.style.height = 'auto'
+      ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`
+    }
+  }
+
+  const removeAttachedFile = (id: string) => {
+    setAttachedFiles((prev) => prev.filter((f) => f.id !== id))
+  }
+
+  const readFileAsText = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve((reader.result as string) ?? '')
+      reader.onerror = () => reject(reader.error)
+      reader.readAsText(file, 'UTF-8')
+    })
+
+  const readFileAsDataURL = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve((reader.result as string) ?? '')
+      reader.onerror = () => reject(reader.error)
+      reader.readAsDataURL(file)
+    })
+
+  const isImageFile = (file: File): boolean => {
+    const ext = '.' + (file.name.split('.').pop() ?? '').toLowerCase()
+    return IMAGE_EXT.includes(ext) || IMAGE_MIMES.includes(file.type)
+  }
+
+  const handleAttachChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : []
+    e.target.value = ''
+    if (files.length === 0) return
+    const valid: File[] = []
+    for (const file of files) {
+      const ext = '.' + (file.name.split('.').pop() ?? '').toLowerCase()
+      if (!ALLOWED_EXT.includes(ext) && !IMAGE_MIMES.includes(file.type)) {
+        toast.error(t('chat.attachFileUnsupported'))
+        continue
+      }
+      if (isImageFile(file)) {
+        if (file.size > MAX_IMAGE_BYTES) {
+          toast.error(t('chat.attachImageTooBig'))
+          continue
+        }
+      } else {
+        if (file.size > MAX_ATTACH_BYTES) {
+          toast.error(t('chat.attachFileTooBig'))
+          continue
+        }
+      }
+      valid.push(file)
+    }
+    if (valid.length === 0) return
+    Promise.all(
+      valid.map((file) => {
+        if (isImageFile(file)) {
+          return readFileAsDataURL(file).then((content) => ({
+            id: crypto.randomUUID(),
+            name: file.name,
+            content,
+            type: 'image' as const,
+            mimeType: file.type || 'image/jpeg',
+          }))
+        }
+        return readFileAsText(file).then((content) => ({
+          id: crypto.randomUUID(),
+          name: file.name,
+          content,
+          type: 'text' as const,
+        }))
+      })
+    )
+      .then((toAdd) => {
+        setAttachedFiles((prev) => {
+          const slots = MAX_ATTACHED_FILES - prev.length
+          if (slots <= 0) {
+            toast.error(t('chat.attachFilesMaxCount'))
+            return prev
+          }
+          const allowed = toAdd.slice(0, slots)
+          if (toAdd.length > slots) toast.error(t('chat.attachFilesMaxCount'))
+          const next = [...prev, ...allowed]
+          const totalLen =
+            (promptRef.current?.length ?? 0) +
+            next.reduce((sum, f) => sum + (f.type === 'image' ? 200 : f.content.length + 50), 0)
+          if (totalLen > MAX_CHARS) {
+            toast.error(t('chat.overLimit'))
+            return prev
+          }
+          return next
+        })
+      })
+      .catch(() => toast.error(t('chat.attachFileError')))
+  }
+
+  const handlePaste = async () => {
+    if (!navigator.clipboard) {
+      toast.error(t('chat.pasteError'))
+      return
+    }
+    try {
+      const text = await navigator.clipboard.readText()
+      if (!text.trim()) return
+      const combined = promptRef.current ? promptRef.current + '\n\n' + text : text
+      if (combined.length > MAX_CHARS) {
+        toast.error(t('chat.overLimit'))
+        return
+      }
+      setPrompt(combined)
+    } catch (err: any) {
+      if (err?.name === 'NotAllowedError' || String(err).includes('Permission')) {
+        toast.error(t('chat.pastePermissionDenied'))
+      } else {
+        toast.error(t('chat.pasteError'))
+      }
     }
   }
 
@@ -369,8 +529,69 @@ export default function HeroChatInput() {
     >
       {/* Input Container */}
       <div className="relative group">
+        {/* Attached files: above input container so buttons don't cover it */}
+        <AnimatePresence>
+          {!isSubmitted && attachedFiles.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="mb-2 overflow-hidden"
+            >
+              <div className="rounded-xl border border-neutral-200 dark:border-zinc-600 bg-neutral-100/80 dark:bg-zinc-800/50 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setAttachListExpanded((e) => !e)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-[11px] font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200/60 dark:hover:bg-zinc-700/50 transition-colors"
+                >
+                  <span>{t('chat.attachFilesCount', { count: attachedFiles.length })}</span>
+                  {attachListExpanded ? (
+                    <ChevronUp className="w-3.5 h-3.5 shrink-0" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5 shrink-0" />
+                  )}
+                </button>
+                {attachListExpanded && (
+                  <motion.div
+                    initial={{ height: 0 }}
+                    animate={{ height: 'auto' }}
+                    exit={{ height: 0 }}
+                    className="border-t border-neutral-200 dark:border-zinc-600"
+                  >
+                    {attachedFiles.map((f) => (
+                      <div
+                        key={f.id}
+                        className="flex items-center gap-2 px-3 py-1.5 text-[11px] text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200/40 dark:hover:bg-zinc-700/40"
+                      >
+                        {f.type === 'image' ? (
+                          <img src={f.content} alt="" className="w-12 h-12 object-cover rounded shrink-0" />
+                        ) : null}
+                        <span className="flex-1 truncate min-w-0" title={f.name}>
+                          {f.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(ev) => {
+                            ev.stopPropagation()
+                            removeAttachedFile(f.id)
+                          }}
+                          title={t('chat.attachRemoveFile')}
+                          className="p-1 rounded text-neutral-500 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 shrink-0"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </motion.div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div
-          className={`relative flex items-start rounded-2xl border transition-all duration-300 overflow-hidden ${isSubmitted
+          className={`relative flex flex-wrap items-start rounded-2xl border transition-all duration-300 overflow-hidden ${isSubmitted
               ? 'bg-neutral-100 dark:bg-zinc-800/60 border-neutral-200 dark:border-zinc-700'
               : speech.isListening
                 ? 'bg-red-50/50 dark:bg-red-950/20 border-red-300 dark:border-red-700/70 ring-2 ring-red-200/60 dark:ring-red-800/40'
@@ -409,6 +630,15 @@ export default function HeroChatInput() {
             )}
           </AnimatePresence>
 
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt,.md,.json,.csv,image/jpeg,image/png,image/webp"
+            multiple
+            className="hidden"
+            aria-hidden
+            onChange={handleAttachChange}
+          />
           {/* Sparkle accent */}
           <div className="pl-4 pr-1 py-3.5">
             <Sparkles className={`w-4 h-4 transition-colors duration-300 ${isSubmitted
@@ -448,12 +678,47 @@ export default function HeroChatInput() {
             </div>
           )}
 
+          {!isSubmitted && (
+            <div className="flex items-center gap-0.5 self-center mr-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isProcessing || attachedFiles.length >= MAX_ATTACHED_FILES}
+                title={t('chat.attachFile')}
+                className="p-2 rounded-lg text-neutral-400 dark:text-zinc-500 hover:text-neutral-600 dark:hover:text-zinc-400 transition-colors touch-manipulation disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Paperclip className="w-4 h-4" aria-hidden />
+              </button>
+              {typeof navigator !== 'undefined' && navigator.clipboard && (
+                <button
+                  type="button"
+                  onClick={handlePaste}
+                  disabled={isProcessing}
+                  title={t('chat.paste')}
+                  className="p-2 rounded-lg text-neutral-400 dark:text-zinc-500 hover:text-neutral-600 dark:hover:text-zinc-400 transition-colors touch-manipulation disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ClipboardPaste className="w-4 h-4" aria-hidden />
+                </button>
+              )}
+              {(prompt.length > 0 || attachedFiles.length > 0) && (
+                <button
+                  type="button"
+                  onClick={handleClear}
+                  disabled={isProcessing}
+                  title={t('chat.clearInput')}
+                  className="p-2 rounded-lg text-neutral-400 dark:text-zinc-500 hover:text-neutral-600 dark:hover:text-zinc-400 transition-colors touch-manipulation disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <X className="w-4 h-4" aria-hidden />
+                </button>
+              )}
+            </div>
+          )}
           {speech.isSupported && !isSubmitted && (
             <button
               type="button"
               onClick={speech.toggle}
               title={speech.isListening ? t('chat.voiceStop') : t('chat.voiceStart')}
-              className={`self-center p-2 rounded-lg transition-colors touch-manipulation ${
+              className={`self-center p-2 rounded-lg transition-colors touch-manipulation mr-2 ${
                 speech.isListening
                   ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
                   : 'text-neutral-400 dark:text-zinc-500 hover:text-neutral-600 dark:hover:text-zinc-400'
@@ -475,7 +740,6 @@ export default function HeroChatInput() {
                 >
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   <span className="text-[11px] font-semibold tracking-wide">{t('chat.generating')}</span>
-                  {/* shimmer overlay */}
                   <motion.div
                     className="absolute inset-0 rounded-xl pointer-events-none"
                     style={{
@@ -489,7 +753,7 @@ export default function HeroChatInput() {
                 <motion.button
                   key="submit"
                   onClick={() => submitRef.current?.(speech.isListening ? effectiveContent : undefined)}
-                  disabled={!effectiveContent}
+                  disabled={(!effectiveContent.trim() && attachedFiles.length === 0)}
                   className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-black dark:bg-white text-white dark:text-black text-[11px] font-semibold tracking-wide hover:opacity-90 active:scale-[0.97] transition-all disabled:opacity-25 disabled:cursor-not-allowed cursor-pointer"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.97 }}

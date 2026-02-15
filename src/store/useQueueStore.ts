@@ -3,7 +3,7 @@ import { streamGenerate, type HistoryMessage } from '../api/generate'
 import { compactConversation } from '../api/compact'
 import { API_CONFIG } from '../config/api'
 import { useSettingsStore } from './useSettingsStore'
-import { useSessionStore } from './useSessionStore'
+import { useSessionStore, type ChatMessage } from './useSessionStore'
 import { extractCompletionMessage } from '../api/parseStream'
 import type { Slide } from '../api/prompt'
 import { getSystemPrompt } from '../api/prompt'
@@ -36,13 +36,15 @@ export interface QueueItem {
   // Fields for batch action
   operations?: any[]
   hasReceivedAction?: boolean // Track when action type is known from stream
+  /** Attached files (text + image) for the user message; images are sent as userImages to API */
+  attachedFiles?: { name: string; content: string; type?: 'text' | 'image'; mimeType?: string }[]
 }
 
 interface QueueState {
   items: QueueItem[]
   activeProcesses: Record<string, QueueItem>
   activeAborts: Record<string, AbortController>
-  addToQueue: (prompt: string, projectId: string, contextSlides?: Slide[]) => void
+  addToQueue: (prompt: string, projectId: string, contextSlides?: Slide[], attachedFiles?: QueueItem['attachedFiles']) => void
   processNext: () => void
   updateItem: (id: string, patch: Partial<QueueItem>) => void
   completeActive: (id: string, result: string, slides: Slide[], thinking: string, completionMessage: string) => void
@@ -62,7 +64,7 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
   activeProcesses: {},
   activeAborts: {},
 
-  addToQueue: (prompt, projectId, contextSlides) => {
+  addToQueue: (prompt, projectId, contextSlides, attachedFiles) => {
     // Security: Sanitize prompt input
     const sanitizedPrompt = prompt
       .replace(/\0/g, '')                         // Remove null bytes
@@ -76,6 +78,7 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
       status: 'queued',
       contextSlides,
       contextSlideNumbers: contextSlides?.map((s) => s.slide_number),
+      attachedFiles,
     }
     set((state) => ({ items: [...state.items, item] }))
 
@@ -120,6 +123,8 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
         timestamp: Date.now(),
         isScriptGeneration: false,
         isThinking: true,
+        isCompactionPlaceholder: true,
+        compactionPhase: 'compacting',
       })
 
       try {
@@ -156,18 +161,20 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
                 
                 sessionStore.compactConversation(next.projectId, summary, newCompactedIndex)
                 
-                // Replace compaction indicator with completion message
+                // Replace compaction indicator with completion message (shown in compact status UI)
                 sessionStore.updateMessage(compactingMsgId, {
                   content: i18n.t('chat.compacted'),
                   isThinking: false,
+                  compactionPhase: 'compacted',
                 })
                 resolve()
               },
               onError: (error) => {
-                // Remove compaction indicator on error, but continue with normal processing
+                // Remove compaction indicator on error (hide from UI by clearing phase)
                 sessionStore.updateMessage(compactingMsgId, {
                   content: '',
                   isThinking: false,
+                  compactionPhase: undefined,
                 })
                 reject(error)
               }
@@ -185,43 +192,48 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
       }
     }
 
+    // Helper: get content for API history (user messages with attachedFiles get full content)
+    const getMessageContentForHistory = (msg: ChatMessage): string => {
+      let content = msg.content ?? ''
+      if (msg.role === 'user' && msg.attachedFiles && msg.attachedFiles.length > 0) {
+        const filesPart = msg.attachedFiles
+          .map((f) => (f.type === 'image' ? `[Attached image: ${f.name}]` : `[From file: ${f.name}]\n\n${f.content}`))
+          .join('\n\n')
+        content = content.trim() ? `${content}\n\n${filesPart}` : filesPart
+      }
+      if (msg.role === 'assistant' && msg.isScriptGeneration && msg.slides && msg.slides.length > 0) {
+        const afterJson = extractCompletionMessage(msg.content ?? '')
+        const slideList = msg.slides.map((s) => `${s.slide_number}. ${s.title}`).join(', ')
+        content = afterJson
+          ? `${afterJson}\n[Slides: ${slideList}]`
+          : `Generated ${msg.slides.length} slides: ${slideList}`
+      }
+      return content
+    }
+
     // Build conversation history - use compacted context if available
     let history: HistoryMessage[] = []
-    
+
     if (projectSession?.compactedContext) {
       // Use compacted summary + all recent messages after compaction
       const lastCompactedIndex = projectSession.lastCompactedIndex || 0
       const recentMessages = messages.slice(lastCompactedIndex)
-      
+
       history = [
         { role: 'assistant', content: `[Previous conversation summary: ${projectSession.compactedContext}]` },
-        ...recentMessages.map((msg) => {
-          let content = msg.content
-          if (msg.role === 'assistant' && msg.isScriptGeneration && msg.slides && msg.slides.length > 0) {
-            const afterJson = extractCompletionMessage(msg.content)
-            const slideList = msg.slides.map((s) => `${s.slide_number}. ${s.title}`).join(', ')
-            content = afterJson
-              ? `${afterJson}\n[Slides: ${slideList}]`
-              : `Generated ${msg.slides.length} slides: ${slideList}`
-          }
-          return { role: msg.role, content }
-        })
+        ...recentMessages.map((msg) => ({
+          role: msg.role,
+          content: getMessageContentForHistory(msg)
+        }))
       ]
     } else {
       // Normal sliding window (last 10 messages)
       history = messages
         .slice(-10)
-        .map((msg) => {
-          let content = msg.content
-          if (msg.role === 'assistant' && msg.isScriptGeneration && msg.slides && msg.slides.length > 0) {
-            const afterJson = extractCompletionMessage(msg.content)
-            const slideList = msg.slides.map((s) => `${s.slide_number}. ${s.title}`).join(', ')
-            content = afterJson
-              ? `${afterJson}\n[Slides: ${slideList}]`
-              : `Generated ${msg.slides.length} slides: ${slideList}`
-          }
-          return { role: msg.role, content }
-        })
+        .map((msg) => ({
+          role: msg.role,
+          content: getMessageContentForHistory(msg)
+        }))
     }
 
     // Mark item as processing and add to activeProcesses
@@ -272,6 +284,14 @@ ${JSON.stringify(skeleton, null, 2)}
 
 USER REQUEST: ${next.prompt}`
     }
+
+    // Build userImages from attached image files (base64 without data URL prefix for API)
+    const userImages = (next.attachedFiles ?? [])
+      .filter((f): f is typeof f & { type: 'image' } => f.type === 'image')
+      .map((f) => {
+        const base64 = f.content.startsWith('data:') ? f.content.replace(/^data:image\/[^;]+;base64,/, '') : f.content
+        return { base64, mimeType: f.mimeType || 'image/jpeg' }
+      })
 
     const abort = streamGenerate(apiUrl, apiKey, apiPrompt, selectedModel, apiType, {
       onToken: (fullText) => {
@@ -426,7 +446,11 @@ ${JSON.stringify(requestedSlides, null, 2)}
               },
               onError: (err) => {
                 get().failActive(next.id, err)
-                toast.error(err)
+                if (err === 'Cancelled') {
+                  toast(i18n.t('chat.cancelled'))
+                } else {
+                  toast.error(err)
+                }
               }
             }, newHistory, systemPrompt)
 
@@ -448,9 +472,13 @@ ${JSON.stringify(requestedSlides, null, 2)}
       },
       onError: (error) => {
         get().failActive(next.id, error)
-        toast.error(error)
+        if (error === 'Cancelled') {
+          toast(i18n.t('chat.cancelled'))
+        } else {
+          toast.error(error)
+        }
       },
-    }, history, systemPrompt)
+    }, history, systemPrompt, undefined, undefined, userImages.length > 0 ? userImages : undefined)
 
     set((state) => ({ activeAborts: { ...state.activeAborts, [next.projectId]: abort } }))
   },

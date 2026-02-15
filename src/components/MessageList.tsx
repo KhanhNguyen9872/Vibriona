@@ -8,6 +8,7 @@ import type { ChatMessage } from '../store/useSessionStore'
 import { useSessionStore } from '../store/useSessionStore'
 import { useQueueStore } from '../store/useQueueStore'
 import MessageBubble from './MessageBubble'
+import CompactStatusView from './CompactStatusView'
 import { extractCompletionMessage } from '../api/parseStream'
 
 interface MessageListProps {
@@ -214,30 +215,46 @@ export default function MessageList({ messages, isStreaming, streamingThinking }
       {/* Messages */}
       <div className={`flex-1 overflow-y-auto px-3 md:px-4 py-5 transition-all duration-200 ${menuOpen ? 'blur-sm pointer-events-none select-none opacity-60' : ''}`}>
         <div className="max-w-full mx-auto space-y-4">
-          {messages.map((msg) => (
-            <motion.div
-              key={msg.id}
-              initial={{ opacity: 0, y: 10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ duration: 0.2 }}
-              className={`flex gap-3 w-full min-w-0 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div className={`flex gap-3 min-w-0 ${msg.role === 'user' ? 'flex-row-reverse flex-1 justify-start' : 'flex-row'}`}>
-                {msg.role === 'assistant' && (
-                  <div className="shrink-0 w-7 h-7 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mt-0.5">
-                    <img src="assets/logo.png" alt={t('app.title')} className="w-5 h-5 object-contain" />
-                  </div>
-                )}
-                {msg.role === 'user' && (
-                  <div className="shrink-0 w-7 h-7 rounded-lg bg-neutral-300 dark:bg-white flex items-center justify-center mt-0.5">
-                    <User className="w-3.5 h-3.5 text-neutral-600 dark:text-black" />
-                  </div>
-                )}
+          {messages.map((msg) => {
+            if (msg.isCompactionPlaceholder) {
+              if (!msg.compactionPhase) return null
+              return (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="w-full"
+                >
+                  <CompactStatusView message={msg} />
+                </motion.div>
+              )
+            }
+            return (
+              <motion.div
+                key={msg.id}
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.2 }}
+                className={`flex gap-3 w-full min-w-0 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div className={`flex gap-3 min-w-0 ${msg.role === 'user' ? 'flex-row-reverse flex-1 justify-start' : 'flex-row'}`}>
+                  {msg.role === 'assistant' && (
+                    <div className="shrink-0 w-7 h-7 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mt-0.5">
+                      <img src="assets/logo.png" alt={t('app.title')} className="w-5 h-5 object-contain" />
+                    </div>
+                  )}
+                  {msg.role === 'user' && (
+                    <div className="shrink-0 w-7 h-7 rounded-lg bg-neutral-300 dark:bg-white flex items-center justify-center mt-0.5">
+                      <User className="w-3.5 h-3.5 text-neutral-600 dark:text-black" />
+                    </div>
+                  )}
 
-                <MessageBubble message={msg} />
-              </div>
-            </motion.div>
-          ))}
+                  <MessageBubble message={msg} />
+                </div>
+              </motion.div>
+            )
+          })}
 
           {/* Streaming thinking indicator */}
           {isStreaming && (

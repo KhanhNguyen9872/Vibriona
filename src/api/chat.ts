@@ -10,6 +10,8 @@ export interface BuildChatRequestOptions {
   systemPrompt: string
   userPrompt: string
   history?: HistoryMessage[]
+  /** Images for the current user message (base64 without data URL prefix); only last message supports images */
+  userImages?: { base64: string; mimeType: string }[]
   temperature?: number
   stream?: boolean
   maxTokens?: number
@@ -27,6 +29,7 @@ export function buildChatRequest(
     systemPrompt,
     userPrompt,
     history = [],
+    userImages = [],
     temperature = API_CONFIG.DEFAULT_TEMPERATURE,
     stream = true,
     maxTokens = API_CONFIG.MAX_TOKENS,
@@ -39,11 +42,21 @@ export function buildChatRequest(
 
   if (apiType === 'gemini') {
     const systemPart = { text: `"""\nSYSTEM PROMPT: ${systemPrompt}\n"""` }
-    const contents: Array<{ role: string; parts: Array<{ text: string }> }> = []
+    type Part = { text?: string; inline_data?: { mime_type: string; data: string } }
+    const contents: Array<{ role: string; parts: Part[] }> = []
+
+    const lastUserParts: Part[] = [{ text: userPrompt }]
+    if (userImages.length > 0) {
+      userImages.forEach((img) => {
+        lastUserParts.push({
+          inline_data: { mime_type: img.mimeType, data: img.base64 },
+        })
+      })
+    }
 
     if (history.length > 0) {
       history.forEach((m, idx) => {
-        const parts = [{ text: m.content }]
+        const parts: Part[] = [{ text: m.content }]
         if (idx === 0 && m.role === 'user') {
           parts.unshift(systemPart)
         }
@@ -60,12 +73,12 @@ export function buildChatRequest(
       }
       contents.push({
         role: 'user',
-        parts: [{ text: userPrompt }],
+        parts: lastUserParts,
       })
     } else {
       contents.push({
         role: 'user',
-        parts: [systemPart, { text: userPrompt }],
+        parts: [systemPart, ...lastUserParts],
       })
     }
 
@@ -81,12 +94,35 @@ export function buildChatRequest(
     }
   }
 
+  const lastUserMessage: Record<string, unknown> =
+    userImages.length > 0 && (apiType === 'ollama' || apiType === 'openai')
+      ? (        () => {
+          if (apiType === 'ollama') {
+            return {
+              role: 'user',
+              content: userPrompt,
+              images: userImages.map((img) => img.base64),
+            }
+          }
+          return {
+            role: 'user',
+            content: [
+              { type: 'text', text: userPrompt },
+              ...userImages.map((img) => ({
+              type: 'image_url',
+              image_url: { url: `data:${img.mimeType};base64,${img.base64}` },
+            })),
+            ],
+          }
+        })()
+      : { role: 'user', content: userPrompt }
+
   const body: Record<string, unknown> = {
     model: config.model,
     messages: [
       { role: 'system', content: systemPrompt },
       ...history,
-      { role: 'user', content: userPrompt },
+      lastUserMessage,
     ],
     temperature,
     stream,

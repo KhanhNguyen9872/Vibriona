@@ -8,10 +8,25 @@ import { API_CONFIG } from '../config/api'
 import { STORAGE_KEYS } from '../config/defaults'
 import { getSystemPrompt } from '../api/prompt'
 import { toast } from 'sonner'
-import { Sparkles, Loader2, Square, AlertCircle, X, Layers, Pencil, AlertTriangle, Mic, MicOff } from 'lucide-react'
+import { Sparkles, Square, AlertCircle, X, Layers, Pencil, AlertTriangle, Mic, MicOff, Paperclip, ClipboardPaste, ChevronDown, ChevronUp } from 'lucide-react'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
+import { confirmAction } from '../utils/confirmAction'
 
 const MAX_CHARS = 4096
+const MAX_ATTACHED_FILES = 3
+const MAX_ATTACH_BYTES = 200_000
+const MAX_IMAGE_BYTES = 4_000_000
+const ALLOWED_EXT = ['.txt', '.md', '.json', '.csv', '.jpg', '.jpeg', '.png', '.webp']
+const IMAGE_EXT = ['.jpg', '.jpeg', '.png', '.webp']
+const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp']
+
+interface AttachedFile {
+  id: string
+  name: string
+  content: string
+  type?: 'text' | 'image'
+  mimeType?: string
+}
 
 /** If existing text doesn't end with sentence punctuation + space, append ". " before new text (so speech continues the sentence properly). */
 function appendAfterSentence(prev: string, next: string): string {
@@ -76,7 +91,10 @@ interface ChatInputProps {
 export default function ChatInput({ className = '' }: ChatInputProps) {
   const { t, i18n } = useTranslation()
   const [prompt, setPrompt] = useState('')
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
+  const [attachListExpanded, setAttachListExpanded] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [contextTooltipOpen, setContextTooltipOpen] = useState(false)
   const contextTooltipRef = useRef<HTMLDivElement>(null)
   const isConfigured = useSettingsStore((s) => {
@@ -152,7 +170,8 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
   const contextStats = useMemo(() => {
     const messages = currentSession?.messages ?? []
     const lastCompactedIndex = currentSession?.lastCompactedIndex ?? 0
-    const uncompactedCount = lastCompactedIndex > 0 ? messages.length - lastCompactedIndex : messages.length
+    const uncompactedSlice = lastCompactedIndex > 0 ? messages.slice(lastCompactedIndex) : messages
+    const uncompactedCount = uncompactedSlice.filter((m) => !m.isCompactionPlaceholder).length
     const summaryLength = currentSession?.compactedContext?.length ?? 0
     const compactedChars = summaryLength > 0 ? summaryLength + COMPACTED_WRAPPER_LENGTH : 0
     const recentMessages = lastCompactedIndex > 0 ? messages.slice(lastCompactedIndex) : messages
@@ -255,8 +274,19 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
     if (eOrOverride && typeof eOrOverride !== 'string' && 'preventDefault' in eOrOverride) (eOrOverride as React.FormEvent).preventDefault()
     if (speech.isListening) speech.stop()
     const raw = overrideText ?? promptRef.current ?? prompt
-    const trimmed = (typeof raw === 'string' ? raw : '').trim()
-    if (!trimmed || isOverLimit || isProcessing) return
+    const promptPart = (typeof raw === 'string' ? raw : '').trim()
+    const textFiles = attachedFiles.filter((f) => f.type !== 'image')
+    const filesPart = textFiles.length > 0
+      ? textFiles.map((f) => `[From file: ${f.name}]\n\n${f.content}`).join('\n\n')
+      : ''
+    const trimmed = promptPart && filesPart
+      ? promptPart + '\n\n' + filesPart
+      : promptPart || filesPart
+    if (!trimmed || isProcessing) return
+    if (trimmed.length > MAX_CHARS) {
+      toast.error(t('chat.overLimit'))
+      return
+    }
 
     // Always send trimmed content; input will be cleared below
     const activeProfileId = useSettingsStore.getState().activeProfileId;
@@ -277,18 +307,22 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
     // Optimistic: create session if needed
     let activeProjectId = currentSessionId
     if (!currentSessionId) {
-      const title = trimmed.length > 60 ? trimmed.slice(0, 60) + '...' : trimmed
+      const titleSource = promptPart || (attachedFiles.length ? attachedFiles.map((f) => f.name).join(', ') : '')
+      const title = titleSource.length > 60 ? titleSource.slice(0, 60) + '...' : titleSource || 'Chat'
       activeProjectId = createSession(title)
     }
 
     const slideNums = selectedSlides.map((s) => s.slide_number)
 
-    // Optimistic: add user message immediately
+    // Optimistic: add user message (content = prompt only; attached files stored separately for display)
     addMessage({
       role: 'user',
-      content: trimmed,
+      content: promptPart,
       timestamp: Date.now(),
       isScriptGeneration: true,
+      ...(attachedFiles.length > 0 && {
+        attachedFiles: attachedFiles.map((f) => ({ name: f.name, content: f.content, type: f.type, mimeType: f.mimeType }))
+      }),
       ...(isContextEdit && {
         relatedSlideReferences: selectedSlides.map(s => ({
           id: `slide-card-${s.slide_number}`,
@@ -298,15 +332,16 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
       })
     })
 
-    // Clear input (and ref so next voice doesn't see stale text)
+    // Clear input and attached files
     setPrompt('')
     promptRef.current = ''
+    setAttachedFiles([])
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
 
     // Queue with or without context - use activeProjectId!
-    addToQueue(trimmed, activeProjectId!, isContextEdit ? selectedSlides : undefined)
+    addToQueue(trimmed, activeProjectId!, isContextEdit ? selectedSlides : undefined, attachedFiles.length > 0 ? attachedFiles.map((f) => ({ name: f.name, content: f.content, type: f.type, mimeType: f.mimeType })) : undefined)
 
     // Trigger "Magic Overlay" immediately for selected slides
     if (isContextEdit) {
@@ -325,6 +360,130 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
     }
   }
   submitRef.current = handleSubmit
+
+  const handleClear = () => {
+    setPrompt('')
+    promptRef.current = ''
+    setAttachedFiles([])
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+    }
+  }
+
+  const removeAttachedFile = (id: string) => {
+    setAttachedFiles((prev) => prev.filter((f) => f.id !== id))
+  }
+
+  const readFileAsText = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve((reader.result as string) ?? '')
+      reader.onerror = () => reject(reader.error)
+      reader.readAsText(file, 'UTF-8')
+    })
+
+  const readFileAsDataURL = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve((reader.result as string) ?? '')
+      reader.onerror = () => reject(reader.error)
+      reader.readAsDataURL(file)
+    })
+
+  const isImageFile = (file: File): boolean => {
+    const ext = '.' + (file.name.split('.').pop() ?? '').toLowerCase()
+    return IMAGE_EXT.includes(ext) || IMAGE_MIMES.includes(file.type)
+  }
+
+  const handleAttachChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : []
+    e.target.value = ''
+    if (files.length === 0) return
+    const valid: File[] = []
+    for (const file of files) {
+      const ext = '.' + (file.name.split('.').pop() ?? '').toLowerCase()
+      if (!ALLOWED_EXT.includes(ext) && !IMAGE_MIMES.includes(file.type)) {
+        toast.error(t('chat.attachFileUnsupported'))
+        continue
+      }
+      if (isImageFile(file)) {
+        if (file.size > MAX_IMAGE_BYTES) {
+          toast.error(t('chat.attachImageTooBig'))
+          continue
+        }
+      } else {
+        if (file.size > MAX_ATTACH_BYTES) {
+          toast.error(t('chat.attachFileTooBig'))
+          continue
+        }
+      }
+      valid.push(file)
+    }
+    if (valid.length === 0) return
+    Promise.all(
+      valid.map((file) => {
+        if (isImageFile(file)) {
+          return readFileAsDataURL(file).then((content) => ({
+            id: crypto.randomUUID(),
+            name: file.name,
+            content,
+            type: 'image' as const,
+            mimeType: file.type || 'image/jpeg',
+          }))
+        }
+        return readFileAsText(file).then((content) => ({
+          id: crypto.randomUUID(),
+          name: file.name,
+          content,
+          type: 'text' as const,
+        }))
+      })
+    )
+      .then((toAdd) => {
+        setAttachedFiles((prev) => {
+          const slots = MAX_ATTACHED_FILES - prev.length
+          if (slots <= 0) {
+            toast.error(t('chat.attachFilesMaxCount'))
+            return prev
+          }
+          const allowed = toAdd.slice(0, slots)
+          if (toAdd.length > slots) toast.error(t('chat.attachFilesMaxCount'))
+          const next = [...prev, ...allowed]
+          const totalLen =
+            (promptRef.current?.length ?? 0) +
+            next.reduce((sum, f) => sum + (f.type === 'image' ? 200 : f.content.length + 50), 0)
+          if (totalLen > MAX_CHARS) {
+            toast.error(t('chat.overLimit'))
+            return prev
+          }
+          return next
+        })
+      })
+      .catch(() => toast.error(t('chat.attachFileError')))
+  }
+
+  const handlePaste = async () => {
+    if (!navigator.clipboard) {
+      toast.error(t('chat.pasteError'))
+      return
+    }
+    try {
+      const text = await navigator.clipboard.readText()
+      if (!text.trim()) return
+      const combined = promptRef.current ? promptRef.current + '\n\n' + text : text
+      if (combined.length > MAX_CHARS) {
+        toast.error(t('chat.overLimit'))
+        return
+      }
+      setPrompt(combined)
+    } catch (err: any) {
+      if (err?.name === 'NotAllowedError' || String(err).includes('Permission')) {
+        toast.error(t('chat.pastePermissionDenied'))
+      } else {
+        toast.error(t('chat.pasteError'))
+      }
+    }
+  }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -406,6 +565,67 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
       </AnimatePresence>
 
       <div className="max-w-full mx-auto">
+        {/* Attached files: above input container so buttons don't cover it */}
+        <AnimatePresence>
+          {attachedFiles.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="mb-2 overflow-hidden"
+            >
+              <div className="rounded-xl border border-neutral-200 dark:border-zinc-600 bg-neutral-100/80 dark:bg-zinc-800/50 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setAttachListExpanded((e) => !e)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-[11px] font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200/60 dark:hover:bg-zinc-700/50 transition-colors"
+                >
+                  <span>{t('chat.attachFilesCount', { count: attachedFiles.length })}</span>
+                  {attachListExpanded ? (
+                    <ChevronUp className="w-3.5 h-3.5 shrink-0" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5 shrink-0" />
+                  )}
+                </button>
+                {attachListExpanded && (
+                  <motion.div
+                    initial={{ height: 0 }}
+                    animate={{ height: 'auto' }}
+                    exit={{ height: 0 }}
+                    className="border-t border-neutral-200 dark:border-zinc-600"
+                  >
+                    {attachedFiles.map((f) => (
+                      <div
+                        key={f.id}
+                        className="flex items-center gap-2 px-3 py-1.5 text-[11px] text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200/40 dark:hover:bg-zinc-700/40"
+                      >
+                        {f.type === 'image' ? (
+                          <img src={f.content} alt="" className="w-12 h-12 object-cover rounded shrink-0" />
+                        ) : null}
+                        <span className="flex-1 truncate min-w-0" title={f.name}>
+                          {f.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(ev) => {
+                            ev.stopPropagation()
+                            removeAttachedFile(f.id)
+                          }}
+                          title={t('chat.attachRemoveFile')}
+                          className="p-1 rounded text-neutral-500 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 shrink-0"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </motion.div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className={`relative border rounded-2xl transition-all ${isProcessing
             ? 'bg-neutral-100 dark:bg-zinc-800/50 border-neutral-200 dark:border-zinc-600/50'
             : speech.isListening
@@ -415,6 +635,15 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
             ? 'border-red-300 dark:border-red-800 focus-within:ring-red-200/50 dark:focus-within:ring-red-900/30'
             : !speech.isListening && 'border-neutral-200 dark:border-zinc-700 focus-within:ring-black/20 dark:focus-within:ring-zinc-500/30'
           }`}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt,.md,.json,.csv,image/jpeg,image/png,image/webp"
+            multiple
+            className="hidden"
+            aria-hidden
+            onChange={handleAttachChange}
+          />
           <textarea
             ref={textareaRef}
             value={speech.isListening && interimTranscript ? prompt + (prompt ? ' ' : '') + interimTranscript : prompt}
@@ -444,9 +673,24 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
             </div>
           )}
 
-          {/* Bottom bar */}
+          {/* Bottom bar: left = char/word count, right = feature buttons + context + submit */}
           <div className="absolute inset-x-3 bottom-2.5 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
+              <span className={`text-[10px] tabular-nums font-medium transition-colors ${isOverLimit
+                  ? 'text-red-500'
+                  : charCount > MAX_CHARS * 0.9
+                    ? 'text-amber-500'
+                    : 'text-neutral-400'
+                }`}>
+                {t('chat.charCount', { count: charCount, max: MAX_CHARS })}
+              </span>
+              {charCount > 0 && (
+                <span className="text-[10px] text-neutral-400 tabular-nums hidden sm:block">
+                  {t('chat.wordCount', { count: wordCount })}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
               {speech.isSupported && (
                 <button
                   type="button"
@@ -466,28 +710,35 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
                   )}
                 </button>
               )}
-              <span className={`text-[10px] tabular-nums font-medium transition-colors ${isOverLimit
-                  ? 'text-red-500'
-                  : charCount > MAX_CHARS * 0.9
-                    ? 'text-amber-500'
-                    : 'text-neutral-400'
-                }`}>
-                {t('chat.charCount', { count: charCount, max: MAX_CHARS })}
-              </span>
-              {charCount > 0 && (
-                <span className="text-[10px] text-neutral-400 tabular-nums hidden sm:block">
-                  {t('chat.wordCount', { count: wordCount })}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {isProcessing && (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isProcessing || attachedFiles.length >= MAX_ATTACHED_FILES}
+                title={t('chat.attachFile')}
+                className="p-1.5 rounded-lg text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-zinc-700 transition-colors touch-manipulation disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Paperclip className="w-4 h-4" aria-hidden />
+              </button>
+              {typeof navigator !== 'undefined' && navigator.clipboard && (
                 <button
-                  onClick={() => cancelProjectProcess(projectId)}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-neutral-200 dark:border-neutral-700 text-[11px] font-medium text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-[0.97] transition-all cursor-pointer"
+                  type="button"
+                  onClick={handlePaste}
+                  disabled={isProcessing}
+                  title={t('chat.paste')}
+                  className="p-1.5 rounded-lg text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-zinc-700 transition-colors touch-manipulation disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  <Square className="w-2.5 h-2.5" />
-                  {t('chat.cancel')}
+                  <ClipboardPaste className="w-4 h-4" aria-hidden />
+                </button>
+              )}
+              {(prompt.length > 0 || attachedFiles.length > 0) && (
+                <button
+                  type="button"
+                  onClick={handleClear}
+                  disabled={isProcessing}
+                  title={t('chat.clearInput')}
+                  className="p-1.5 rounded-lg text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-zinc-700 transition-colors touch-manipulation disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <X className="w-4 h-4" aria-hidden />
                 </button>
               )}
               {/* Context usage: progress indicator (current/max) + tooltip (hover on desktop, tap to toggle on mobile) */}
@@ -525,20 +776,34 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
                   <div className="absolute -bottom-1 right-4 w-2 h-2 bg-neutral-800 dark:bg-neutral-100 rotate-45" />
                 </div>
               </div>
-              <button
-                onClick={() => handleSubmit(speech.isListening ? effectiveContent : undefined)}
-                disabled={!effectiveContent || isOverLimit || isProcessing}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black dark:bg-white text-white dark:text-black text-[11px] font-semibold tracking-wide hover:opacity-90 active:scale-[0.97] transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-              >
-                {isProcessing ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : isEditMode ? (
-                  <Pencil className="w-3.5 h-3.5" />
-                ) : (
-                  <Sparkles className="w-3.5 h-3.5" />
-                )}
-                {isEditMode ? t('chat.update') : t('chat.generate')}
-              </button>
+              {isProcessing ? (
+                <button
+                  type="button"
+                  onClick={() => confirmAction(t('chat.stopConfirm'), () => cancelProjectProcess(projectId), {
+                    title: t('chat.stopConfirmTitle'),
+                    confirmText: t('common.yes'),
+                    cancelText: t('common.no'),
+                    variant: 'destructive',
+                  })}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600 dark:bg-red-600 text-white text-[11px] font-semibold tracking-wide hover:bg-red-700 dark:hover:bg-red-500 active:scale-[0.97] transition-all cursor-pointer"
+                >
+                  <Square className="w-3.5 h-3.5" />
+                  {t('chat.stop')}
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleSubmit(speech.isListening ? effectiveContent : undefined)}
+                  disabled={(!effectiveContent.trim() && attachedFiles.length === 0) || isOverLimit}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black dark:bg-white text-white dark:text-black text-[11px] font-semibold tracking-wide hover:opacity-90 active:scale-[0.97] transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {isEditMode ? (
+                    <Pencil className="w-3.5 h-3.5" />
+                  ) : (
+                    <Sparkles className="w-3.5 h-3.5" />
+                  )}
+                  {isEditMode ? t('chat.update') : t('chat.generate')}
+                </button>
+              )}
             </div>
           </div>
         </div>

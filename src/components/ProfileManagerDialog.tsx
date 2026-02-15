@@ -261,7 +261,7 @@ export const ProfileManagerDialog = ({ open, onOpenChange }: Props) => {
   const systemPromptOptions: SystemPromptOption[] = useMemo(() => (
     SYSTEM_PROMPT_OPTION_VALUES.map((value) => ({
       value,
-      label: `${t(`profiles.systemPrompt${value.charAt(0).toUpperCase() + value.slice(1)}`)} · ${formatPromptSize(getSystemPromptLength(value))} ${t('profiles.chars')}`,
+      label: `${t(`profiles.systemPrompt${value.charAt(0).toUpperCase() + value.slice(1)}`)} · ${formatPromptSize(getSystemPromptLength(value))} ${t('profiles.context')}`,
     }))
   ), [t]);
 

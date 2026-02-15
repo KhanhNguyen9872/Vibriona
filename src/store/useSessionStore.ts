@@ -31,6 +31,10 @@ export interface ChatMessage {
   }
   selectedOption?: string // Persisted selection
   isCompacted?: boolean // Mark messages included in a compaction
+  isCompactionPlaceholder?: boolean // Compacting/Compacted status message, excluded from context count
+  compactionPhase?: 'compacting' | 'compacted' // When isCompactionPlaceholder: show in compact status UI
+  /** User message: list of attached files (name + content) for display; content in message is prompt-only */
+  attachedFiles?: { name: string; content: string; type?: 'text' | 'image'; mimeType?: string }[]
 }
 
 export interface Session {
