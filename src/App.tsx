@@ -36,7 +36,7 @@ function App() {
   const { t } = useTranslation()
   const { theme } = useSettingsStore()
   const { items, getActiveProcessForProject, isProjectProcessing } = useQueueStore()
-  const { sessions, createSession, addMessage, insertMessageAfter, updateMessage, currentSessionId, getCurrentSession, setCurrentSession, setSessionSlides, newChat } = useSessionStore()
+  const { sessions, createSession, addMessage, currentSessionId, getCurrentSession, setCurrentSession, setSessionSlides, newChat } = useSessionStore()
   const [showSettings, setShowSettings] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
@@ -164,29 +164,22 @@ function App() {
 
       handleMsgCreation(item)
     }
-  }, [items, currentSessionId, createSession, addMessage, insertMessageAfter, updateMessage, setSessionSlides])
+  }, [items, currentSessionId, createSession, addMessage, setSessionSlides])
 
   // Helper to process the message creation (extracted from effect)
   const handleMsgCreation = (item: any) => {
     // Re-check session in case it changed during timeout
-    const store = useSessionStore.getState()
-    let currentSessionId = store.currentSessionId
+    const currentSessionId = useSessionStore.getState().currentSessionId
     if (!currentSessionId && !item.prompt) return
 
     if (savedItemIds.current.has(item.id)) return
 
-    // Use item's project when available so we update the correct session
-    let sessionId = item.projectId ?? currentSessionId
+    let sessionId = currentSessionId
     if (!sessionId) {
       const title = item.prompt.length > 60
         ? item.prompt.slice(0, 60) + '...'
         : item.prompt
       sessionId = createSession(title)
-    }
-    const prevViewSessionId = currentSessionId
-    const didSwitch = sessionId !== currentSessionId
-    if (didSwitch) {
-      setCurrentSession(sessionId)
     }
 
     // Capture previous state BEFORE updating
@@ -219,15 +212,14 @@ function App() {
       })
     }
 
-    const msgContent = item.completionMessage
-      || (item.responseAction === 'delete' && item.slides!.length > 0
-        ? t('chat.deletedSlides', { count: item.slides!.length, slides: item.slides!.map((s: any) => s.slide_number).join(', ') })
-        : (item.slides!.length > 0
-          ? t('chat.generatedSlides', { count: item.slides!.length })
-          : item.result!))
-    const msgPayload = {
-      role: 'assistant' as const,
-      content: msgContent,
+    addMessage({
+      role: 'assistant',
+      content: item.completionMessage
+        || (item.responseAction === 'delete' && item.slides!.length > 0
+          ? t('chat.deletedSlides', { count: item.slides!.length, slides: item.slides!.map((s: any) => s.slide_number).join(', ') })
+          : (item.slides!.length > 0
+            ? t('chat.generatedSlides', { count: item.slides!.length })
+            : item.result!)),
       thinking: item.thinking,
       slides: item.slides,
       timestamp: Date.now(),
@@ -238,19 +230,8 @@ function App() {
         number: s.slide_number,
         label: t('chat.slideLabel', { number: s.slide_number })
       })),
-      action,
-    }
-    if (item.thinkingMessageId) {
-      updateMessage(item.thinkingMessageId, { ...msgPayload, isThinking: false })
-    } else if (item.messageId && item.projectId) {
-      insertMessageAfter(item.messageId, msgPayload, item.projectId)
-    } else {
-      addMessage(msgPayload)
-    }
-
-    if (didSwitch && prevViewSessionId) {
-      setCurrentSession(prevViewSessionId)
-    }
+      action // Pass the determined action to the message
+    })
 
     savedItemIds.current.add(item.id)
   }

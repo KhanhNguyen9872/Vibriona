@@ -8,7 +8,7 @@ import { API_CONFIG } from '../config/api'
 import { STORAGE_KEYS } from '../config/defaults'
 import { getSystemPrompt } from '../api/prompt'
 import { toast } from 'sonner'
-import { Sparkles, Square, Clock, AlertCircle, X, Layers, Pencil, AlertTriangle, Mic, MicOff, Paperclip, ClipboardPaste, ChevronDown, ChevronUp } from 'lucide-react'
+import { Sparkles, Square, AlertCircle, X, Layers, Pencil, AlertTriangle, Mic, MicOff, Paperclip, ClipboardPaste, ChevronDown, ChevronUp } from 'lucide-react'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
 import { confirmAction } from '../utils/confirmAction'
 
@@ -143,6 +143,7 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
   const isEditMode = sessionSlides.length > 0
   const isContextEdit = selectedSlides.length > 0
 
+  const queuedCount = items.filter((i) => i.status === 'queued').length
   const lastError = [...items].reverse().find((i) => i.status === 'error')
 
   // When listening, "effective" content = what's shown (prompt + interim); used for submit button and for submit-on-click
@@ -258,7 +259,15 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
     el.style.height = Math.min(el.scrollHeight, 400) + 'px'
   }, [prompt])
 
-  // Error toast is shown once by useQueueStore.onError; we only display lastError inline below the input
+  // Toast on error
+  useEffect(() => {
+    if (lastError?.error) {
+      toast.error(t('chat.error'), { 
+        description: lastError.error,
+        id: `error-${lastError.id}`
+      })
+    }
+  }, [lastError?.id, lastError?.error, t])
 
   const handleSubmit = (eOrOverride?: React.MouseEvent | React.FormEvent | string) => {
     const overrideText = typeof eOrOverride === 'string' ? eOrOverride : undefined
@@ -273,7 +282,7 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
     const trimmed = promptPart && filesPart
       ? promptPart + '\n\n' + filesPart
       : promptPart || filesPart
-    if (!trimmed) return
+    if (!trimmed || isProcessing) return
     if (trimmed.length > MAX_CHARS) {
       toast.error(t('chat.overLimit'))
       return
@@ -306,12 +315,11 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
     const slideNums = selectedSlides.map((s) => s.slide_number)
 
     // Optimistic: add user message (content = prompt only; attached files stored separately for display)
-    const msgId = addMessage({
+    addMessage({
       role: 'user',
       content: promptPart,
       timestamp: Date.now(),
       isScriptGeneration: true,
-      isPending: isProcessing,
       ...(attachedFiles.length > 0 && {
         attachedFiles: attachedFiles.map((f) => ({ name: f.name, content: f.content, type: f.type, mimeType: f.mimeType }))
       }),
@@ -333,7 +341,7 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
     }
 
     // Queue with or without context - use activeProjectId!
-    addToQueue(trimmed, activeProjectId!, isContextEdit ? selectedSlides : undefined, attachedFiles.length > 0 ? attachedFiles.map((f) => ({ name: f.name, content: f.content, type: f.type, mimeType: f.mimeType })) : undefined, msgId)
+    addToQueue(trimmed, activeProjectId!, isContextEdit ? selectedSlides : undefined, attachedFiles.length > 0 ? attachedFiles.map((f) => ({ name: f.name, content: f.content, type: f.type, mimeType: f.mimeType })) : undefined)
 
     // Trigger "Magic Overlay" immediately for selected slides
     if (isContextEdit) {
@@ -345,7 +353,12 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
     // Note: Mobile tab switching now happens automatically in App.tsx 
     // only when action is confirmed to be slide-related (intent-aware)
 
+    if (queuedCount > 0) {
+      toast(t('chat.queued'), {
+        description: t('chat.queuePosition', { position: queuedCount + 1 }),
+      })
     }
+  }
   submitRef.current = handleSubmit
 
   const handleClear = () => {
@@ -764,31 +777,19 @@ export default function ChatInput({ className = '' }: ChatInputProps) {
                 </div>
               </div>
               {isProcessing ? (
-                (effectiveContent.trim() || attachedFiles.length > 0) ? (
-                  <button
-                    type="button"
-                    onClick={() => handleSubmit(speech.isListening ? effectiveContent : undefined)}
-                    disabled={isOverLimit}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600 dark:bg-amber-600 text-white text-[11px] font-semibold tracking-wide hover:bg-amber-700 dark:hover:bg-amber-500 active:scale-[0.97] transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    <Clock className="w-3.5 h-3.5" />
-                    {t('chat.queue')}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => confirmAction(t('chat.stopConfirm'), () => cancelProjectProcess(projectId), {
-                      title: t('chat.stopConfirmTitle'),
-                      confirmText: t('common.yes'),
-                      cancelText: t('common.no'),
-                      variant: 'destructive',
-                    })}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600 dark:bg-red-600 text-white text-[11px] font-semibold tracking-wide hover:bg-red-700 dark:hover:bg-red-500 active:scale-[0.97] transition-all cursor-pointer"
-                  >
-                    <Square className="w-3.5 h-3.5" />
-                    {t('chat.stop')}
-                  </button>
-                )
+                <button
+                  type="button"
+                  onClick={() => confirmAction(t('chat.stopConfirm'), () => cancelProjectProcess(projectId), {
+                    title: t('chat.stopConfirmTitle'),
+                    confirmText: t('common.yes'),
+                    cancelText: t('common.no'),
+                    variant: 'destructive',
+                  })}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600 dark:bg-red-600 text-white text-[11px] font-semibold tracking-wide hover:bg-red-700 dark:hover:bg-red-500 active:scale-[0.97] transition-all cursor-pointer"
+                >
+                  <Square className="w-3.5 h-3.5" />
+                  {t('chat.stop')}
+                </button>
               ) : (
                 <button
                   onClick={() => handleSubmit(speech.isListening ? effectiveContent : undefined)}
