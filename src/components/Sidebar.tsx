@@ -53,7 +53,10 @@ function SortableSessionWrapper({
   isDragActive: boolean
   children: React.ReactNode
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: session.id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: session.id,
+    disabled: session.pinned,
+  })
   const style = { transform: CSS.Transform.toString(transform), transition }
   return (
     <div
@@ -73,13 +76,17 @@ function SortableSessionWrapper({
         transition={{ duration: 0.2 }}
         className="flex items-stretch gap-0"
       >
-        <div
-          {...attributes}
-          {...listeners}
-          className="flex items-center shrink-0 py-1 cursor-grab active:cursor-grabbing touch-none self-center rounded hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50"
-        >
-          <GripVertical className="w-3 h-3 text-neutral-400" />
-        </div>
+        {session.pinned ? (
+          <div className="flex shrink-0 w-3 self-center py-1" aria-hidden />
+        ) : (
+          <div
+            {...attributes}
+            {...listeners}
+            className="flex items-center shrink-0 py-1 cursor-grab active:cursor-grabbing touch-none self-center rounded hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50"
+          >
+            <GripVertical className="w-3 h-3 text-neutral-400" />
+          </div>
+        )}
         <div className={`min-w-0 flex-1 relative transition-opacity duration-200 ${isDragActive && !isDragging ? 'opacity-70' : ''}`}>
           {children}
         </div>

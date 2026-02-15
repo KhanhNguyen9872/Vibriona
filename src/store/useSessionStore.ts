@@ -110,6 +110,7 @@ export const useSessionStore = create<SessionState>()(
           messages: [],
           slides: [],
           timestamp: Date.now(),
+          pinned: false,
         }
         set((state) => ({
           sessions: [session, ...state.sessions],
@@ -187,6 +188,7 @@ export const useSessionStore = create<SessionState>()(
           ...session,
           id: crypto.randomUUID(),
           slides: session.slides ?? [],
+          pinned: session.pinned === true,
           messages: session.messages.map((m) => ({
             ...m,
             id: m.id || crypto.randomUUID(),
@@ -215,11 +217,23 @@ export const useSessionStore = create<SessionState>()(
       clearSessions: () => set({ sessions: [], currentSessionId: null }),
 
       pinSession: (id) =>
-        set((state) => ({
-          sessions: state.sessions.map((s) =>
-            s.id === id ? { ...s, pinned: !s.pinned } : s
-          ),
-        })),
+        set((state) => {
+          const list = [...state.sessions]
+          const idx = list.findIndex((s) => s.id === id)
+          if (idx === -1) return state
+          const session = list[idx]
+          const nextPinned = session.pinned !== true
+          if (nextPinned) {
+            list.splice(idx, 1)
+            list.unshift({ ...session, pinned: true })
+            return { sessions: list }
+          }
+          return {
+            sessions: list.map((s) =>
+              s.id === id ? { ...s, pinned: false } : s
+            ),
+          }
+        }),
 
       renameSession: (id, title) =>
         set((state) => ({
@@ -509,6 +523,13 @@ export const useSessionStore = create<SessionState>()(
         sessions: state.sessions.slice(0, MAX_PERSISTED_SESSIONS),
         currentSessionId: state.currentSessionId,
       }),
+      merge: (persistedState, currentState) => {
+        const p = persistedState as { sessions?: Session[]; currentSessionId?: string | null }
+        const sessions = Array.isArray(p?.sessions)
+          ? p.sessions.map((s) => ({ ...s, pinned: s.pinned === true }))
+          : currentState.sessions
+        return { ...currentState, ...p, sessions }
+      },
     },
   ),
   {
