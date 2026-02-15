@@ -814,17 +814,18 @@ export async function generatePPTX_AI(
 
   const total = slides.length
 
+  if (onProgress) {
+    const firstStatus = total > 0 && slides[0]
+      ? (t ? t('workspace.exportDesigningSlide', { number: 1, title: slides[0].title }) : `Slide 1: ${slides[0].title}...`)
+      : (t ? t('workspace.exportModalPreparing') : 'Preparing...')
+    onProgress(0, total, firstStatus)
+  }
+
   for (let i = 0; i < total; i++) {
     if (abortSignal?.aborted) {
       throw new Error(EXPORT_CANCELLED_MESSAGE)
     }
     const slide = slides[i]
-    if (onProgress) {
-      const status = t
-        ? t('workspace.exportDesigningSlide', { number: i + 1, title: slide.title })
-        : `Slide ${i + 1}: ${slide.title}...`
-      onProgress(i + 1, total, status)
-    }
 
     try {
       const design = await generateSlideDesign(
@@ -854,6 +855,14 @@ export async function generatePPTX_AI(
       const pptSlide = pptx.addSlide()
       renderFallbackSlide(pptSlide, slide)
     }
+
+    if (onProgress) {
+      const completed = i + 1
+      const status = completed < total && slides[completed]
+        ? (t ? t('workspace.exportDesigningSlide', { number: completed + 1, title: slides[completed].title }) : `Slide ${completed + 1}: ${slides[completed].title}...`)
+        : (t ? t('workspace.exportSaving') : 'Saving file...')
+      onProgress(completed, total, status)
+    }
   }
 
   if (abortSignal?.aborted) {
@@ -863,6 +872,7 @@ export async function generatePPTX_AI(
     const savingStatus = t ? t('workspace.exportSaving') : 'Saving file...'
     onProgress(total, total, savingStatus)
   }
+  await new Promise((r) => setTimeout(r, 2000))
   await pptx.writeFile({ fileName: `${filename}.pptx` })
 }
 
