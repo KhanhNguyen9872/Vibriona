@@ -38,13 +38,17 @@ export interface QueueItem {
   hasReceivedAction?: boolean // Track when action type is known from stream
   /** Attached files (text + image) for the user message; images are sent as userImages to API */
   attachedFiles?: { name: string; content: string; type?: 'text' | 'image'; mimeType?: string }[]
+  /** ID of user message in session (for cancel queue) */
+  messageId?: string
+  /** ID of transient thinking message (inserted when processing starts) */
+  thinkingMessageId?: string
 }
 
 interface QueueState {
   items: QueueItem[]
   activeProcesses: Record<string, QueueItem>
   activeAborts: Record<string, AbortController>
-  addToQueue: (prompt: string, projectId: string, contextSlides?: Slide[], attachedFiles?: QueueItem['attachedFiles']) => void
+  addToQueue: (prompt: string, projectId: string, contextSlides?: Slide[], attachedFiles?: QueueItem['attachedFiles'], messageId?: string) => void
   processNext: () => void
   updateItem: (id: string, patch: Partial<QueueItem>) => void
   completeActive: (id: string, result: string, slides: Slide[], thinking: string, completionMessage: string) => void
@@ -52,6 +56,7 @@ interface QueueState {
   cancelActive: () => void
   cancelProjectProcess: (projectId: string) => void
   clearItems: () => void
+  removeQueueItem: (itemId: string) => void
   // Helper methods
   getActiveProcessForProject: (projectId: string) => QueueItem | null
   isProjectProcessing: (projectId: string) => boolean
@@ -64,7 +69,7 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
   activeProcesses: {},
   activeAborts: {},
 
-  addToQueue: (prompt, projectId, contextSlides, attachedFiles) => {
+  addToQueue: (prompt, projectId, contextSlides, attachedFiles, messageId) => {
     // Security: Sanitize prompt input
     const sanitizedPrompt = prompt
       .replace(/\0/g, '')                         // Remove null bytes
@@ -79,6 +84,7 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
       contextSlides,
       contextSlideNumbers: contextSlides?.map((s) => s.slide_number),
       attachedFiles,
+      messageId,
     }
     set((state) => ({ items: [...state.items, item] }))
 
@@ -244,6 +250,37 @@ export const useQueueStore = create<QueueState>()((set, get) => ({
         i.id === next.id ? processingItem : i
       ),
     }))
+
+    // Clear isPending and add thinking message (anchored after parent user message)
+    const session = sessionStore.sessions.find((s) => s.id === next.projectId)
+    if (session) {
+      // Safety net: remove any orphaned thinking bubbles (not compaction placeholders) so we never have more than one
+      session.messages.forEach((m) => {
+        if (m.isThinking && !m.isCompactionPlaceholder) {
+          sessionStore.deleteMessage(m.id)
+        }
+      })
+      const sessionAfterCleanup = sessionStore.sessions.find((s) => s.id === next.projectId)
+      const messagesAfterCleanup = sessionAfterCleanup?.messages ?? []
+      const parentMsg = next.messageId
+        ? messagesAfterCleanup.find((m) => m.id === next.messageId)
+        : messagesAfterCleanup.find((m) => m.role === 'user' && m.isPending)
+      if (parentMsg) {
+        sessionStore.updateMessage(parentMsg.id, { isPending: false })
+        const thinkingMsgId = sessionStore.insertMessageAfter(
+          parentMsg.id,
+          {
+            role: 'assistant',
+            content: '',
+            timestamp: Date.now(),
+            isScriptGeneration: false,
+            isThinking: true,
+          },
+          next.projectId
+        )
+        get().updateItem(next.id, { thinkingMessageId: thinkingMsgId })
+      }
+    }
 
     // Build the actual API prompt with SKELETON CONTEXT STRATEGY
     let apiPrompt = next.prompt
@@ -527,29 +564,52 @@ ${JSON.stringify(requestedSlides, null, 2)}
       ),
     }))
 
+    // Insert/replace chat message (anchored after parent, or replace thinking placeholder)
+    const sessionStore = useSessionStore.getState()
+    const insertOrReplace = (content: string, extra?: Partial<ChatMessage>) => {
+      if (item.thinkingMessageId) {
+        sessionStore.updateMessage(item.thinkingMessageId, {
+          content,
+          isThinking: false,
+          ...extra,
+        })
+      } else if (item.messageId) {
+        sessionStore.insertMessageAfter(
+          item.messageId,
+          {
+            role: 'assistant',
+            content,
+            timestamp: Date.now(),
+            isScriptGeneration: false,
+            ...extra,
+          },
+          item.projectId
+        )
+      } else {
+        sessionStore.addMessage({
+          role: 'assistant',
+          content,
+          timestamp: Date.now(),
+          isScriptGeneration: false,
+          ...extra,
+        })
+      }
+    }
+
     // 💬 If action is "response", create a chat message with the content
     if (item.responseAction === 'response' && item.content) {
-      useSessionStore.getState().addMessage({
-        role: 'assistant',
-        content: item.content,
-        timestamp: Date.now(),
-        isScriptGeneration: false
-      })
+      insertOrReplace(item.content)
     }
 
     // ❓ If action is "ask", create an interactive clarification message
     if (item.responseAction === 'ask' && item.question) {
-      useSessionStore.getState().addMessage({
-        role: 'assistant',
-        content: item.question, // Fallback text
-        timestamp: Date.now(),
-        isScriptGeneration: false,
+      insertOrReplace(item.question, {
         isInteractive: true,
         clarification: {
           question: item.question,
           options: item.options || [],
-          allowCustom: item.allowCustom
-        }
+          allowCustom: item.allowCustom,
+        },
       })
     }
 
@@ -564,12 +624,13 @@ ${JSON.stringify(requestedSlides, null, 2)}
         return ''
       }).filter(Boolean).join(', ')
       
-      useSessionStore.getState().addMessage({
-        role: 'assistant',
-        content: `I have applied ${item.operations.length} changes: ${opSummary}`,
-        timestamp: Date.now(),
-        isScriptGeneration: false
-      })
+      insertOrReplace(`I have applied ${item.operations.length} changes: ${opSummary}`)
+    }
+
+    // 🛡️ Safety: For slide generation actions (create/update/append/delete), 
+    // delete the thinking bubble here since App.tsx will create the final message
+    if (item.thinkingMessageId && !['response', 'ask', 'batch'].includes(item.responseAction || '')) {
+      sessionStore.deleteMessage(item.thinkingMessageId)
     }
 
     useSessionStore.getState().clearProcessingSlides()
@@ -595,6 +656,14 @@ ${JSON.stringify(requestedSlides, null, 2)}
       ),
     }))
 
+    // Replace zombie thinking bubble with error so it doesn't stay stuck as "Thinking..."
+    if (item.thinkingMessageId) {
+      useSessionStore.getState().updateMessage(item.thinkingMessageId, {
+        content: error,
+        isThinking: false,
+      })
+    }
+
     useSessionStore.getState().clearProcessingSlides()
 
     setTimeout(() => get().processNext(), 0)
@@ -602,8 +671,19 @@ ${JSON.stringify(requestedSlides, null, 2)}
 
   cancelActive: () => {
     // Legacy method: cancel all active processes
-    const { activeAborts } = get()
+    const { activeAborts, items } = get()
     Object.values(activeAborts).forEach(abort => abort.abort())
+
+    // Replace all active thinking bubbles so they don't stay as zombies
+    const sessionStore = useSessionStore.getState()
+    items.forEach((i) => {
+      if (i.status === 'processing' && i.thinkingMessageId) {
+        sessionStore.updateMessage(i.thinkingMessageId, {
+          content: i18n.t('chat.cancelled'),
+          isThinking: false,
+        })
+      }
+    })
 
     set((state) => ({
       activeProcesses: {},
@@ -648,6 +728,12 @@ ${JSON.stringify(requestedSlides, null, 2)}
     const { activeAborts } = get()
     Object.values(activeAborts).forEach(abort => abort.abort())
     set({ items: [], activeProcesses: {}, activeAborts: {} })
+  },
+
+  removeQueueItem: (itemId) => {
+    const item = get().items.find((i) => i.id === itemId)
+    if (!item || item.status !== 'queued') return
+    set((state) => ({ items: state.items.filter((i) => i.id !== itemId) }))
   },
 
   // Helper methods

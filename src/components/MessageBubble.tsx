@@ -23,8 +23,8 @@ interface MessageBubbleProps {
 
 export default function MessageBubble({ message }: MessageBubbleProps) {
   const { t } = useTranslation()
-  const { highlightSlide, restoreSnapshot, getCurrentSession, addMessage, updateMessage, createSession, currentSessionId, deleteMessagesFrom, hasCheckpointAfterTimestamp, getLastCheckpointBeforeMessageId, clearCompaction } = useSessionStore()
-  const { addToQueue } = useQueueStore()
+  const { highlightSlide, restoreSnapshot, getCurrentSession, addMessage, updateMessage, createSession, currentSessionId, deleteMessagesFrom, deleteMessage, hasCheckpointAfterTimestamp, getLastCheckpointBeforeMessageId, clearCompaction } = useSessionStore()
+  const { addToQueue, items: queueItems, removeQueueItem } = useQueueStore()
 
   const [isEditing, setIsEditing] = useState(false)
   const [editedContent, setEditedContent] = useState('')
@@ -75,22 +75,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
     addToQueue(answer, activeProjectId!)
   }
 
-  // Render interactive clarification if present
-  if (message.isInteractive && message.clarification) {
-    return (
-      <div className="max-w-[85%]">
-        <ClarificationRequest
-          question={message.clarification.question}
-          options={message.clarification.options}
-          allowCustom={message.clarification.allowCustom}
-          onSelect={handleClarificationSelect}
-          selectedOption={message.selectedOption}
-        />
-      </div>
-    )
-  }
-
-  // Clean content logic
+  // Clean content logic - must run before any early return (hooks rule)
   const displayContent = useMemo(() => {
     if (message.role !== 'assistant' || !message.isScriptGeneration) {
       // For user messages or normal chat, just return content
@@ -116,6 +101,21 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
 
     return message.content
   }, [message.content, message.role, message.isScriptGeneration, t])
+
+  // Render interactive clarification if present (after all hooks)
+  if (message.isInteractive && message.clarification) {
+    return (
+      <div className="max-w-[85%]">
+        <ClarificationRequest
+          question={message.clarification.question}
+          options={message.clarification.options}
+          allowCustom={message.clarification.allowCustom}
+          onSelect={handleClarificationSelect}
+          selectedOption={message.selectedOption}
+        />
+      </div>
+    )
+  }
 
   const handleRestore = () => {
     if (!message.slideSnapshot || message.slideSnapshot.length === 0) return
@@ -143,6 +143,32 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
     setEditedAttachedFiles(message.attachedFiles ? [...message.attachedFiles] : [])
     setIsEditing(true)
   }
+
+  const handleCancelQueue = () => {
+    const queueItem = queueItems.find((i) => i.messageId === message.id && i.status === 'queued')
+    if (queueItem) {
+      removeQueueItem(queueItem.id)
+      deleteMessage(message.id)
+    }
+  }
+
+  // Queue position for pending messages (1-based: 1 = next to process). Recomputes when queue changes (item sent/done/cancelled).
+  const projectQueueKey = useMemo(
+    () =>
+      queueItems
+        .filter((i) => i.projectId === currentSessionId && (i.status === 'queued' || i.status === 'processing'))
+        .map((i) => `${i.id}:${i.status}`)
+        .join(','),
+    [queueItems, currentSessionId]
+  )
+  const queuePosition = useMemo(() => {
+    if (!message.isPending || !currentSessionId) return null
+    const projectItems = queueItems.filter(
+      (i) => i.projectId === currentSessionId && (i.status === 'queued' || i.status === 'processing')
+    )
+    const idx = projectItems.findIndex((i) => i.messageId === message.id)
+    return idx >= 0 ? idx + 1 : null
+  }, [message.isPending, message.id, currentSessionId, projectQueueKey, queueItems])
 
   const handleCancelEdit = () => {
     setIsEditing(false)
@@ -562,24 +588,42 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
               <Copy className="w-2.5 h-2.5" />
             </button>
             {message.role === 'user' && (
-              <button
-                onClick={handleEdit}
-                title={t('chat.edit')}
-                aria-label={t('chat.edit')}
-                className="flex items-center justify-center p-1 rounded-md border border-neutral-200/80 dark:border-zinc-700/80 text-neutral-500 dark:text-zinc-400 hover:border-neutral-400 dark:hover:border-zinc-500 hover:text-neutral-700 dark:hover:text-zinc-200 transition-all active:scale-[0.97] cursor-pointer shrink-0"
-              >
-                <Edit className="w-2.5 h-2.5" />
-              </button>
+              message.isPending ? (
+                <button
+                  onClick={handleCancelQueue}
+                  title={t('chat.cancelQueue')}
+                  aria-label={t('chat.cancelQueue')}
+                  className="flex items-center justify-center p-1 rounded-md border border-neutral-200/80 dark:border-zinc-700/80 text-neutral-500 dark:text-zinc-400 hover:border-red-500 hover:text-red-500 transition-all active:scale-[0.97] cursor-pointer shrink-0"
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              ) : (
+                <button
+                  onClick={handleEdit}
+                  title={t('chat.edit')}
+                  aria-label={t('chat.edit')}
+                  className="flex items-center justify-center p-1 rounded-md border border-neutral-200/80 dark:border-zinc-700/80 text-neutral-500 dark:text-zinc-400 hover:border-neutral-400 dark:hover:border-zinc-500 hover:text-neutral-700 dark:hover:text-zinc-200 transition-all active:scale-[0.97] cursor-pointer shrink-0"
+                >
+                  <Edit className="w-2.5 h-2.5" />
+                </button>
+              )
             )}
           </div>
-          <p className={`text-[10px] whitespace-nowrap shrink-0 ${message.role === 'user'
+          <div className="flex items-center gap-2 shrink-0">
+            {message.isPending && queuePosition != null && (
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-neutral-300/80 dark:bg-zinc-600/80 text-neutral-600 dark:text-zinc-300">
+                {t('chat.queueBadge', { position: queuePosition })}
+              </span>
+            )}
+            <p className={`text-[10px] whitespace-nowrap ${message.role === 'user'
               ? 'text-neutral-400 dark:text-zinc-400 pr-1'
               : 'text-neutral-400 dark:text-zinc-500 ml-2'
             }`}>
-            {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
-            {' '}
-            {new Date(message.timestamp).toLocaleDateString([], { day: '2-digit', month: '2-digit' })}
-          </p>
+              {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+              {' '}
+              {new Date(message.timestamp).toLocaleDateString([], { day: '2-digit', month: '2-digit' })}
+            </p>
+          </div>
         </div>
       )}
     </div>

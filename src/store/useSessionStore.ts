@@ -35,6 +35,8 @@ export interface ChatMessage {
   compactionPhase?: 'compacting' | 'compacted' // When isCompactionPlaceholder: show in compact status UI
   /** User message: list of attached files (name + content) for display; content in message is prompt-only */
   attachedFiles?: { name: string; content: string; type?: 'text' | 'image'; mimeType?: string }[]
+  /** Message đang chờ queue xử lý; hiển thị bubble mờ */
+  isPending?: boolean
 }
 
 export interface Session {
@@ -48,6 +50,8 @@ export interface Session {
   compactedContext?: string // AI-generated summary of old messages
   compactedAt?: number // Timestamp when compaction occurred
   lastCompactedIndex?: number // Index of last message included in compaction
+  /** Sidebar project icon id (e.g. messageSquare, fileText). Optional; defaults to messageSquare when rendering. */
+  icon?: string
 }
 
 interface SessionState {
@@ -56,6 +60,7 @@ interface SessionState {
   highlightedSlideIndex: number | null
   createSession: (title: string) => string
   addMessage: (message: Omit<ChatMessage, 'id'>) => string
+  insertMessageAfter: (parentMessageId: string, message: Omit<ChatMessage, 'id'>, sessionId?: string) => string
   updateMessage: (messageId: string, patch: Partial<ChatMessage>) => void
   setCurrentSession: (id: string | null) => void
   deleteSession: (id: string) => void
@@ -63,11 +68,13 @@ interface SessionState {
   importSession: (session: Session) => void
   clearCurrentMessages: () => void
   deleteMessagesFrom: (messageId: string) => void
+  deleteMessage: (messageId: string) => void
   hasCheckpointAfterTimestamp: (timestamp: number) => boolean
   getLastCheckpointBeforeMessageId: (messageId: string) => Slide[] | undefined
   newChat: () => void
   pinSession: (id: string) => void
   renameSession: (id: string, title: string) => void
+  setSessionIcon: (id: string, icon: string) => void
   reorderSessions: (fromIndex: number, toIndex: number) => void
   // Slide operations (session-scoped)
   setSessionSlides: (slides: Slide[]) => void
@@ -163,6 +170,36 @@ export const useSessionStore = create<SessionState>()(
         return fullMessage.id
       },
 
+      insertMessageAfter: (parentMessageId, message, sessionId) => {
+        const { currentSessionId } = get()
+        const targetSessionId = sessionId ?? currentSessionId
+        if (!targetSessionId) return ''
+
+        const fullMessage: ChatMessage = {
+          ...message,
+          id: crypto.randomUUID(),
+        }
+
+        set((state) => ({
+          sessions: state.sessions.map((s) => {
+            if (s.id !== targetSessionId) return s
+
+            const parentIndex = s.messages.findIndex((m) => m.id === parentMessageId)
+            if (parentIndex === -1) {
+              return { ...s, messages: [...s.messages, fullMessage], timestamp: Date.now() }
+            }
+
+            const newMessages = [
+              ...s.messages.slice(0, parentIndex + 1),
+              fullMessage,
+              ...s.messages.slice(parentIndex + 1),
+            ]
+            return { ...s, messages: newMessages, timestamp: Date.now() }
+          }),
+        }))
+        return fullMessage.id
+      },
+
       updateMessage: (messageId, patch) => {
         const { currentSessionId } = get()
         if (!currentSessionId) return
@@ -198,6 +235,7 @@ export const useSessionStore = create<SessionState>()(
           id: crypto.randomUUID(),
           slides: session.slides ?? [],
           pinned: session.pinned === true,
+          icon: session.icon,
           messages: session.messages.map((m) => ({
             ...m,
             id: m.id || crypto.randomUUID(),
@@ -214,7 +252,15 @@ export const useSessionStore = create<SessionState>()(
         if (!currentSessionId) return
         set((state) => ({
           sessions: state.sessions.map((s) =>
-            s.id === currentSessionId ? { ...s, messages: [] } : s
+            s.id === currentSessionId 
+              ? { 
+                  ...s, 
+                  messages: [],
+                  compactedContext: undefined,
+                  compactedAt: undefined,
+                  lastCompactedIndex: undefined,
+                } 
+              : s
           ),
         }))
       },
@@ -229,6 +275,15 @@ export const useSessionStore = create<SessionState>()(
             if (msgIndex === -1) return s
             return { ...s, messages: s.messages.slice(0, msgIndex) }
           }),
+        }))
+      },
+
+      deleteMessage: (messageId) => {
+        set((state) => ({
+          sessions: state.sessions.map((s) => ({
+            ...s,
+            messages: s.messages.filter((m) => m.id !== messageId),
+          })),
         }))
       },
 
@@ -283,6 +338,13 @@ export const useSessionStore = create<SessionState>()(
         set((state) => ({
           sessions: state.sessions.map((s) =>
             s.id === id ? { ...s, title } : s
+          ),
+        })),
+
+      setSessionIcon: (id, icon) =>
+        set((state) => ({
+          sessions: state.sessions.map((s) =>
+            s.id === id ? { ...s, icon } : s
           ),
         })),
 
