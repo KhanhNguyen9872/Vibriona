@@ -26,19 +26,6 @@ export const applyDelta = (
 
   // CASE 1: CREATE (Replace All)
   if (action === 'create') {
-    // 🛡️ SAFETY GUARD: Prevent AI from wiping existing slides accidentally
-    if (currentSlides.length > 0) {
-      console.warn('Safety Guard: AI attempted "create" action on existing deck. Converting to "append" to prevent data loss.')
-      // Force convert to append instead of wiping data
-      const currentNumbers = new Set(currentSlides.map(s => s.slide_number))
-      const newUnique = incomingSlides.filter(s => !currentNumbers.has(s.slide_number))
-      const markedNew = options.markActions
-        ? newUnique.map(s => ({ ...s, _actionMarker: 'append' as const }))
-        : newUnique
-      return [...currentSlides, ...markedNew].sort((a, b) => a.slide_number - b.slide_number)
-    }
-
-    // Normal create flow when no slides exist
     return options.markActions
       ? incomingSlides.map(s => ({ ...s, _actionMarker: 'create' as const }))
       : incomingSlides
