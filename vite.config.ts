@@ -29,7 +29,7 @@ export default defineConfig({
         stringArray: true,
         stringArrayCallsTransform: true, // Tắt để tăng tốc
         stringArrayCallsTransformThreshold: 1,
-        stringArrayEncoding: ['rc4'], // Đổi từ rc4 sang base64 (nhanh hơn)
+        stringArrayEncoding: ['base64'], // Đổi từ rc4 sang base64 (nhanh hơn)
         stringArrayIndexShift: true, // Tắt để tăng tốc
         stringArrayRotate: true,
         stringArrayShuffle: true, // Tắt để tăng tốc
