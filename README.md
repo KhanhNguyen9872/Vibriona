@@ -1,73 +1,130 @@
-# React + TypeScript + Vite
+<div align="center">
+  <img src="public/assets/logo.png" alt="Vibriona Logo" width="120" height="120" />
+  <h1>Vibriona</h1>
+  <p><strong>AI-Powered Presentation Generator</strong> <br /> Transform ideas into professional slides in seconds.</p>
+</div>
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+<div align="center">
 
-Currently, two official plugins are available:
+[![Status](https://img.shields.io/badge/status-active-success.svg)]()
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![GitHub Issues](https://img.shields.io/github/issues/KhanhNguyen9872/Vibriona.svg)](https://github.com/KhanhNguyen9872/Vibriona/issues)
+[![GitHub Pull Requests](https://img.shields.io/github/issues-pr/KhanhNguyen9872/Vibriona.svg)](https://github.com/KhanhNguyen9872/Vibriona/pulls)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+</div>
 
-## React Compiler
+## 🌟 Introduction
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+**Vibriona** is a modern, AI-driven web application designed to streamline the process of creating presentation scripts and slides. By leveraging the power of Large Language Models (LLMs) like **Gemini**, **Ollama**, and **OpenAI**, Vibriona allows users to generate comprehensive presentation content, visual descriptions, and speaker notes simply by describing their topic.
 
-## Expanding the ESLint configuration
+Built with performance and user experience in mind, Vibriona features a sleek, responsive interface with real-time streaming, drag-and-drop slide management, and multi-format exports.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+🔗 **Live Demo:** [vibriona.vercel.app](https://vibriona.vercel.app)
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## ✨ Key Features
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+-   **🤖 Multi-LLM Support**: Seamlessly switch between **Gemini**, **Ollama** (local), and **OpenAI** (or compatible) APIs.
+-   **💬 Interactive AI Chat**: Refine your presentation content through a conversational interface with context awareness.
+-   **📝 Smart Script Generation**: Automatically generates slide titles, content, visual descriptions, and speaker notes.
+-   **🎨 Slide Management**:
+    -   **Drag & Drop**: Reorder slides effortlessly using `@dnd-kit`.
+    -   **Layouts**: Choose from various layouts (Bullet points, Split view, Centered, etc.).
+    -   **Editing**: Inline editing for all slide elements.
+-   **📤 Export Options**:
+    -   **PowerPoint (.pptx)**: Native editable PowerPoint files using `PptxGenJS`.
+    -   **PDF**: High-quality document export via `@react-pdf/renderer`.
+    -   **Markdown / JSON**: For developer flexibility.
+-   **🌍 Internationalization**: Full support for **Vietnamese** and **English** (i18n).
+-   **🌗 Dark/Light Mode**: Beautiful UI adaptable to your preference.
+-   **📱 PWA Support**: Installable as a native-like app on mobile and desktop.
+-   **🎙️ Voice Input**: Dictate your prompts for hands-free operation.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## 🛠️ Tech Stack
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Frontend Core
+-   **[React 19](https://react.dev/)**: The latest version of the library for web and native user interfaces.
+-   **[Vite](https://vitejs.dev/)**: Next Generation Frontend Tooling.
+-   **[TypeScript](https://www.typescriptlang.org/)**: Typed JavaScript for better developer experience.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Styling & UI
+-   **[Tailwind CSS v4](https://tailwindcss.com/)**: A utility-first CSS framework (configured with `@tailwindcss/vite`).
+-   **[Framer Motion](https://www.framer.com/motion/)**: Production-ready animation library for React.
+-   **[Lucide React](https://lucide.dev/)**: Beautiful & consistent icons.
+-   **[Sonner](https://sonner.emilkowal.ski/)**: An opinionated toast component for React.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### State Management
+-   **[Zustand](https://github.com/pmndrs/zustand)**: A small, fast and scalable bearbones state-management solution.
+-   **[Zundo](https://github.com/charkour/zundo)**: Undo/Redo middleware for Zustand.
+
+### Utilities
+-   **[i18next](https://www.i18next.com/)**: Internationalization framework.
+-   **[PptxGenJS](https://gitbrent.github.io/PptxGenJS/)**: JavaScript library that creates PowerPoint presentations.
+-   **[@react-pdf/renderer](https://react-pdf.org/)**: Create PDF files using React.
+-   **[@dnd-kit](https://dndkit.com/)**: A lightweight, performant, accessible and extensible drag & drop toolkit for React.
+-   **[React Markdown](https://github.com/remarkjs/react-markdown)**: Markdown rendering in React.
+
+## 🚀 Getting Started
+
+Follow these steps to set up the project locally.
+
+### Prerequisites
+-   **Node.js**: Version 18 or higher recommended.
+-   **npm** or **yarn**.
+
+### Installation
+
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/KhanhNguyen9872/Vibriona.git
+    cd Vibriona
+    ```
+
+2.  **Install dependencies**:
+    ```bash
+    npm install
+    # or
+    yarn install
+    ```
+
+3.  **Start the development server**:
+    ```bash
+    npm run dev
+    ```
+
+4.  **Open your browser**:
+    Navigate to `http://localhost:5173` (or the port shown in your terminal).
+
+## 📖 Usage
+
+1.  **Configure API**: Click the **Settings** icon (bottom left) to select your AI text model provider.
+    -   *Gemini*: Requires an API Key.
+    -   *Ollama*: Ensure your local Ollama instance is running (default: `http://localhost:11434`).
+    -   *OpenAI*: Enter your API Key and Endpoint.
+2.  **Create a New Project**: Click "New Project" or start typing in the chat.
+3.  **Generate Slides**: Describe your topic (e.g., "Create a 5-slide presentation about the future of AI").
+4.  **Edit & Refine**: Use the slide panel (right side) to edit text, reorder slides, or change layouts.
+5.  **Export**: Click the Export button to download your presentation as a `.pptx` or `.pdf` file.
+
+## 🤝 Contributing
+
+Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+
+1.  Fork the Project
+2.  Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3.  Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4.  Push to the Branch (`git push origin feature/AmazingFeature`)
+5.  Open a Pull Request
+
+## 📄 License
+
+Distributed under the Apache-2.0 License. See `LICENSE` for more information.
+
+## ✍️ Author
+
+**Nguyễn Văn Khánh** (KhanhNguyen9872)
+
+-   GitHub: [@KhanhNguyen9872](https://github.com/KhanhNguyen9872)
+
+---
+
+<p align="center">Made with ❤️ using Vibriona</p>
